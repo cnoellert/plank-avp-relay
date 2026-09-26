@@ -58,7 +58,9 @@ movement and pressure returned immediately on wake. DNS-SD, Bluetooth LE, and
 production packaging remain. During an active session, unplugging the tablet's
 USB cable and reconnecting it also recovered without restarting PLANK: movement
 returned first, followed a few seconds later by tip clicks and varying
-pressure.
+pressure. Restarting the Relay service while the pen tip was held down in
+GNOME's tablet test area ended that stroke cleanly; new pen input worked after
+the link reconnected. The Host showed one Wacom device set after recovery.
 
 Development service entry points (use the Relay service account that owns the
 0700 state directory, and confirm the Pad key order before physical pairing):
