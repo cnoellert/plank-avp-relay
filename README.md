@@ -9,7 +9,8 @@ Host session; the Relay has no Host credentials.
 and the Client's raw Wacom worker is vendored and build-checked on Linux. The
 Noise IK handshake and transport module passes the published Noise-C vector
 for the specified cipher suite, including encrypted traffic in both
-directions. The worker is not yet connected to a daemon or a Vision Pro. There
+directions. A Relay-side session gate enforces `HELLO`, `SESSION_READY`,
+reconnect and end ordering. The worker is not yet connected to a daemon or a Vision Pro. There
 is no listener or pairing service; do not expose a network port for this
 prototype. CPace pairing, the complete secure link, Bluetooth LE, and
 operational packaging remain to be implemented and qualified.
