@@ -49,6 +49,15 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_compile_features(plank_wacom_worker PUBLIC cxx_std_17)
     target_link_libraries(plank_wacom_worker PUBLIC PkgConfig::UDEV Threads::Threads)
 
+    add_library(plank_relay_worker_bridge STATIC src/worker_bridge.cpp)
+    target_include_directories(plank_relay_worker_bridge PUBLIC src)
+    target_compile_features(plank_relay_worker_bridge PUBLIC cxx_std_17)
+    target_link_libraries(plank_relay_worker_bridge PUBLIC plank_wacom_worker plank_relay_protocol)
+
+    add_executable(worker_bridge_test tests/worker_bridge_test.cpp)
+    target_link_libraries(worker_bridge_test PRIVATE plank_relay_worker_bridge)
+    add_test(NAME worker_bridge_test COMMAND worker_bridge_test)
+
     if(SODIUM_FOUND)
         add_library(plank_relay_noise STATIC src/noise.c)
         target_include_directories(plank_relay_noise PUBLIC src)

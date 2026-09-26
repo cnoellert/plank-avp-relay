@@ -3,6 +3,10 @@
 
 #include "cpace.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // Direction-specific confirmation tags over the ordered pairing transcript.
 // The Client sends its tag in PAIR_CONFIRM; the Relay sends its tag only after
 // validating the Client tag in PAIR_RESULT. No static key is persisted before
@@ -23,4 +27,7 @@ int pltr_pair_confirmation_verify(const uint8_t intermediate_key[64],
                                    const uint8_t relay_share[32],
                                    const uint8_t *relay_ad, size_t relay_ad_size,
                                    const uint8_t tag[32]);
+#ifdef __cplusplus
+}
+#endif
 #endif

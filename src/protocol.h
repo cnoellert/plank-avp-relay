@@ -4,6 +4,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define PLTR_MAGIC 0x504c5452u
 #define PLTR_VERSION 1u
 #define PLTR_HEADER_SIZE 16u
@@ -83,5 +87,9 @@ int pltr_encode_frame(uint16_t type, uint32_t sequence,
 int pltr_decode_record(const uint8_t *bytes, size_t size,
                        PltrDirection direction, PltrPhase phase,
                        uint32_t expected_sequence, PltrFrame *out);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

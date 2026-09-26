@@ -4,6 +4,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define PLTR_MAX_PAIRED_CLIENTS 16u
 
 typedef struct PltrIdentityStore {
@@ -25,5 +29,9 @@ int pltr_identity_store_add(PltrIdentityStore *store,
                             const uint8_t public_key[32]);
 int pltr_identity_store_remove(PltrIdentityStore *store,
                                const uint8_t public_key[32]);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

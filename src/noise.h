@@ -4,6 +4,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define PLTR_NOISE_KEY_SIZE 32u
 #define PLTR_NOISE_HASH_SIZE 64u
 #define PLTR_NOISE_TAG_SIZE 16u
@@ -57,6 +61,10 @@ int pltr_noise_init_test(PltrNoise *state, PltrNoiseRole role,
                          const uint8_t remote_static_key[32],
                          const uint8_t *prologue, size_t prologue_size);
 void pltr_noise_set_ephemeral_test(PltrNoise *state, const uint8_t private_key[32]);
+#endif
+
+#ifdef __cplusplus
+}
 #endif
 
 #endif

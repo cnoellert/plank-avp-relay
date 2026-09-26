@@ -3,6 +3,10 @@
 
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct PltrPad {
     int fd;
     uint8_t held[8];
@@ -28,5 +32,9 @@ int pltr_pad_feed(PltrPad *pad, unsigned code, int value,
 // Holding keys 1 and 8 together emits 1 after 5 seconds (open pairing),
 // then 2 after 15 seconds (forget all). Each action fires once per hold.
 int pltr_pad_chord(PltrPad *pad, uint64_t now_ms);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

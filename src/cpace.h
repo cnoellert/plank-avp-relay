@@ -4,6 +4,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define PLTR_CPACE_SHARE_SIZE 32u
 #define PLTR_CPACE_KEY_SIZE 64u
 #define PLTR_CPACE_SID_SIZE 16u
@@ -39,6 +43,10 @@ int pltr_cpace_start_test(PltrCpace *state, PltrCpaceRole role,
                            const uint8_t sid[16], const uint8_t *ad,
                            size_t ad_size, const uint8_t scalar[32],
                            uint8_t share[32], uint8_t generator[32]);
+#endif
+
+#ifdef __cplusplus
+}
 #endif
 
 #endif

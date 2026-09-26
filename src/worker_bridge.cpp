@@ -1,0 +1,102 @@
+#include "worker_bridge.hpp"
+#include "protocol.h"
+#include "../vendor/plank-client/plank.h"
+
+#include <algorithm>
+#include <array>
+#include <ctime>
+#include <limits>
+#include <utility>
+
+static std::uint16_t le16(const std::uint8_t *bytes) {
+    return std::uint16_t(bytes[0]) | (std::uint16_t(bytes[1]) << 8);
+}
+
+static std::uint64_t monotonic_us() {
+    timespec t{};
+    if (clock_gettime(CLOCK_MONOTONIC, &t) != 0) return 0;
+    return std::uint64_t(t.tv_sec) * 1000000 + std::uint64_t(t.tv_nsec) / 1000;
+}
+
+PltrWorkerBridge::PltrWorkerBridge(std::function<void()> wake)
+    : wake_(std::move(wake)) {
+    worker_ = std::make_unique<LinuxRawWacomInput>(
+        [this](const unsigned char *bytes, std::size_t size) {
+            return enqueue(bytes, size);
+        },
+        [] {},
+        [](LinuxRawWacomInput::LogLevel, const std::string &) {});
+}
+
+PltrWorkerBridge::~PltrWorkerBridge() {
+    worker_.reset(); // joins and releases the physical tablet before queue dies
+    std::lock_guard<std::mutex> lock(mutex_);
+    queue_.clear();
+    queued_bytes_ = 0;
+}
+
+void PltrWorkerBridge::markFailed() {
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        failed_ = true;
+    }
+    if (wake_) wake_();
+}
+
+void PltrWorkerBridge::setActive(bool active) { worker_->setActive(active); }
+void PltrWorkerBridge::beginReconnect() { worker_->beginReconnect(); }
+void PltrWorkerBridge::finishReconnect() { worker_->finishReconnect(); }
+void PltrWorkerBridge::handleControl(const std::uint8_t *bytes, std::size_t size) {
+    if (bytes == nullptr || size > std::numeric_limits<unsigned int>::max()) return;
+    worker_->handleControl(bytes, static_cast<unsigned int>(size));
+}
+
+bool PltrWorkerBridge::enqueue(const std::uint8_t *bytes, std::size_t size) {
+    if (bytes == nullptr || size < sizeof(PLANK_RAW_HID_WIRE_HEADER) ||
+        size > PLTR_MAX_PAYLOAD_SIZE - 8) {
+        markFailed();
+        return false;
+    }
+    const std::uint64_t captured = le16(bytes + 6) == PLANK_RAW_HID_INPUT ?
+                                   monotonic_us() : 0;
+    std::array<std::uint8_t, PLTR_MAX_PAYLOAD_SIZE> payload{};
+    for (unsigned i = 0; i < 8; ++i)
+        payload[i] = static_cast<std::uint8_t>(captured >> (i * 8));
+    std::copy(bytes, bytes + size, payload.begin() + 8);
+    std::array<std::uint8_t, PLTR_MAX_FRAME_SIZE> scratch{};
+    std::size_t written;
+    if (pltr_encode_frame(PLTR_CLIENT_FRAME, 1, payload.data(), size + 8,
+                          PLTR_RELAY_TO_CLIENT, PLTR_SECURE,
+                          scratch.data(), scratch.size(), &written) != 0) {
+        markFailed();
+        return false;
+    }
+    bool accepted = false;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (failed_ || queue_.size() >= MaxFrames ||
+            size + 8 > MaxBytes - queued_bytes_) {
+            failed_ = true;
+        } else {
+            queue_.push_back({captured, std::vector<std::uint8_t>(bytes, bytes + size)});
+            queued_bytes_ += size + 8;
+            accepted = true;
+        }
+    }
+    if (wake_) wake_();
+    return accepted;
+}
+
+bool PltrWorkerBridge::pop(PltrQueuedTabletFrame &frame) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (queue_.empty()) return false;
+    frame = std::move(queue_.front());
+    queue_.pop_front();
+    queued_bytes_ -= frame.plwh.size() + 8;
+    return true;
+}
+
+bool PltrWorkerBridge::failed() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return failed_;
+}

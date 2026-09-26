@@ -4,6 +4,10 @@
 #include "cpace.h"
 #include "identity.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef enum PltrPairStage {
     PLTR_PAIR_CLOSED = 1,
     PLTR_PAIR_WINDOW = 2,
@@ -48,5 +52,9 @@ int pltr_pairing_key(PltrPairing *pairing, uint8_t key,
 int pltr_pairing_confirm(PltrPairing *pairing, const uint8_t tag[32],
                          uint64_t now_ms, uint8_t result[33],
                          size_t *result_size);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

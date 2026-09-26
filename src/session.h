@@ -3,6 +3,10 @@
 
 #include "protocol.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef enum PltrRelayStage {
     PLTR_RELAY_WAIT_HELLO = 1,
     PLTR_RELAY_WAIT_READY = 2,
@@ -24,5 +28,9 @@ void pltr_relay_session_init(PltrRelaySession *session,
 // the session enters BROKEN and the link must close. out points into bytes.
 int pltr_relay_session_accept(PltrRelaySession *session, const uint8_t *bytes,
                               size_t size, PltrFrame *out);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

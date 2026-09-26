@@ -27,6 +27,10 @@ Client connection, Bluetooth LE, and packaging remain to be implemented.
 The NUC's Wacom Pad evdev node is readable by the `plank-relay` service user;
 the provisional ExpressKey mapping and 5/15-second hold detector are compiled
 and simulated, pending a physical key-order check.
+The existing raw-Wacom worker now has a bounded, validated output queue for
+the network thread. Worker overflow marks the link failed instead of dropping
+individual tablet reports. The socket dispatcher and Host control routing are
+still outstanding.
 
 Build and test:
 

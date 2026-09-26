@@ -5,6 +5,10 @@
 #include "protocol.h"
 #include "session.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef enum PltrLinkStage {
     PLTR_LINK_WAIT_OPEN = 1,
     PLTR_LINK_WAIT_FIRST = 2,
@@ -61,5 +65,9 @@ int pltr_link_receive(PltrLink *link, const uint8_t *bytes, size_t size,
 int pltr_link_send(PltrLink *link, uint16_t type,
                    const uint8_t *payload, size_t payload_size,
                    uint8_t *out, size_t capacity, size_t *written);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
