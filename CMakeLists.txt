@@ -119,6 +119,25 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         add_executable(pairing_test tests/pairing_test.c)
         target_link_libraries(pairing_test PRIVATE plank_relay_pairing)
         add_test(NAME pairing_test COMMAND pairing_test)
+
+        add_library(plank_relay_session_dispatcher STATIC src/session_dispatcher.cpp)
+        target_include_directories(plank_relay_session_dispatcher PUBLIC src)
+        target_compile_features(plank_relay_session_dispatcher PUBLIC cxx_std_17)
+        target_link_libraries(plank_relay_session_dispatcher PUBLIC plank_relay_worker_bridge plank_relay_link)
+
+        add_executable(session_dispatcher_test tests/session_dispatcher_test.cpp)
+        target_link_libraries(session_dispatcher_test PRIVATE plank_relay_session_dispatcher)
+        add_test(NAME session_dispatcher_test COMMAND session_dispatcher_test)
+
+        add_library(plank_relay_tcp_session STATIC src/tcp_session.cpp)
+        target_include_directories(plank_relay_tcp_session PUBLIC src)
+        target_compile_features(plank_relay_tcp_session PUBLIC cxx_std_17)
+        target_link_libraries(plank_relay_tcp_session PUBLIC
+            plank_relay_session_dispatcher plank_relay_identity)
+
+        add_executable(tcp_session_test tests/tcp_session_test.cpp)
+        target_link_libraries(tcp_session_test PRIVATE plank_relay_tcp_session)
+        add_test(NAME tcp_session_test COMMAND tcp_session_test)
     else()
         message(STATUS "Noise tests disabled: libsodium 1.0.19 or newer not found")
     endif()

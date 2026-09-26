@@ -29,8 +29,14 @@ the provisional ExpressKey mapping and 5/15-second hold detector are compiled
 and simulated, pending a physical key-order check.
 The existing raw-Wacom worker now has a bounded, validated output queue for
 the network thread. Worker overflow marks the link failed instead of dropping
-individual tablet reports. The socket dispatcher and Host control routing are
-still outstanding.
+individual tablet reports. An authenticated session dispatcher routes Client
+control frames into that worker and encrypts queued tablet frames. A
+single-connection TCP driver has bounded writes, handshake and heartbeat
+deadlines, clean end handling, and a stop descriptor. A real socket test covers
+the Noise handshake, initial status, session start and end, and rejection of an
+unpaired Client. There is still no listener or discovery; the initial status
+reports no owned tablet until live worker status is wired. The physical
+tablet-to-Vision-Pro path has not been exercised.
 
 Build and test:
 

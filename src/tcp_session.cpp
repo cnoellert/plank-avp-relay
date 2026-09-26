@@ -1,0 +1,180 @@
+#include "tcp_session.hpp"
+
+#include "link.h"
+#include "session_dispatcher.hpp"
+
+#include <array>
+#include <chrono>
+#include <cerrno>
+#include <cstdint>
+#include <cstring>
+#include <poll.h>
+#include <sys/eventfd.h>
+#include <sys/socket.h>
+#include <unistd.h>
+
+namespace {
+using Clock = std::chrono::steady_clock;
+
+std::uint64_t monotonic_us() {
+    return std::chrono::duration_cast<std::chrono::microseconds>(
+               Clock::now().time_since_epoch()).count();
+}
+
+void write_le64(std::uint8_t *out, std::uint64_t value) {
+    for (unsigned i = 0; i < 8; ++i)
+        out[i] = static_cast<std::uint8_t>(value >> (8 * i));
+}
+
+bool send_all(int fd, const std::uint8_t *bytes, std::size_t size) {
+    const auto deadline = Clock::now() + std::chrono::seconds(1);
+    while (size != 0) {
+        const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
+            deadline - Clock::now()).count();
+        if (remaining <= 0) return false;
+        pollfd pfd{fd, POLLOUT, 0};
+        const int ready = poll(&pfd, 1, static_cast<int>(remaining));
+        if (ready < 0 && errno == EINTR) continue;
+        if (ready <= 0 || (pfd.revents & (POLLERR | POLLHUP | POLLNVAL)))
+            return false;
+        const ssize_t sent = send(fd, bytes, size, MSG_DONTWAIT | MSG_NOSIGNAL);
+        if (sent < 0 && (errno == EAGAIN || errno == EINTR)) continue;
+        if (sent <= 0) return false;
+        bytes += sent;
+        size -= static_cast<std::size_t>(sent);
+    }
+    return true;
+}
+
+bool send_frame(PltrLink &link, int fd, std::uint16_t type,
+                const std::uint8_t *payload, std::size_t payload_size) {
+    std::array<std::uint8_t, 2 + PLTR_MAX_RECORD_BODY_SIZE> output{};
+    std::size_t written = 0;
+    return pltr_link_send(&link, type, payload, payload_size,
+                          output.data(), output.size(), &written) == 0 &&
+           send_all(fd, output.data(), written);
+}
+
+bool send_initial_status(PltrLink &link, int fd) {
+    // Until worker state notifications are wired, report no owned tablet.
+    const std::uint8_t status[] = {0, 0, 0, 0, 0, 0, 1, 0};
+    return send_frame(link, fd, PLTR_STATUS, status, sizeof(status));
+}
+} // namespace
+
+int pltr_run_tcp_session(int socket_fd, PltrIdentityStore &store, int stop_fd) {
+    if (socket_fd < 0 || store.directory_fd < 0 ||
+        (stop_fd >= 0 && stop_fd == socket_fd)) return -1;
+    PltrLink link{};
+    if (pltr_link_init(&link, PLTR_NOISE_RESPONDER, store.private_key,
+                       nullptr, pltr_identity_store_approve, &store, 2) != 0)
+        return -1;
+    const int wake_fd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+    if (wake_fd < 0) {
+        pltr_link_clear(&link);
+        return -1;
+    }
+    int result = -1;
+    {
+        PltrSessionDispatcher dispatcher([wake_fd] {
+            const std::uint64_t one = 1;
+            (void)write(wake_fd, &one, sizeof(one));
+        });
+        auto last_receive = Clock::now();
+        auto last_ping = last_receive;
+        bool hello_seen = false;
+        std::array<std::uint8_t, 4096> input{};
+        std::array<std::uint8_t, 2 * (2 + PLTR_MAX_RECORD_BODY_SIZE)> reply{};
+        std::array<std::uint8_t, 2 + PLTR_MAX_RECORD_BODY_SIZE> output{};
+        while (true) {
+            const auto now = Clock::now();
+            if (now - last_receive > (hello_seen ? std::chrono::seconds(3) :
+                                                   std::chrono::seconds(10))) break;
+            if (dispatcher.failed()) break;
+            if (hello_seen && now - last_ping >= std::chrono::seconds(1)) {
+                std::uint8_t ping[16] = {};
+                write_le64(ping, monotonic_us());
+                write_le64(ping + 8, monotonic_us());
+                if (!send_frame(link, socket_fd, PLTR_PING, ping, sizeof(ping))) break;
+                last_ping = now;
+            }
+            if (hello_seen && link.relay_session.stage == PLTR_RELAY_READY) {
+                bool output_failed = false;
+                for (unsigned i = 0; i < 256; ++i) {
+                    std::size_t written = 0;
+                    const int next = dispatcher.next(link, output.data(),
+                                                      output.size(), &written);
+                    if (next == 0) break;
+                    if (next < 0 || !send_all(socket_fd, output.data(), written)) {
+                        output_failed = true;
+                        break;
+                    }
+                }
+                if (output_failed) break;
+            }
+            pollfd fds[3] = {{socket_fd, POLLIN, 0}, {wake_fd, POLLIN, 0},
+                             {stop_fd, POLLIN, 0}};
+            const nfds_t count = stop_fd >= 0 ? 3 : 2;
+            const int ready = poll(fds, count, 100);
+            if (ready < 0 && errno == EINTR) continue;
+            if (ready < 0 || (stop_fd >= 0 && fds[2].revents != 0) ||
+                (fds[0].revents & (POLLERR | POLLNVAL)) ||
+                ((fds[0].revents & POLLHUP) && !(fds[0].revents & POLLIN))) break;
+            if (fds[1].revents & POLLIN) {
+                std::uint64_t count_value;
+                (void)read(wake_fd, &count_value, sizeof(count_value));
+            }
+            if (!(fds[0].revents & POLLIN)) continue;
+            const ssize_t received = recv(socket_fd, input.data(), input.size(),
+                                           MSG_DONTWAIT);
+            if (received < 0 && (errno == EAGAIN || errno == EINTR)) continue;
+            if (received <= 0) break;
+            last_receive = Clock::now();
+            std::size_t offset = 0;
+            bool invalid = false;
+            while (offset < static_cast<std::size_t>(received)) {
+                std::size_t consumed = 0, reply_size = 0;
+                PltrFrame frame{};
+                const int handled = pltr_link_receive(
+                    &link, input.data() + offset,
+                    static_cast<std::size_t>(received) - offset, &consumed,
+                    reply.data(), reply.size(), &reply_size, &frame);
+                if (handled < 0 || consumed == 0 ||
+                    (reply_size && !send_all(socket_fd, reply.data(), reply_size))) {
+                    invalid = true;
+                    break;
+                }
+                offset += consumed;
+                if (handled == 0) continue;
+                if (!hello_seen && link.stage == PLTR_LINK_READY) {
+                    hello_seen = true;
+                    last_ping = Clock::now();
+                    if (!send_initial_status(link, socket_fd)) {
+                        invalid = true;
+                        break;
+                    }
+                }
+                if (frame.type == PLTR_PING) {
+                    std::uint8_t pong[32];
+                    std::memcpy(pong, frame.payload, 16);
+                    write_le64(pong + 16, monotonic_us());
+                    write_le64(pong + 24, monotonic_us());
+                    if (!send_frame(link, socket_fd, PLTR_PONG,
+                                    pong, sizeof(pong))) invalid = true;
+                } else if (frame.type != 0 && !dispatcher.accept(frame)) {
+                    invalid = true;
+                }
+                if (invalid) break;
+                if (link.stage == PLTR_LINK_CLOSED) {
+                    result = 0;
+                    break;
+                }
+            }
+            if (invalid || result == 0) break;
+        }
+        dispatcher.close();
+    }
+    close(wake_fd);
+    pltr_link_clear(&link);
+    return result;
+}

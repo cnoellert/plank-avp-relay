@@ -67,6 +67,7 @@ static int valid_plwh(const uint8_t *bytes, size_t size,
     if (size < sizeof(PLANK_RAW_HID_WIRE_HEADER) ||
         read_le32(bytes) != PLANK_RAW_HID_WIRE_MAGIC ||
         read_le16(bytes + 4) != PLANK_RAW_HID_WIRE_VERSION ||
+        read_le16(bytes + 8) >= PLANK_RAW_HID_MAX_INTERFACES ||
         read_le32(bytes + 16) > PLANK_RAW_HID_MAX_PAYLOAD_SIZE ||
         read_le32(bytes + 16) != size - sizeof(PLANK_RAW_HID_WIRE_HEADER)) return 0;
     const uint16_t type = read_le16(bytes + 6);

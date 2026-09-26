@@ -92,6 +92,9 @@ int main(void) {
     le32(hid, PLANK_RAW_HID_WIRE_MAGIC); le16(hid + 4, PLANK_RAW_HID_WIRE_VERSION);
     le16(hid + 6, PLANK_RAW_HID_GET_REPORT);
     check(PLTR_HOST_FRAME, PLTR_CLIENT_TO_RELAY, PLTR_SECURE, hid, sizeof(hid), 1);
+    le16(hid + 8, PLANK_RAW_HID_MAX_INTERFACES);
+    check(PLTR_HOST_FRAME, PLTR_CLIENT_TO_RELAY, PLTR_SECURE, hid, sizeof(hid), 0);
+    le16(hid + 8, 0);
     le32(hid + 16, 1);
     check(PLTR_HOST_FRAME, PLTR_CLIENT_TO_RELAY, PLTR_SECURE, hid, sizeof(hid), 0);
     le32(hid + 16, 0); le16(hid + 6, PLANK_RAW_HID_INPUT);
