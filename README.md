@@ -50,7 +50,10 @@ On the development NUC and a physical Vision Pro, local TCP pairing completed
 with the five ExpressKeys. A live PLANK session then carried pen motion, tip and
 side buttons, and varying pressure into GNOME Settings and Autodesk Flame.
 The tablet stopped controlling Linux when PLANK lost focus and resumed when it
-became active. DNS-SD, Bluetooth LE, and production packaging remain.
+became active. The Client also resumed pen clicks and pressure after the Relay
+service restarted during a session. After a full NUC reboot, the service
+started automatically and a fresh Vision Pro session again carried pen clicks
+and varying pressure. DNS-SD, Bluetooth LE, and production packaging remain.
 
 Development service entry points (use the Relay service account that owns the
 0700 state directory, and confirm the Pad key order before physical pairing):
