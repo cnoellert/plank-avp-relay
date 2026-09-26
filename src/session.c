@@ -28,7 +28,8 @@ int pltr_relay_session_accept(PltrRelaySession *session, const uint8_t *bytes,
             session->active = out->payload[4];
             session->stage = PLTR_RELAY_READY;
         } else if (out->type != PLTR_PING && out->type != PLTR_PONG &&
-                   out->type != PLTR_GOODBYE) goto invalid;
+                   out->type != PLTR_GOODBYE &&
+                   out->type != PLTR_SESSION_END) goto invalid;
         break;
     case PLTR_RELAY_READY:
         if (out->type == PLTR_SESSION_ACTIVE) {

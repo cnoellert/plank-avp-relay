@@ -12,6 +12,15 @@ static uint32_t read_le32(const uint8_t *bytes) {
            ((uint32_t)bytes[2] << 16) | ((uint32_t)bytes[3] << 24);
 }
 
+static void write_le16(uint8_t *bytes, uint16_t value) {
+    bytes[0] = (uint8_t)value;
+    bytes[1] = (uint8_t)(value >> 8);
+}
+
+static void write_le32(uint8_t *bytes, uint32_t value) {
+    for (unsigned i = 0; i < 4; ++i) bytes[i] = (uint8_t)(value >> (8 * i));
+}
+
 static int valid_utf8(const uint8_t *bytes, size_t size) {
     for (size_t i = 0; i < size;) {
         const uint8_t first = bytes[i++];
@@ -234,6 +243,27 @@ int pltr_decode_frame(const uint8_t *bytes, size_t size,
     out->sequence = expected_sequence;
     out->payload = bytes + PLTR_HEADER_SIZE;
     out->payload_size = payload_size;
+    return 0;
+}
+
+int pltr_encode_frame(uint16_t type, uint32_t sequence,
+                      const uint8_t *payload, size_t payload_size,
+                      PltrDirection direction, PltrPhase phase,
+                      uint8_t *out, size_t capacity, size_t *written) {
+    if (out == NULL || written == NULL ||
+        (payload == NULL && payload_size != 0) ||
+        sequence == 0 || sequence == UINT32_MAX ||
+        payload_size > PLTR_MAX_PAYLOAD_SIZE ||
+        capacity < PLTR_HEADER_SIZE + payload_size ||
+        !allowed_type(type, direction, phase) ||
+        !valid_payload(type, payload, payload_size, direction)) return -1;
+    write_le32(out, PLTR_MAGIC);
+    write_le16(out + 4, PLTR_VERSION);
+    write_le16(out + 6, type);
+    write_le32(out + 8, sequence);
+    write_le32(out + 12, (uint32_t)payload_size);
+    if (payload_size) memcpy(out + PLTR_HEADER_SIZE, payload, payload_size);
+    *written = PLTR_HEADER_SIZE + payload_size;
     return 0;
 }
 

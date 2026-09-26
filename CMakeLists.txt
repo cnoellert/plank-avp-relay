@@ -70,6 +70,26 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         target_include_directories(confirm_test PRIVATE src)
         target_link_libraries(confirm_test PRIVATE plank_relay_confirm)
         add_test(NAME confirm_test COMMAND confirm_test)
+
+        add_library(plank_relay_link STATIC src/link.c)
+        target_include_directories(plank_relay_link PUBLIC src)
+        target_compile_features(plank_relay_link PUBLIC c_std_11)
+        target_link_libraries(plank_relay_link PUBLIC plank_relay_protocol plank_relay_noise PkgConfig::SODIUM)
+
+        add_executable(link_test tests/link_test.c)
+        target_link_libraries(link_test PRIVATE plank_relay_link)
+        add_test(NAME link_test COMMAND link_test)
+
+        add_library(plank_relay_identity STATIC src/identity.c)
+        target_include_directories(plank_relay_identity PUBLIC src)
+        target_compile_features(plank_relay_identity PUBLIC c_std_11)
+        target_link_libraries(plank_relay_identity PUBLIC plank_relay_noise PkgConfig::SODIUM)
+
+        target_link_libraries(link_test PRIVATE plank_relay_identity)
+
+        add_executable(identity_test tests/identity_test.c)
+        target_link_libraries(identity_test PRIVATE plank_relay_identity)
+        add_test(NAME identity_test COMMAND identity_test)
     else()
         message(STATUS "Noise tests disabled: libsodium 1.0.19 or newer not found")
     endif()

@@ -71,6 +71,12 @@ int pltr_decode_frame(const uint8_t *bytes, size_t size,
                       PltrDirection direction, PltrPhase phase,
                       uint32_t expected_sequence, PltrFrame *out);
 
+// Encode a validated frame. The sequence must start at 1 and never wrap.
+int pltr_encode_frame(uint16_t type, uint32_t sequence,
+                      const uint8_t *payload, size_t payload_size,
+                      PltrDirection direction, PltrPhase phase,
+                      uint8_t *out, size_t capacity, size_t *written);
+
 // Decode a complete length-prefixed plaintext record before the Noise
 // handshake. For encrypted records, decrypt first and pass the resulting
 // plaintext PLTR frame to pltr_decode_frame instead.
