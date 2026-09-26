@@ -53,7 +53,12 @@ The tablet stopped controlling Linux when PLANK lost focus and resumed when it
 became active. The Client also resumed pen clicks and pressure after the Relay
 service restarted during a session. After a full NUC reboot, the service
 started automatically and a fresh Vision Pro session again carried pen clicks
-and varying pressure. DNS-SD, Bluetooth LE, and production packaging remain.
+and varying pressure. After the headset was removed for one minute, pen
+movement and pressure returned immediately on wake. DNS-SD, Bluetooth LE, and
+production packaging remain. During an active session, unplugging the tablet's
+USB cable and reconnecting it also recovered without restarting PLANK: movement
+returned first, followed a few seconds later by tip clicks and varying
+pressure.
 
 Development service entry points (use the Relay service account that owns the
 0700 state directory, and confirm the Pad key order before physical pairing):
