@@ -2,6 +2,7 @@
 
 #include "link.h"
 #include "session_dispatcher.hpp"
+#include "tcp_io.hpp"
 
 #include <array>
 #include <chrono>
@@ -26,33 +27,13 @@ void write_le64(std::uint8_t *out, std::uint64_t value) {
         out[i] = static_cast<std::uint8_t>(value >> (8 * i));
 }
 
-bool send_all(int fd, const std::uint8_t *bytes, std::size_t size) {
-    const auto deadline = Clock::now() + std::chrono::seconds(1);
-    while (size != 0) {
-        const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
-            deadline - Clock::now()).count();
-        if (remaining <= 0) return false;
-        pollfd pfd{fd, POLLOUT, 0};
-        const int ready = poll(&pfd, 1, static_cast<int>(remaining));
-        if (ready < 0 && errno == EINTR) continue;
-        if (ready <= 0 || (pfd.revents & (POLLERR | POLLHUP | POLLNVAL)))
-            return false;
-        const ssize_t sent = send(fd, bytes, size, MSG_DONTWAIT | MSG_NOSIGNAL);
-        if (sent < 0 && (errno == EAGAIN || errno == EINTR)) continue;
-        if (sent <= 0) return false;
-        bytes += sent;
-        size -= static_cast<std::size_t>(sent);
-    }
-    return true;
-}
-
 bool send_frame(PltrLink &link, int fd, std::uint16_t type,
                 const std::uint8_t *payload, std::size_t payload_size) {
     std::array<std::uint8_t, 2 + PLTR_MAX_RECORD_BODY_SIZE> output{};
     std::size_t written = 0;
     return pltr_link_send(&link, type, payload, payload_size,
                           output.data(), output.size(), &written) == 0 &&
-           send_all(fd, output.data(), written);
+           pltr_send_all(fd, output.data(), written);
 }
 
 bool send_initial_status(PltrLink &link, int fd) {
@@ -105,7 +86,7 @@ int pltr_run_tcp_session(int socket_fd, PltrIdentityStore &store, int stop_fd) {
                     const int next = dispatcher.next(link, output.data(),
                                                       output.size(), &written);
                     if (next == 0) break;
-                    if (next < 0 || !send_all(socket_fd, output.data(), written)) {
+                    if (next < 0 || !pltr_send_all(socket_fd, output.data(), written)) {
                         output_failed = true;
                         break;
                     }
@@ -140,7 +121,7 @@ int pltr_run_tcp_session(int socket_fd, PltrIdentityStore &store, int stop_fd) {
                     static_cast<std::size_t>(received) - offset, &consumed,
                     reply.data(), reply.size(), &reply_size, &frame);
                 if (handled < 0 || consumed == 0 ||
-                    (reply_size && !send_all(socket_fd, reply.data(), reply_size))) {
+                    (reply_size && !pltr_send_all(socket_fd, reply.data(), reply_size))) {
                     invalid = true;
                     break;
                 }

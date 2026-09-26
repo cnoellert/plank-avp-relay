@@ -120,7 +120,8 @@ int pltr_pair_wire_tick(PltrPairWire *wire, uint64_t now_ms,
                      out, capacity, written) < 0 ? -1 : 1;
     }
     if (wire->pairing->stage == PLTR_PAIR_CLOSED &&
-        wire->stage == PLTR_PAIR_WIRE_START)
+        (wire->stage == PLTR_PAIR_WIRE_OPEN ||
+         wire->stage == PLTR_PAIR_WIRE_START))
         return fail(wire, now_ms);
     return 0;
 }

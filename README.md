@@ -16,17 +16,17 @@ ordering. The shared link layer now joins framing, Noise IK, approved-Client
 lookup, encrypted `HELLO`, and session frames. A test exercises that flow over
 TCP bound to `127.0.0.1` and checks rejection of an unpaired key, a mismatched
 link type and altered ciphertext. A locked local identity store persists the
-Relay key and up to 16 approved Client public keys. The worker is not yet
-connected to a daemon or a Vision Pro. There is no externally reachable
-listener or pairing service; do not expose a network port for this prototype.
+Relay key and up to 16 approved Client public keys. No service is installed or
+running on the NUC yet; the development binary can bind a LAN address only
+when explicitly requested.
 The pairing engine now covers a 120-second window, five tablet keys, CPace
 confirmation, a 60-second attempt deadline, and a 10-minute lockout after
 three failures. It persists a Client key only after verifying the Client's
 confirmation tag. Its framed pairing state machine and the Client counterpart
 pass an end-to-end test: the Client pins the Relay key only after verifying the
 Relay's confirmation tag. The physical key reader is implemented but still
-needs the tablet's physical key order confirmed. Network-facing pairing I/O,
-Client connection, Bluetooth LE, and packaging remain to be implemented.
+needs the tablet's physical key order confirmed. Client connection, Bluetooth
+LE, and packaging remain to be implemented.
 The NUC's Wacom Pad evdev node is readable by the `plank-relay` service user;
 the provisional ExpressKey mapping and 5/15-second hold detector are compiled
 and simulated, pending a physical key-order check.
@@ -37,11 +37,29 @@ control frames into that worker and encrypts queued tablet frames. A
 single-connection TCP driver has bounded writes, handshake and heartbeat
 deadlines, clean end handling, and a stop descriptor. A real socket test covers
 the Noise handshake, initial status, session start and end, and rejection of an
-unpaired Client. There is still no listener or discovery; the initial status
-reports no owned tablet until live worker status is wired. The physical
-tablet-to-Vision-Pro path has not been exercised.
+unpaired Client. The `plank-tablet-relay` development command now offers
+single-connection `serve` and physical-key `pair` modes over TCP. It binds
+loopback by default and accepts a specific IPv4 bind address only when given
+explicitly. The pairing mode reserves an attempt in an owner-only, atomically
+written state file before opening the window; a ten-minute lockout survives
+command restarts. A real socket and simulated Pad-event test covers the full
+pairing exchange. DNS-SD, Bluetooth LE, live worker status, and Client UI are
+still outstanding. The initial status reports no owned tablet, and the
+physical tablet-to-Vision-Pro path has not been exercised.
 The shared Client link and pairing wrappers are also compiled into the
 unsigned native visionOS app; no connection or pairing UI calls them yet.
+
+Development service entry points (use the Relay service account that owns the
+0700 state directory, and confirm the Pad key order before physical pairing):
+
+```sh
+plank-tablet-relay pair --state-dir /var/lib/plank-tablet-relay
+plank-tablet-relay serve --state-dir /var/lib/plank-tablet-relay
+```
+
+Both default to `127.0.0.1:28990`. `--bind IPv4` explicitly selects a LAN
+address for a local-network trial. Pairing and serving are separate commands
+for this development build; a live session is not replaced by a second Client.
 
 Build and test:
 

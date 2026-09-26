@@ -125,6 +125,15 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         target_compile_features(plank_relay_identity PUBLIC c_std_11)
         target_link_libraries(plank_relay_identity PUBLIC plank_relay_noise PkgConfig::SODIUM)
 
+        add_library(plank_relay_pair_budget STATIC src/pair_budget.c)
+        target_include_directories(plank_relay_pair_budget PUBLIC src)
+        target_compile_features(plank_relay_pair_budget PUBLIC c_std_11)
+        target_link_libraries(plank_relay_pair_budget PUBLIC plank_relay_identity)
+
+        add_executable(pair_budget_test tests/pair_budget_test.c)
+        target_link_libraries(pair_budget_test PRIVATE plank_relay_pair_budget)
+        add_test(NAME pair_budget_test COMMAND pair_budget_test)
+
         target_link_libraries(link_test PRIVATE plank_relay_identity)
 
         add_executable(identity_test tests/identity_test.c)
@@ -158,6 +167,21 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         target_compile_features(plank_relay_tcp_session PUBLIC cxx_std_17)
         target_link_libraries(plank_relay_tcp_session PUBLIC
             plank_relay_session_dispatcher plank_relay_identity)
+
+        add_library(plank_relay_tcp_pair_session STATIC src/tcp_pair_session.cpp)
+        target_include_directories(plank_relay_tcp_pair_session PUBLIC src)
+        target_compile_features(plank_relay_tcp_pair_session PUBLIC cxx_std_17)
+        target_link_libraries(plank_relay_tcp_pair_session PUBLIC
+            plank_relay_pairing plank_relay_pad)
+
+        add_executable(tcp_pair_session_test tests/tcp_pair_session_test.cpp)
+        target_link_libraries(tcp_pair_session_test PRIVATE
+            plank_relay_tcp_pair_session plank_relay_client_pair)
+        add_test(NAME tcp_pair_session_test COMMAND tcp_pair_session_test)
+
+        add_executable(plank-tablet-relay src/main.cpp)
+        target_link_libraries(plank-tablet-relay PRIVATE
+            plank_relay_tcp_session plank_relay_tcp_pair_session plank_relay_pair_budget)
 
         add_executable(tcp_session_test tests/tcp_session_test.cpp)
         target_link_libraries(tcp_session_test PRIVATE plank_relay_tcp_session)
