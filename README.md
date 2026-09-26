@@ -25,8 +25,8 @@ three failures. It persists a Client key only after verifying the Client's
 confirmation tag. Its framed pairing state machine and the Client counterpart
 pass an end-to-end test: the Client pins the Relay key only after verifying the
 Relay's confirmation tag. The physical key reader is implemented but still
-needs the tablet's physical key order confirmed. Client connection, Bluetooth
-LE, and packaging remain to be implemented.
+needs the tablet's physical key order confirmed. Bluetooth LE and production
+packaging remain to be implemented.
 The NUC's Wacom Pad evdev node is readable by the `plank-relay` service user;
 the provisional ExpressKey mapping and 5/15-second hold detector are compiled
 and simulated, pending a physical key-order check.
@@ -35,7 +35,8 @@ the network thread. Worker overflow marks the link failed instead of dropping
 individual tablet reports. An authenticated session dispatcher routes Client
 control frames into that worker and encrypts queued tablet frames. A
 single-connection TCP driver has bounded writes, handshake and heartbeat
-deadlines, clean end handling, and a stop descriptor. A real socket test covers
+deadlines, clean end handling, a stop descriptor, and tablet state updates from
+the worker's Wacom and Host frames. A real socket test covers
 the Noise handshake, initial status, session start and end, and rejection of an
 unpaired Client. The `plank-tablet-relay` development command now offers
 single-connection `serve` and physical-key `pair` modes over TCP. It binds
@@ -43,11 +44,12 @@ loopback by default and accepts a specific IPv4 bind address only when given
 explicitly. The pairing mode reserves an attempt in an owner-only, atomically
 written state file before opening the window; a ten-minute lockout survives
 command restarts. A real socket and simulated Pad-event test covers the full
-pairing exchange. DNS-SD, Bluetooth LE, live worker status, and Client UI are
-still outstanding. The initial status reports no owned tablet, and the
-physical tablet-to-Vision-Pro path has not been exercised.
-The shared Client link and pairing wrappers are also compiled into the
-unsigned native visionOS app; no connection or pairing UI calls them yet.
+pairing exchange. The signed native visionOS Client now has a pairing screen,
+Keychain identity pinning, and a session link that forwards validated Wacom
+frames through the existing Host raw-HID channel. It starts the link only after
+Host tablet support is negotiated and closes it with the desktop session.
+DNS-SD, Bluetooth LE, production service packaging, physical ExpressKey order
+confirmation, and the live tablet-to-Vision-Pro test remain.
 
 Development service entry points (use the Relay service account that owns the
 0700 state directory, and confirm the Pad key order before physical pairing):

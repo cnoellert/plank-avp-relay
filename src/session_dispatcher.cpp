@@ -72,3 +72,7 @@ void PltrSessionDispatcher::close() {
 bool PltrSessionDispatcher::failed() const {
     return worker_ && worker_->failed();
 }
+
+PltrWorkerStatus PltrSessionDispatcher::status() const {
+    return worker_ ? worker_->status() : PltrWorkerStatus{};
+}

@@ -35,6 +35,31 @@ int main() {
     assert(bridge.pop(item));
     assert(item.capture_time_us != 0 && item.plwh.back() == 7);
 
+    std::uint8_t device[sizeof(PLANK_RAW_HID_WIRE_HEADER) +
+                        sizeof(PLANK_RAW_HID_DEVICE_MESSAGE)] = {};
+    le32(device, PLANK_RAW_HID_WIRE_MAGIC);
+    le16(device + 4, PLANK_RAW_HID_WIRE_VERSION);
+    le16(device + 6, PLANK_RAW_HID_DEVICE);
+    le16(device + 10, 0x1234);
+    le32(device + 16, sizeof(PLANK_RAW_HID_DEVICE_MESSAGE));
+    le16(device + sizeof(PLANK_RAW_HID_WIRE_HEADER), 2);
+    le32(device + sizeof(PLANK_RAW_HID_WIRE_HEADER) + 4, 0x056a);
+    le32(device + sizeof(PLANK_RAW_HID_WIRE_HEADER) + 8, 0x0357);
+    assert(bridge.enqueue(device, sizeof(device)));
+    const PltrWorkerStatus attaching = bridge.status();
+    assert(attaching.state == 2 && attaching.vendor == 0x056a &&
+           attaching.product == 0x0357 && attaching.interface_count == 2 &&
+           attaching.epoch != 0);
+    assert(bridge.pop(item));
+
+    std::uint8_t detach[sizeof(PLANK_RAW_HID_WIRE_HEADER)] = {};
+    le32(detach, PLANK_RAW_HID_WIRE_MAGIC);
+    le16(detach + 4, PLANK_RAW_HID_WIRE_VERSION);
+    le16(detach + 6, PLANK_RAW_HID_DETACH);
+    assert(bridge.enqueue(detach, sizeof(detach)));
+    assert(bridge.status().state == 0);
+    assert(bridge.pop(item));
+
     le16(frame + 6, PLANK_RAW_HID_SUSPEND);
     le32(frame + 16, 0);
     for (unsigned i = 0; i < 256; ++i)

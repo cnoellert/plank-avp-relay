@@ -12,6 +12,11 @@ static std::uint16_t le16(const std::uint8_t *bytes) {
     return std::uint16_t(bytes[0]) | (std::uint16_t(bytes[1]) << 8);
 }
 
+static std::uint32_t le32(const std::uint8_t *bytes) {
+    return std::uint32_t(bytes[0]) | (std::uint32_t(bytes[1]) << 8) |
+           (std::uint32_t(bytes[2]) << 16) | (std::uint32_t(bytes[3]) << 24);
+}
+
 static std::uint64_t monotonic_us() {
     timespec t{};
     if (clock_gettime(CLOCK_MONOTONIC, &t) != 0) return 0;
@@ -49,6 +54,22 @@ void PltrWorkerBridge::finishReconnect() { worker_->finishReconnect(); }
 void PltrWorkerBridge::handleControl(const std::uint8_t *bytes, std::size_t size) {
     if (bytes == nullptr || size > std::numeric_limits<unsigned int>::max()) return;
     worker_->handleControl(bytes, static_cast<unsigned int>(size));
+    if (size == sizeof(PLANK_RAW_HID_WIRE_HEADER) + sizeof(std::int32_t) &&
+        le32(bytes) == PLANK_RAW_HID_WIRE_MAGIC &&
+        le16(bytes + 4) == PLANK_RAW_HID_WIRE_VERSION &&
+        le16(bytes + 6) == PLANK_RAW_HID_ATTACH_RESULT &&
+        le32(bytes + 16) == sizeof(std::int32_t)) {
+        const std::uint8_t state = le32(bytes + sizeof(PLANK_RAW_HID_WIRE_HEADER)) == 0 ? 3 : 7;
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            if (generation_ != 0 && le16(bytes + 10) == generation_ &&
+                status_.state != state) {
+                status_.state = state;
+                ++status_.epoch;
+            }
+        }
+        if (wake_) wake_();
+    }
 }
 
 bool PltrWorkerBridge::enqueue(const std::uint8_t *bytes, std::size_t size) {
@@ -81,6 +102,32 @@ bool PltrWorkerBridge::enqueue(const std::uint8_t *bytes, std::size_t size) {
             queue_.push_back({captured, std::vector<std::uint8_t>(bytes, bytes + size)});
             queued_bytes_ += size + 8;
             accepted = true;
+            const std::uint16_t type = le16(bytes + 6);
+            std::uint8_t next_state = status_.state;
+            if (type == PLANK_RAW_HID_DEVICE &&
+                size >= sizeof(PLANK_RAW_HID_WIRE_HEADER) +
+                        sizeof(PLANK_RAW_HID_DEVICE_MESSAGE)) {
+                const std::uint8_t *device = bytes + sizeof(PLANK_RAW_HID_WIRE_HEADER);
+                const std::uint32_t vendor = le32(device + 4);
+                const std::uint32_t product = le32(device + 8);
+                if (vendor <= UINT16_MAX && product <= UINT16_MAX) {
+                    status_.vendor = static_cast<std::uint16_t>(vendor);
+                    status_.product = static_cast<std::uint16_t>(product);
+                    status_.interface_count = static_cast<std::uint8_t>(
+                        std::min<std::uint16_t>(le16(device), UINT8_MAX));
+                }
+                generation_ = le16(bytes + 10);
+                next_state = 2;
+            } else if (type == PLANK_RAW_HID_DETACH) {
+                generation_ = 0;
+                next_state = 0;
+            } else if (type == PLANK_RAW_HID_SUSPEND) {
+                next_state = 4;
+            }
+            if (next_state != status_.state) {
+                status_.state = next_state;
+                ++status_.epoch;
+            }
         }
     }
     if (wake_) wake_();
@@ -99,4 +146,9 @@ bool PltrWorkerBridge::pop(PltrQueuedTabletFrame &frame) {
 bool PltrWorkerBridge::failed() const {
     std::lock_guard<std::mutex> lock(mutex_);
     return failed_;
+}
+
+PltrWorkerStatus PltrWorkerBridge::status() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return status_;
 }

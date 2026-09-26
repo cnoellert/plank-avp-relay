@@ -37,8 +37,19 @@ bool send_frame(PltrLink &link, int fd, std::uint16_t type,
 }
 
 bool send_initial_status(PltrLink &link, int fd) {
-    // Until worker state notifications are wired, report no owned tablet.
     const std::uint8_t status[] = {0, 0, 0, 0, 0, 0, 1, 0};
+    return send_frame(link, fd, PLTR_STATUS, status, sizeof(status));
+}
+
+bool send_worker_status(PltrLink &link, int fd, const PltrWorkerStatus &current) {
+    const std::uint8_t status[] = {
+        current.state,
+        static_cast<std::uint8_t>(current.vendor),
+        static_cast<std::uint8_t>(current.vendor >> 8),
+        static_cast<std::uint8_t>(current.product),
+        static_cast<std::uint8_t>(current.product >> 8),
+        current.interface_count, current.transport, 0 // empty HID name
+    };
     return send_frame(link, fd, PLTR_STATUS, status, sizeof(status));
 }
 } // namespace
@@ -64,6 +75,7 @@ int pltr_run_tcp_session(int socket_fd, PltrIdentityStore &store, int stop_fd) {
         auto last_receive = Clock::now();
         auto last_ping = last_receive;
         bool hello_seen = false;
+        std::uint64_t sent_status_epoch = 0;
         std::array<std::uint8_t, 4096> input{};
         std::array<std::uint8_t, 2 * (2 + PLTR_MAX_RECORD_BODY_SIZE)> reply{};
         std::array<std::uint8_t, 2 + PLTR_MAX_RECORD_BODY_SIZE> output{};
@@ -80,6 +92,11 @@ int pltr_run_tcp_session(int socket_fd, PltrIdentityStore &store, int stop_fd) {
                 last_ping = now;
             }
             if (hello_seen && link.relay_session.stage == PLTR_RELAY_READY) {
+                const PltrWorkerStatus current_status = dispatcher.status();
+                if (current_status.epoch != sent_status_epoch) {
+                    if (!send_worker_status(link, socket_fd, current_status)) break;
+                    sent_status_epoch = current_status.epoch;
+                }
                 bool output_failed = false;
                 for (unsigned i = 0; i < 256; ++i) {
                     std::size_t written = 0;

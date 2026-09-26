@@ -24,6 +24,7 @@ public:
              std::size_t *written);
     void close();
     bool failed() const;
+    PltrWorkerStatus status() const;
 
 private:
     std::function<void()> wake_;
