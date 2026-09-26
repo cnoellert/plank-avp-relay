@@ -108,6 +108,13 @@ int pltr_pairing_tick(PltrPairing *pairing, uint64_t now_ms) {
     return 0;
 }
 
+void pltr_pairing_abort(PltrPairing *pairing, uint64_t now_ms) {
+    if (pairing == NULL) return;
+    if (pairing->stage == PLTR_PAIR_WAIT_CODE ||
+        pairing->stage == PLTR_PAIR_WAIT_CONFIRM)
+        fail_attempt(pairing, now_ms);
+}
+
 int pltr_pairing_start(PltrPairing *pairing, const uint8_t *payload,
                        size_t payload_size, uint8_t link_type,
                        uint64_t now_ms) {

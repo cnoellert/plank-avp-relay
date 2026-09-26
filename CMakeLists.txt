@@ -96,6 +96,26 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         target_compile_features(plank_relay_link PUBLIC c_std_11)
         target_link_libraries(plank_relay_link PUBLIC plank_relay_protocol plank_relay_noise PkgConfig::SODIUM)
 
+        add_library(plank_relay_client_link STATIC src/client_link.c)
+        target_include_directories(plank_relay_client_link PUBLIC src)
+        target_compile_features(plank_relay_client_link PUBLIC c_std_11)
+        target_link_libraries(plank_relay_client_link PUBLIC plank_relay_link)
+
+        add_library(plank_relay_client_pair STATIC src/client_pair.c)
+        target_include_directories(plank_relay_client_pair PUBLIC src)
+        target_compile_features(plank_relay_client_pair PUBLIC c_std_11)
+        target_link_libraries(plank_relay_client_pair PUBLIC
+            plank_relay_cpace plank_relay_confirm plank_relay_noise plank_relay_protocol)
+
+        add_executable(pair_e2e_test tests/pair_e2e_test.c)
+        target_link_libraries(pair_e2e_test PRIVATE
+            plank_relay_client_pair plank_relay_pairing)
+        add_test(NAME pair_e2e_test COMMAND pair_e2e_test)
+
+        add_executable(client_link_test tests/client_link_test.c)
+        target_link_libraries(client_link_test PRIVATE plank_relay_client_link)
+        add_test(NAME client_link_test COMMAND client_link_test)
+
         add_executable(link_test tests/link_test.c)
         target_link_libraries(link_test PRIVATE plank_relay_link)
         add_test(NAME link_test COMMAND link_test)
@@ -111,7 +131,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         target_link_libraries(identity_test PRIVATE plank_relay_identity)
         add_test(NAME identity_test COMMAND identity_test)
 
-        add_library(plank_relay_pairing STATIC src/pairing.c)
+        add_library(plank_relay_pairing STATIC src/pairing.c src/pair_wire.c)
         target_include_directories(plank_relay_pairing PUBLIC src)
         target_compile_features(plank_relay_pairing PUBLIC c_std_11)
         target_link_libraries(plank_relay_pairing PUBLIC plank_relay_identity plank_relay_cpace plank_relay_confirm plank_relay_protocol)
@@ -119,6 +139,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         add_executable(pairing_test tests/pairing_test.c)
         target_link_libraries(pairing_test PRIVATE plank_relay_pairing)
         add_test(NAME pairing_test COMMAND pairing_test)
+
+        add_executable(pair_wire_test tests/pair_wire_test.c)
+        target_link_libraries(pair_wire_test PRIVATE plank_relay_pairing)
+        add_test(NAME pair_wire_test COMMAND pair_wire_test)
 
         add_library(plank_relay_session_dispatcher STATIC src/session_dispatcher.cpp)
         target_include_directories(plank_relay_session_dispatcher PUBLIC src)

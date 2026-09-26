@@ -38,6 +38,8 @@ void pltr_pairing_clear(PltrPairing *pairing);
 int pltr_pairing_open(PltrPairing *pairing, uint64_t now_ms,
                       int session_active);
 int pltr_pairing_tick(PltrPairing *pairing, uint64_t now_ms);
+// A disconnected or malformed in-progress attempt counts as a failed guess.
+void pltr_pairing_abort(PltrPairing *pairing, uint64_t now_ms);
 // PAIR_START payload has already passed the common PLTR frame validator.
 int pltr_pairing_start(PltrPairing *pairing, const uint8_t *payload,
                        size_t payload_size, uint8_t link_type,

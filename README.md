@@ -22,7 +22,10 @@ listener or pairing service; do not expose a network port for this prototype.
 The pairing engine now covers a 120-second window, five tablet keys, CPace
 confirmation, a 60-second attempt deadline, and a 10-minute lockout after
 three failures. It persists a Client key only after verifying the Client's
-confirmation tag. The physical key reader, network-facing pairing flow,
+confirmation tag. Its framed pairing state machine and the Client counterpart
+pass an end-to-end test: the Client pins the Relay key only after verifying the
+Relay's confirmation tag. The physical key reader is implemented but still
+needs the tablet's physical key order confirmed. Network-facing pairing I/O,
 Client connection, Bluetooth LE, and packaging remain to be implemented.
 The NUC's Wacom Pad evdev node is readable by the `plank-relay` service user;
 the provisional ExpressKey mapping and 5/15-second hold detector are compiled
@@ -37,6 +40,8 @@ the Noise handshake, initial status, session start and end, and rejection of an
 unpaired Client. There is still no listener or discovery; the initial status
 reports no owned tablet until live worker status is wired. The physical
 tablet-to-Vision-Pro path has not been exercised.
+The shared Client link and pairing wrappers are also compiled into the
+unsigned native visionOS app; no connection or pairing UI calls them yet.
 
 Build and test:
 
