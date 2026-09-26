@@ -29,7 +29,9 @@ struct PltrWorkerStatus {
 // thread only appends validated PLWH frames and wakes that thread.
 class PltrWorkerBridge {
 public:
-    explicit PltrWorkerBridge(std::function<void()> wake);
+    explicit PltrWorkerBridge(
+        std::function<void()> wake,
+        LinuxRawWacomInput::GenerationProvider generation_provider = {});
     ~PltrWorkerBridge();
     PltrWorkerBridge(const PltrWorkerBridge&) = delete;
     PltrWorkerBridge& operator=(const PltrWorkerBridge&) = delete;

@@ -61,6 +61,9 @@ returned first, followed a few seconds later by tip clicks and varying
 pressure. Restarting the Relay service while the pen tip was held down in
 GNOME's tablet test area ended that stroke cleanly; new pen input worked after
 the link reconnected. The Host showed one Wacom device set after recovery.
+The Relay now saves each raw-HID attachment generation before sending it.
+In a live same-session check, two consecutive service restarts attached as
+generations 2 and 3; tip clicks and varying pressure worked after each restart.
 
 Development service entry points (use the Relay service account that owns the
 0700 state directory, and confirm the Pad key order before physical pairing):
@@ -105,6 +108,11 @@ contract revision and add shared test vectors before the link is enabled.
 
 The identity store requires an existing owner-only `0700` directory. It
 creates `identity.key`, `paired-clients.json`, and `store.lock` as `0600` files.
+The worker also reserves each raw-HID attachment generation in
+`tablet-generation.bin` as an owner-only `0600` file before sending `DEVICE`.
+That counter continues across Relay process restarts, so a reconnect does not
+reuse the generation of the tablet still attached to the Host. Unsafe or
+malformed counter files prevent attachment.
 The allowlist is strict version-1 JSON with lowercase hexadecimal public keys:
 `{"version":1,"clients":["<64 hex digits>"]}`. Existing files with unsafe
 permissions, links, or malformed content fail closed. Keys enter that list

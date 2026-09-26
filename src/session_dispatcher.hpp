@@ -12,7 +12,9 @@
 // tablet worker. Owns one worker only between SESSION_READY and SESSION_END.
 class PltrSessionDispatcher {
 public:
-    explicit PltrSessionDispatcher(std::function<void()> wake);
+    explicit PltrSessionDispatcher(
+        std::function<void()> wake,
+        LinuxRawWacomInput::GenerationProvider generation_provider = {});
     ~PltrSessionDispatcher();
     PltrSessionDispatcher(const PltrSessionDispatcher&) = delete;
     PltrSessionDispatcher& operator=(const PltrSessionDispatcher&) = delete;
@@ -28,6 +30,7 @@ public:
 
 private:
     std::function<void()> wake_;
+    LinuxRawWacomInput::GenerationProvider generation_provider_;
     std::unique_ptr<PltrWorkerBridge> worker_;
     bool ended_ = false;
 };

@@ -4,8 +4,11 @@
 #include <utility>
 #include <vector>
 
-PltrSessionDispatcher::PltrSessionDispatcher(std::function<void()> wake)
-    : wake_(std::move(wake)) {}
+PltrSessionDispatcher::PltrSessionDispatcher(
+    std::function<void()> wake,
+    LinuxRawWacomInput::GenerationProvider generation_provider)
+    : wake_(std::move(wake)),
+      generation_provider_(std::move(generation_provider)) {}
 
 PltrSessionDispatcher::~PltrSessionDispatcher() { close(); }
 
@@ -14,7 +17,7 @@ bool PltrSessionDispatcher::accept(const PltrFrame &frame) {
     switch (frame.type) {
     case PLTR_SESSION_READY:
         if (worker_ != nullptr || frame.payload_size != 5) return false;
-        worker_ = std::make_unique<PltrWorkerBridge>(wake_);
+        worker_ = std::make_unique<PltrWorkerBridge>(wake_, generation_provider_);
         worker_->setActive(frame.payload[4] != 0);
         return true;
     case PLTR_SESSION_ACTIVE:

@@ -72,6 +72,10 @@ int pltr_run_tcp_session(int socket_fd, PltrIdentityStore &store, int stop_fd) {
             const std::uint64_t one = 1;
             if (write(wake_fd, &one, sizeof(one)) !=
                 static_cast<ssize_t>(sizeof(one))) return;
+        }, [&store] {
+            std::uint16_t generation = 0;
+            return pltr_identity_store_next_generation(&store, &generation) == 0 ?
+                generation : std::uint16_t{0};
         });
         auto last_receive = Clock::now();
         auto last_ping = last_receive;

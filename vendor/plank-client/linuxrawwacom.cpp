@@ -183,7 +183,8 @@ PlankWacomTransportDecision plankWacomTransportForConnectedDevice()
 }
 
 LinuxRawWacomInput::LinuxRawWacomInput(
-        SendFrame sendFrame, std::function<void()> tabletActivity, Log log)
+        SendFrame sendFrame, std::function<void()> tabletActivity, Log log,
+        GenerationProvider generationProvider)
     : m_Active(false),
       m_Stopping(false),
       m_Reconnecting(false),
@@ -194,7 +195,8 @@ LinuxRawWacomInput::LinuxRawWacomInput(
       m_Attached(false),
       m_SendFrame(std::move(sendFrame)),
       m_TabletActivity(std::move(tabletActivity)),
-      m_Log(std::move(log))
+      m_Log(std::move(log)),
+      m_GenerationProvider(std::move(generationProvider))
 {
     m_Thread = std::thread(&LinuxRawWacomInput::run, this);
 }
@@ -453,7 +455,11 @@ bool LinuxRawWacomInput::sendAttach()
             static_cast<std::uint32_t>(inputIdentity.version));
     }
 
-    m_Generation = nextGeneration();
+    m_Generation = m_GenerationProvider ? m_GenerationProvider() : nextGeneration();
+    if (m_Generation == 0) {
+        log(LogLevel::Warning, "Unable to reserve Wacom attachment generation");
+        return false;
+    }
     m_InputSequence = 0;
     if (!sendFrame(PLANK_RAW_HID_DEVICE, 0, 0,
                    reinterpret_cast<const unsigned char*>(&device),

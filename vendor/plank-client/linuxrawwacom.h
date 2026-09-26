@@ -54,9 +54,10 @@ public:
     enum class LogLevel { Info, Warning };
     using SendFrame = std::function<bool(const unsigned char*, std::size_t)>;
     using Log = std::function<void(LogLevel, const std::string&)>;
+    using GenerationProvider = std::function<std::uint16_t()>;
 
     LinuxRawWacomInput(SendFrame sendFrame, std::function<void()> tabletActivity,
-                       Log log);
+                       Log log, GenerationProvider generationProvider = {});
     ~LinuxRawWacomInput();
 
     LinuxRawWacomInput(const LinuxRawWacomInput&) = delete;
@@ -105,5 +106,6 @@ private:
     SendFrame m_SendFrame;
     std::function<void()> m_TabletActivity;
     Log m_Log;
+    GenerationProvider m_GenerationProvider;
     std::chrono::steady_clock::time_point m_AttachDeadline;
 };

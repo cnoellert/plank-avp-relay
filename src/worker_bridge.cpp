@@ -24,7 +24,9 @@ static std::uint64_t monotonic_us() {
     return std::uint64_t(t.tv_sec) * 1000000 + std::uint64_t(t.tv_nsec) / 1000;
 }
 
-PltrWorkerBridge::PltrWorkerBridge(std::function<void()> wake)
+PltrWorkerBridge::PltrWorkerBridge(
+    std::function<void()> wake,
+    LinuxRawWacomInput::GenerationProvider generation_provider)
     : wake_(std::move(wake)) {
     worker_ = std::make_unique<LinuxRawWacomInput>(
         [this](const unsigned char *bytes, std::size_t size) {
@@ -35,7 +37,7 @@ PltrWorkerBridge::PltrWorkerBridge(std::function<void()> wake)
             std::fprintf(stderr, "Wacom %s: %s\n",
                          level == LinuxRawWacomInput::LogLevel::Warning ?
                              "warning" : "info", message.c_str());
-        });
+        }, std::move(generation_provider));
 }
 
 PltrWorkerBridge::~PltrWorkerBridge() {

@@ -20,13 +20,20 @@ int main(void) {
     PltrIdentityStore store, second;
     assert(pltr_identity_store_open(&store, directory) == 0);
     assert(store.client_count == 0);
-    char identity[128], peers[128], lock[128];
+    char identity[128], peers[128], lock[128], generations[128];
     path(identity, sizeof(identity), directory, "identity.key");
     path(peers, sizeof(peers), directory, "paired-clients.json");
     path(lock, sizeof(lock), directory, "store.lock");
+    path(generations, sizeof(generations), directory, "tablet-generation.bin");
     struct stat st;
     assert(stat(identity, &st) == 0 && (st.st_mode & 0777) == 0600);
     assert(stat(peers, &st) == 0 && (st.st_mode & 0777) == 0600);
+    uint16_t generation = 0;
+    assert(pltr_identity_store_next_generation(&store, &generation) == 0 &&
+           generation == 1);
+    assert(pltr_identity_store_next_generation(&store, &generation) == 0 &&
+           generation == 2);
+    assert(stat(generations, &st) == 0 && (st.st_mode & 0777) == 0600);
     assert(pltr_identity_store_open(&second, directory) != 0);
 
     uint8_t client_private[32], client_public[32], original_relay[32];
@@ -41,6 +48,30 @@ int main(void) {
     pltr_identity_store_close(&store);
 
     assert(pltr_identity_store_open(&store, directory) == 0);
+    assert(pltr_identity_store_next_generation(&store, &generation) == 0 &&
+           generation == 3);
+    assert(chmod(generations, 0644) == 0);
+    assert(pltr_identity_store_next_generation(&store, &generation) != 0);
+    assert(chmod(generations, 0600) == 0);
+    int generation_fd = open(generations, O_WRONLY | O_TRUNC);
+    assert(generation_fd >= 0);
+    const uint8_t malformed_generation[] = {3};
+    assert(write(generation_fd, malformed_generation,
+                 sizeof(malformed_generation)) == sizeof(malformed_generation));
+    assert(close(generation_fd) == 0);
+    assert(pltr_identity_store_next_generation(&store, &generation) != 0);
+    generation_fd = open(generations, O_WRONLY | O_TRUNC);
+    assert(generation_fd >= 0);
+    const uint8_t last_generation[] = {0xff, 0xff};
+    assert(write(generation_fd, last_generation,
+                 sizeof(last_generation)) == sizeof(last_generation));
+    assert(close(generation_fd) == 0);
+    assert(pltr_identity_store_next_generation(&store, &generation) == 0 &&
+           generation == 1);
+    assert(unlink(generations) == 0);
+    assert(symlink(identity, generations) == 0);
+    assert(pltr_identity_store_next_generation(&store, &generation) != 0);
+    assert(unlink(generations) == 0);
     assert(memcmp(original_relay, store.public_key, 32) == 0);
     assert(store.client_count == 1 &&
            pltr_identity_store_approve(&store, client_public) == 1);

@@ -15,6 +15,7 @@
 #define STORE_NAME "paired-clients.json"
 #define IDENTITY_NAME "identity.key"
 #define LOCK_NAME "store.lock"
+#define GENERATION_NAME "tablet-generation.bin"
 #define STORE_LIMIT 2048u
 
 static int secure_file(int fd) {
@@ -238,4 +239,29 @@ int pltr_identity_store_remove(PltrIdentityStore *store,
     }
     sodium_memzero(keys, sizeof(keys));
     return result;
+}
+
+int pltr_identity_store_next_generation(PltrIdentityStore *store,
+                                        uint16_t *generation) {
+    if (store == NULL || generation == NULL || store->directory_fd < 0 ||
+        store->lock_fd < 0) return -1;
+    uint8_t bytes[2];
+    size_t size = 0;
+    uint16_t previous = 0;
+    if (read_file(store->directory_fd, GENERATION_NAME,
+                  bytes, sizeof(bytes), &size) == 0) {
+        if (size != sizeof(bytes)) return -1;
+        previous = (uint16_t)bytes[0] | ((uint16_t)bytes[1] << 8);
+    } else if (faccessat(store->directory_fd, GENERATION_NAME, F_OK,
+                         AT_SYMLINK_NOFOLLOW) == 0 || errno != ENOENT) {
+        return -1;
+    }
+    uint16_t next = (uint16_t)(previous + 1);
+    if (next == 0) next = 1;
+    bytes[0] = (uint8_t)next;
+    bytes[1] = (uint8_t)(next >> 8);
+    if (atomic_save(store->directory_fd, GENERATION_NAME,
+                    bytes, sizeof(bytes)) != 0) return -1;
+    *generation = next;
+    return 0;
 }

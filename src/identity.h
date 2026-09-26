@@ -29,6 +29,10 @@ int pltr_identity_store_add(PltrIdentityStore *store,
                             const uint8_t public_key[32]);
 int pltr_identity_store_remove(PltrIdentityStore *store,
                                const uint8_t public_key[32]);
+// Reserve a nonzero raw-HID attachment generation durably before the worker
+// sends DEVICE. The store's lifetime lock serializes reservations across runs.
+int pltr_identity_store_next_generation(PltrIdentityStore *store,
+                                        uint16_t *generation);
 
 #ifdef __cplusplus
 }
