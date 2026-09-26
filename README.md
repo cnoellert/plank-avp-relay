@@ -19,8 +19,11 @@ link type and altered ciphertext. A locked local identity store persists the
 Relay key and up to 16 approved Client public keys. The worker is not yet
 connected to a daemon or a Vision Pro. There is no externally reachable
 listener or pairing service; do not expose a network port for this prototype.
-The pairing state machine, Client connection, Bluetooth LE, and operational
-packaging remain to be implemented and qualified.
+The pairing engine now covers a 120-second window, five tablet keys, CPace
+confirmation, a 60-second attempt deadline, and a 10-minute lockout after
+three failures. It persists a Client key only after verifying the Client's
+confirmation tag. The physical key reader, network-facing pairing flow,
+Client connection, Bluetooth LE, and packaging remain to be implemented.
 
 Build and test:
 
@@ -47,8 +50,8 @@ creates `identity.key`, `paired-clients.json`, and `store.lock` as `0600` files.
 The allowlist is strict version-1 JSON with lowercase hexadecimal public keys:
 `{"version":1,"clients":["<64 hex digits>"]}`. Existing files with unsafe
 permissions, links, or malformed content fail closed. Keys enter that list
-only after a future completed pairing exchange; there is currently no manual
-pairing bypass in the Relay.
+only after a completed pairing exchange; there is no network pairing endpoint
+or manual bypass yet.
 
 `tests/noise_vector.inc` is a subset of the public
 [Noise-C test vectors](https://github.com/rweather/noise-c/tree/master/tests/vector)
