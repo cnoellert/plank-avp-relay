@@ -16,20 +16,18 @@ ordering. The shared link layer now joins framing, Noise IK, approved-Client
 lookup, encrypted `HELLO`, and session frames. A test exercises that flow over
 TCP bound to `127.0.0.1` and checks rejection of an unpaired key, a mismatched
 link type and altered ciphertext. A locked local identity store persists the
-Relay key and up to 16 approved Client public keys. No service is installed or
-running on the NUC yet; the development binary can bind a LAN address only
-when explicitly requested.
+Relay key and up to 16 approved Client public keys. The development binary can
+bind a LAN address only when explicitly requested.
 The pairing engine now covers a 120-second window, five tablet keys, CPace
 confirmation, a 60-second attempt deadline, and a 10-minute lockout after
 three failures. It persists a Client key only after verifying the Client's
 confirmation tag. Its framed pairing state machine and the Client counterpart
 pass an end-to-end test: the Client pins the Relay key only after verifying the
-Relay's confirmation tag. The physical key reader is implemented but still
-needs the tablet's physical key order confirmed. Bluetooth LE and production
-packaging remain to be implemented.
+Relay's confirmation tag. The Intuos Pro PTH-660's eight physical ExpressKeys
+were checked on the development NUC in order against codes 256 through 263.
+Bluetooth LE and production packaging remain to be implemented.
 The NUC's Wacom Pad evdev node is readable by the `plank-relay` service user;
-the provisional ExpressKey mapping and 5/15-second hold detector are compiled
-and simulated, pending a physical key-order check.
+the ExpressKey mapping and 5/15-second hold detector are compiled and tested.
 The existing raw-Wacom worker now has a bounded, validated output queue for
 the network thread. Worker overflow marks the link failed instead of dropping
 individual tablet reports. An authenticated session dispatcher routes Client
@@ -48,8 +46,11 @@ pairing exchange. The signed native visionOS Client now has a pairing screen,
 Keychain identity pinning, and a session link that forwards validated Wacom
 frames through the existing Host raw-HID channel. It starts the link only after
 Host tablet support is negotiated and closes it with the desktop session.
-DNS-SD, Bluetooth LE, production service packaging, physical ExpressKey order
-confirmation, and the live tablet-to-Vision-Pro test remain.
+On the development NUC and a physical Vision Pro, local TCP pairing completed
+with the five ExpressKeys. A live PLANK session then carried pen motion, tip and
+side buttons, and varying pressure into GNOME Settings and Autodesk Flame.
+The tablet stopped controlling Linux when PLANK lost focus and resumed when it
+became active. DNS-SD, Bluetooth LE, and production packaging remain.
 
 Development service entry points (use the Relay service account that owns the
 0700 state directory, and confirm the Pad key order before physical pairing):
@@ -62,6 +63,15 @@ plank-tablet-relay serve --state-dir /var/lib/plank-tablet-relay
 Both default to `127.0.0.1:28990`. `--bind IPv4` explicitly selects a LAN
 address for a local-network trial. Pairing and serving are separate commands
 for this development build; a live session is not replaced by a second Client.
+
+`packaging/plank-tablet-relay.service` is a systemd unit for an unprivileged
+`plank-relay` user. It expects the binary at
+`/usr/local/libexec/plank-tablet-relay` and an owner-only
+`/var/lib/plank-tablet-relay` state directory. Set `PLANK_RELAY_BIND` in
+`/etc/default/plank-tablet-relay` to the Relay's LAN IPv4 address; its safe
+default is loopback. The tablet's `hidraw` and event nodes must be readable by
+the service account, and the firewall must permit TCP 28990 only from the
+intended local network. Pairing is run separately with the service stopped.
 
 Build and test:
 
