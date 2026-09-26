@@ -5,11 +5,12 @@ PLANK Vision Pro Client. The Relay will read the tablet locally and forward its
 existing raw-HID frames to a paired Client. The Client owns the authenticated
 Host session; the Relay has no Host credentials.
 
-**Current state:** only the bounded `PLTR` frame parser and its tests are
-implemented. There is no daemon, listener, pairing service, or tablet capture
-here yet. Do not expose a network port for this prototype. The secure Noise and
-CPace link, tablet worker, Bluetooth LE path, and operational packaging remain
-to be implemented and qualified.
+**Current state:** the bounded `PLTR` frame parser is tested, and the Client's
+raw Wacom worker is vendored and build-checked on Linux. The worker is not yet
+connected to a daemon or a Vision Pro. There is no listener or pairing service;
+do not expose a network port for this prototype. The secure Noise and CPace
+link, Bluetooth LE path, and operational packaging remain to be implemented
+and qualified.
 
 Build and test:
 
