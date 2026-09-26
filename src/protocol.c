@@ -1,4 +1,7 @@
 #include "protocol.h"
+#include "../vendor/plank-client/plank.h"
+
+#include <string.h>
 
 static uint16_t read_le16(const uint8_t *bytes) {
     return (uint16_t)bytes[0] | ((uint16_t)bytes[1] << 8);
@@ -9,26 +12,202 @@ static uint32_t read_le32(const uint8_t *bytes) {
            ((uint32_t)bytes[2] << 16) | ((uint32_t)bytes[3] << 24);
 }
 
+static int valid_utf8(const uint8_t *bytes, size_t size) {
+    for (size_t i = 0; i < size;) {
+        const uint8_t first = bytes[i++];
+        if (first == 0) return 0;
+        if (first < 0x80) continue;
+        unsigned count;
+        uint32_t codepoint;
+        if (first >= 0xc2 && first <= 0xdf) {
+            count = 1;
+            codepoint = first & 0x1f;
+        } else if (first >= 0xe0 && first <= 0xef) {
+            count = 2;
+            codepoint = first & 0x0f;
+        } else if (first >= 0xf0 && first <= 0xf4) {
+            count = 3;
+            codepoint = first & 0x07;
+        } else {
+            return 0;
+        }
+        if (count > size - i) return 0;
+        for (unsigned j = 0; j < count; ++j) {
+            if ((bytes[i] & 0xc0) != 0x80) return 0;
+            codepoint = (codepoint << 6) | (bytes[i++] & 0x3f);
+        }
+        if ((count == 1 && codepoint < 0x80) ||
+            (count == 2 && codepoint < 0x800) ||
+            (count == 3 && codepoint < 0x10000) ||
+            (codepoint >= 0xd800 && codepoint <= 0xdfff) ||
+            codepoint > 0x10ffff) return 0;
+    }
+    return 1;
+}
+
+static int valid_string(const uint8_t *bytes, size_t size, size_t prefix,
+                        size_t max_length) {
+    if (size < prefix + 1) return 0;
+    const size_t length = bytes[prefix];
+    return length <= max_length && size == prefix + 1 + length &&
+           valid_utf8(bytes + prefix + 1, length);
+}
+
+static int valid_plwh(const uint8_t *bytes, size_t size,
+                      PltrDirection direction) {
+    if (size < sizeof(PLANK_RAW_HID_WIRE_HEADER) ||
+        read_le32(bytes) != PLANK_RAW_HID_WIRE_MAGIC ||
+        read_le16(bytes + 4) != PLANK_RAW_HID_WIRE_VERSION ||
+        read_le32(bytes + 16) > PLANK_RAW_HID_MAX_PAYLOAD_SIZE ||
+        read_le32(bytes + 16) != size - sizeof(PLANK_RAW_HID_WIRE_HEADER)) return 0;
+    const uint16_t type = read_le16(bytes + 6);
+    if (direction == PLTR_CLIENT_TO_RELAY) {
+        return type == PLANK_RAW_HID_ATTACH_RESULT ||
+               type == PLANK_RAW_HID_GET_REPORT ||
+               type == PLANK_RAW_HID_SET_REPORT ||
+               type == PLANK_RAW_HID_OUTPUT ||
+               type == PLANK_RAW_HID_OPEN ||
+               type == PLANK_RAW_HID_CLOSE;
+    }
+    return type == PLANK_RAW_HID_DEVICE ||
+           type == PLANK_RAW_HID_DESCRIPTOR ||
+           type == PLANK_RAW_HID_INPUT ||
+           type == PLANK_RAW_HID_GET_REPORT_REPLY ||
+           type == PLANK_RAW_HID_SET_REPORT_REPLY ||
+           type == PLANK_RAW_HID_DETACH ||
+           type == PLANK_RAW_HID_SUSPEND;
+}
+
+static int valid_payload(uint16_t type, const uint8_t *bytes, size_t size,
+                         PltrDirection direction) {
+    switch (type) {
+    case PLTR_HELLO:
+        return valid_string(bytes, size, 12, 64) &&
+               read_le16(bytes) <= PLTR_VERSION &&
+               read_le16(bytes + 2) >= PLTR_VERSION &&
+               bytes[4] == (direction == PLTR_CLIENT_TO_RELAY ? 2 : 1) &&
+               bytes[5] == 0 && bytes[6] == 0 && bytes[7] == 0 &&
+               read_le32(bytes + 8) == 1;
+    case PLTR_SESSION_READY:
+        return size == 5 && (read_le32(bytes) & 0x24u) == 0x24u && bytes[4] <= 1;
+    case PLTR_SESSION_ACTIVE:
+        return size == 1 && bytes[0] <= 1;
+    case PLTR_RECONNECT_BEGIN:
+    case PLTR_RECONNECT_FINISH:
+        return size == 0;
+    case PLTR_SESSION_END:
+        return size == 1 && bytes[0] >= 1 && bytes[0] <= 2;
+    case PLTR_HOST_FRAME:
+        return valid_plwh(bytes, size, PLTR_CLIENT_TO_RELAY);
+    case PLTR_CLIENT_FRAME:
+        return size >= 8 && valid_plwh(bytes + 8, size - 8, PLTR_RELAY_TO_CLIENT) &&
+               (read_le16(bytes + 8 + 6) == PLANK_RAW_HID_INPUT ||
+                memcmp(bytes, "\0\0\0\0\0\0\0\0", 8) == 0);
+    case PLTR_STATUS:
+        return valid_string(bytes, size, 7, 128) && bytes[0] <= 7 &&
+               bytes[5] <= PLANK_RAW_HID_MAX_INTERFACES &&
+               bytes[6] >= 1 && bytes[6] <= 2;
+    case PLTR_PING:
+        return size == 16;
+    case PLTR_PONG:
+        return size == 32;
+    case PLTR_GOODBYE:
+        return size == 2 && read_le16(bytes) >= 1 && read_le16(bytes) <= 5;
+    case PLTR_OPEN:
+        return size == 1 && (bytes[0] == 1 || bytes[0] == 2);
+    case PLTR_NOISE:
+        return size >= 1;
+    case PLTR_PAIR_START:
+        return valid_string(bytes, size, 80, 64);
+    case PLTR_PAIR_RESPONSE:
+        return valid_string(bytes, size, 64, 64);
+    case PLTR_PAIR_CONFIRM:
+        return size == 32;
+    case PLTR_PAIR_RESULT:
+        return (size == 33 && bytes[0] == 0) ||
+               (size == 1 && bytes[0] >= 1 && bytes[0] <= 3);
+    default:
+        return 0;
+    }
+}
+
 static int allowed_type(uint16_t type, PltrDirection direction, PltrPhase phase) {
     if (phase == PLTR_PRE_AUTH) {
-        if (type == 17) return 1; // NOISE
+        if (type == PLTR_NOISE) return 1;
         if (direction == PLTR_CLIENT_TO_RELAY) {
-            return type == 16 || type == 32 || type == 34; // OPEN, PAIR_START, PAIR_CONFIRM
+            return type == PLTR_OPEN || type == PLTR_PAIR_START ||
+                   type == PLTR_PAIR_CONFIRM;
         }
         if (direction == PLTR_RELAY_TO_CLIENT) {
-            return type == 33 || type == 35; // PAIR_RESPONSE, PAIR_RESULT
+            return type == PLTR_PAIR_RESPONSE || type == PLTR_PAIR_RESULT;
         }
         return 0;
     }
     if (phase != PLTR_SECURE) return 0;
-    if (type == 1 || type == 10 || type == 11 || type == 12) {
-        return 1; // HELLO, PING, PONG, GOODBYE
+    if (type == PLTR_HELLO || type == PLTR_PING ||
+        type == PLTR_PONG || type == PLTR_GOODBYE) {
+        return 1;
     }
     if (direction == PLTR_CLIENT_TO_RELAY) {
-        return type >= 2 && type <= 7; // SESSION_*; RECONNECT_*; HOST_FRAME
+        return type >= PLTR_SESSION_READY && type <= PLTR_HOST_FRAME;
     }
     if (direction == PLTR_RELAY_TO_CLIENT) {
-        return type == 8 || type == 9; // CLIENT_FRAME, STATUS
+        return type == PLTR_CLIENT_FRAME || type == PLTR_STATUS;
+    }
+    return 0;
+}
+
+void pltr_record_reader_init(PltrRecordReader *reader, PltrPhase phase) {
+    if (reader == NULL) return;
+    reader->filled = 0;
+    reader->body_size = 0;
+    reader->phase = phase;
+}
+
+int pltr_record_reader_set_phase(PltrRecordReader *reader, PltrPhase phase) {
+    if (reader == NULL || reader->filled != 0 ||
+        (phase != PLTR_PRE_AUTH && phase != PLTR_SECURE)) return -1;
+    reader->phase = phase;
+    return 0;
+}
+
+int pltr_record_reader_push(PltrRecordReader *reader, const uint8_t *bytes,
+                            size_t size, size_t *consumed,
+                            const uint8_t **body, size_t *body_size) {
+    if (reader == NULL || consumed == NULL || body == NULL || body_size == NULL ||
+        (bytes == NULL && size != 0) ||
+        (reader->phase != PLTR_PRE_AUTH && reader->phase != PLTR_SECURE)) return -1;
+    *consumed = 0;
+    *body = NULL;
+    *body_size = 0;
+    while (*consumed < size) {
+        if (reader->filled < 2) {
+            reader->bytes[reader->filled++] = bytes[(*consumed)++];
+            if (reader->filled < 2) continue;
+            reader->body_size = read_le16(reader->bytes);
+            const size_t minimum = reader->phase == PLTR_PRE_AUTH ?
+                                   PLTR_HEADER_SIZE : 16;
+            const size_t maximum = reader->phase == PLTR_PRE_AUTH ?
+                                   PLTR_MAX_FRAME_SIZE : PLTR_MAX_RECORD_BODY_SIZE;
+            if (reader->body_size < minimum || reader->body_size > maximum) {
+                reader->filled = 0;
+                reader->body_size = 0;
+                return -1;
+            }
+        }
+        const size_t remaining = reader->body_size + 2 - reader->filled;
+        const size_t available = size - *consumed;
+        const size_t take = remaining < available ? remaining : available;
+        memcpy(reader->bytes + reader->filled, bytes + *consumed, take);
+        reader->filled += take;
+        *consumed += take;
+        if (reader->filled == reader->body_size + 2) {
+            *body = reader->bytes + 2;
+            *body_size = reader->body_size;
+            reader->filled = 0;
+            reader->body_size = 0;
+            return 1;
+        }
     }
     return 0;
 }
@@ -47,7 +226,8 @@ int pltr_decode_frame(const uint8_t *bytes, size_t size,
     const uint16_t type = read_le16(bytes + 6);
     const uint32_t payload_size = read_le32(bytes + 12);
     if (!allowed_type(type, direction, phase) ||
-            payload_size != size - PLTR_HEADER_SIZE) {
+            payload_size != size - PLTR_HEADER_SIZE ||
+            !valid_payload(type, bytes + PLTR_HEADER_SIZE, payload_size, direction)) {
         return -1;
     }
     out->type = type;

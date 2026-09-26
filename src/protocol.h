@@ -9,6 +9,28 @@
 #define PLTR_HEADER_SIZE 16u
 #define PLTR_MAX_PAYLOAD_SIZE 8192u
 #define PLTR_MAX_FRAME_SIZE (PLTR_HEADER_SIZE + PLTR_MAX_PAYLOAD_SIZE)
+#define PLTR_MAX_RECORD_BODY_SIZE (PLTR_MAX_FRAME_SIZE + 16u)
+
+typedef enum PltrType {
+    PLTR_HELLO = 1,
+    PLTR_SESSION_READY = 2,
+    PLTR_SESSION_ACTIVE = 3,
+    PLTR_RECONNECT_BEGIN = 4,
+    PLTR_RECONNECT_FINISH = 5,
+    PLTR_SESSION_END = 6,
+    PLTR_HOST_FRAME = 7,
+    PLTR_CLIENT_FRAME = 8,
+    PLTR_STATUS = 9,
+    PLTR_PING = 10,
+    PLTR_PONG = 11,
+    PLTR_GOODBYE = 12,
+    PLTR_OPEN = 16,
+    PLTR_NOISE = 17,
+    PLTR_PAIR_START = 32,
+    PLTR_PAIR_RESPONSE = 33,
+    PLTR_PAIR_CONFIRM = 34,
+    PLTR_PAIR_RESULT = 35,
+} PltrType;
 
 typedef enum PltrDirection {
     PLTR_CLIENT_TO_RELAY = 1,
@@ -26,6 +48,22 @@ typedef struct PltrFrame {
     const uint8_t *payload;
     uint32_t payload_size;
 } PltrFrame;
+
+typedef struct PltrRecordReader {
+    uint8_t bytes[2 + PLTR_MAX_RECORD_BODY_SIZE];
+    size_t filled;
+    size_t body_size;
+    PltrPhase phase;
+} PltrRecordReader;
+
+// No allocation or unbounded queue. The returned body view is valid until the
+// next push. Call push repeatedly for coalesced TCP records, advancing by
+// consumed. A negative result closes the link and requires reinitialization.
+void pltr_record_reader_init(PltrRecordReader *reader, PltrPhase phase);
+int pltr_record_reader_set_phase(PltrRecordReader *reader, PltrPhase phase);
+int pltr_record_reader_push(PltrRecordReader *reader, const uint8_t *bytes,
+                            size_t size, size_t *consumed,
+                            const uint8_t **body, size_t *body_size);
 
 // Decode a complete PLTR frame. The caller owns the buffer and must keep it
 // alive while using the payload view. expected_sequence starts at 1.
