@@ -29,7 +29,7 @@ void stop_signal(int) {
     stopping = 1;
     if (signal_write_fd >= 0) {
         const std::uint8_t byte = 1;
-        (void)write(signal_write_fd, &byte, 1);
+        if (write(signal_write_fd, &byte, 1) != 1) return;
     }
 }
 

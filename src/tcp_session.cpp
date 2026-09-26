@@ -70,7 +70,8 @@ int pltr_run_tcp_session(int socket_fd, PltrIdentityStore &store, int stop_fd) {
     {
         PltrSessionDispatcher dispatcher([wake_fd] {
             const std::uint64_t one = 1;
-            (void)write(wake_fd, &one, sizeof(one));
+            if (write(wake_fd, &one, sizeof(one)) !=
+                static_cast<ssize_t>(sizeof(one))) return;
         });
         auto last_receive = Clock::now();
         auto last_ping = last_receive;
@@ -120,7 +121,8 @@ int pltr_run_tcp_session(int socket_fd, PltrIdentityStore &store, int stop_fd) {
                 ((fds[0].revents & POLLHUP) && !(fds[0].revents & POLLIN))) break;
             if (fds[1].revents & POLLIN) {
                 std::uint64_t count_value;
-                (void)read(wake_fd, &count_value, sizeof(count_value));
+                if (read(wake_fd, &count_value, sizeof(count_value)) !=
+                    static_cast<ssize_t>(sizeof(count_value))) break;
             }
             if (!(fds[0].revents & POLLIN)) continue;
             const ssize_t received = recv(socket_fd, input.data(), input.size(),
