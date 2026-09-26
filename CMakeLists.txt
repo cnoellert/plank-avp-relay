@@ -15,6 +15,17 @@ target_link_libraries(session_test PRIVATE plank_relay_protocol)
 add_test(NAME session_test COMMAND session_test)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_library(plank_relay_pad STATIC src/pad.c)
+    target_include_directories(plank_relay_pad PUBLIC src)
+    target_compile_features(plank_relay_pad PUBLIC c_std_11)
+
+    add_executable(pad_test tests/pad_test.c)
+    target_link_libraries(pad_test PRIVATE plank_relay_pad)
+    add_test(NAME pad_test COMMAND pad_test)
+
+    add_executable(pad_probe tools/pad_probe.c)
+    target_link_libraries(pad_probe PRIVATE plank_relay_pad)
+
     # A vendored source change must be made in the Client and pinned again.
     set(PLANK_CLIENT_VENDOR "${CMAKE_CURRENT_SOURCE_DIR}/vendor/plank-client")
     file(SHA256 "${PLANK_CLIENT_VENDOR}/linuxrawwacom.cpp" WORKER_CPP_SHA256)

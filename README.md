@@ -24,6 +24,9 @@ confirmation, a 60-second attempt deadline, and a 10-minute lockout after
 three failures. It persists a Client key only after verifying the Client's
 confirmation tag. The physical key reader, network-facing pairing flow,
 Client connection, Bluetooth LE, and packaging remain to be implemented.
+The NUC's Wacom Pad evdev node is readable by the `plank-relay` service user;
+the provisional ExpressKey mapping and 5/15-second hold detector are compiled
+and simulated, pending a physical key-order check.
 
 Build and test:
 
