@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdio>
 #include <ctime>
 #include <limits>
 #include <utility>
@@ -30,7 +31,11 @@ PltrWorkerBridge::PltrWorkerBridge(std::function<void()> wake)
             return enqueue(bytes, size);
         },
         [] {},
-        [](LinuxRawWacomInput::LogLevel, const std::string &) {});
+        [](LinuxRawWacomInput::LogLevel level, const std::string &message) {
+            std::fprintf(stderr, "Wacom %s: %s\n",
+                         level == LinuxRawWacomInput::LogLevel::Warning ?
+                             "warning" : "info", message.c_str());
+        });
 }
 
 PltrWorkerBridge::~PltrWorkerBridge() {
