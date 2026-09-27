@@ -11,15 +11,30 @@ cover rejection, timeout and interrupted connections. Successful pairing lets
 you simulate reconnection without losing trust. Switching modes clears all
 simulated state; simulation is not hardware acceptance.
 
-## Live USB pairing
+## Live Bluetooth readings
+
+Live mode now offers relay discovery over Bluetooth LE. With the Linux
+[Bluetooth input lab](../../docs/bluetooth-headset-lab.md) running, select the
+relay, confirm the headset using five physical ExpressKey presses, and choose
+**Start live readings**. The screen shows pen position, pressure, tilt, Pad
+buttons and touch count. Tablet sleep shows an offline state while retaining
+trust; waking the same tablet resumes readings. The relay selects tablets by
+physical ancestry and capabilities, not a product-ID allowlist.
+
+The headset connects to the relay through this app's custom BLE service.
+CPace authorizes the headset and Noise encrypts the readings; the advertisement
+is not an identity proof. This is a coalesced diagnostic readout, not raw-HID
+forwarding to a workstation or a system-wide visionOS pointer. Existing TCP
+pairing remains available under **Network**.
+
+## Existing network/USB pairing
 
 Explicit Live mode uses the current relay's real C CPace/Noise protocol and OS
 Keychain. Enter the relay address/port. The existing daemon must already have
 its manual `pair` window open; follow the root README as the service owner.
 The existing daemon still selects PTH-660 for pairing. The app does not silently
-relax that or pretend to detect other models. Live Bluetooth and automatic
-discovery/enrollment are deliberately unavailable until the relay implements
-them. Eight usable ExpressKeys remain the planned capability-based contract.
+relax that or pretend to detect other models on this legacy TCP path. The new
+BLE lab uses the eight-ExpressKey capability contract described above.
 
 Use the **physical tablet** for the displayed sequence in Live mode. Trust is
 stored only after the final cryptographic confirmation and after verifying

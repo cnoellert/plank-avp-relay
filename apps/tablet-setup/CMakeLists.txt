@@ -33,16 +33,19 @@ target_link_libraries(CRelayProtocol PUBLIC "${PLANK_SODIUM_PREFIX}/lib/libsodiu
 add_library(RelaySetupKit STATIC
     "${RELAY_ROOT}/apple/RelaySetupKit/SetupState.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/SetupCoordinator.swift"
+    "${RELAY_ROOT}/apple/RelaySetupKit/RelayBluetooth.swift"
+    "${RELAY_ROOT}/apple/RelaySetupKit/TabletReadings.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayPairingClient.swift")
 target_link_libraries(RelaySetupKit PUBLIC CRelayProtocol
-    "-framework Foundation" "-framework Security" "-framework Network" "-framework Combine")
+    "-framework Foundation" "-framework Security" "-framework Network" "-framework Combine"
+    "-framework CoreBluetooth")
 target_compile_options(RelaySetupKit PRIVATE -strict-concurrency=complete)
 set_target_properties(CRelayProtocol RelaySetupKit PROPERTIES
     XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO"
     XCODE_ATTRIBUTE_SKIP_INSTALL "YES")
 
 add_executable(PlankTabletSetup MACOSX_BUNDLE
-    Sources/TabletSetupApp.swift Sources/TabletSetupView.swift)
+    Sources/TabletSetupApp.swift Sources/TabletSetupView.swift Sources/TabletReadingsView.swift)
 configure_file("${PLANK_SODIUM_PREFIX}/share/licenses/libsodium/LICENSE"
     "${CMAKE_CURRENT_BINARY_DIR}/libsodium-LICENSE.txt" COPYONLY)
 set(APP_LICENSES "${RELAY_ROOT}/LICENSE" "${RELAY_ROOT}/apple/NOTICE.md"
@@ -71,6 +74,7 @@ set_target_properties(PlankTabletSetup PROPERTIES
     XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO"
     XCODE_ATTRIBUTE_SKIP_INSTALL "NO"
     XCODE_ATTRIBUTE_INSTALL_PATH "/Applications"
+    XCODE_ATTRIBUTE_DEBUG_INFORMATION_FORMAT "dwarf-with-dsym"
     XCODE_ATTRIBUTE_SWIFT_STRICT_CONCURRENCY "complete"
     XCODE_ATTRIBUTE_INFOPLIST_KEY_UIApplicationSceneManifest_Generation "YES"
     XCODE_ATTRIBUTE_INFOPLIST_KEY_UILaunchScreen_Generation "YES")
@@ -98,7 +102,7 @@ endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     enable_testing()
-    add_executable(setup-preview Sources/PreviewMain.swift Sources/TabletSetupView.swift)
+    add_executable(setup-preview Sources/PreviewMain.swift Sources/TabletSetupView.swift Sources/TabletReadingsView.swift)
     target_include_directories(setup-preview PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
     target_link_libraries(setup-preview PRIVATE RelaySetupKit "-framework SwiftUI" "-framework AppKit")
     add_executable(pairing-socket-fixture "${RELAY_ROOT}/apple/Tests/pairing_socket_fixture.c"
@@ -116,6 +120,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
         "${RELAY_ROOT}/apple/Tests/SetupStateTests.swift")
     target_link_libraries(setup-state-tests PRIVATE "-framework Foundation")
     add_test(NAME setup-state-tests COMMAND setup-state-tests)
+    add_executable(tablet-readings-tests "${RELAY_ROOT}/apple/Tests/TabletReadingsTests.swift")
+    target_include_directories(tablet-readings-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+    target_link_libraries(tablet-readings-tests PRIVATE RelaySetupKit)
+    add_test(NAME tablet-readings-tests COMMAND tablet-readings-tests)
     foreach(test protocol session client_link pair_e2e noise_vector cpace_vector confirm)
         if(test STREQUAL "noise_vector" OR test STREQUAL "cpace_vector")
             # Vector fixtures require a different test-only context layout.

@@ -20,7 +20,7 @@ public enum RelaySetupError: LocalizedError, Sendable {
         case let .network(message): "Relay connection failed: \(message)"
         case .timedOut: "The relay did not complete the operation in time. You can try again."
         case .identityChanged: "This address already has a different trusted relay. Forget it explicitly before pairing a replacement."
-        case .unexpectedMessage: "The relay sent an unexpected setup message. No tablet session was started."
+        case .unexpectedMessage: "The relay sent an unsupported message. The connection closed; saved trust is retained."
         }
     }
 }
@@ -114,7 +114,15 @@ private final class ConnectionWaiter: @unchecked Sendable {
 
 // NWConnection supports calls from any thread; one consumer issues bounded,
 // sequential reads/writes. No mutable application state lives on its queue.
-private final class RelaySocket: @unchecked Sendable {
+@MainActor
+protocol RelayByteConnection: AnyObject, Sendable {
+    func connect() async throws
+    func send(_ data: Data) async throws
+    func receive() async throws -> Data
+    nonisolated func cancel()
+}
+
+private final class RelaySocket: RelayByteConnection, @unchecked Sendable {
     private let connection: NWConnection
     private let queue = DispatchQueue(label: "la.instinctual.PLANK.TabletSetup.socket")
 
@@ -166,12 +174,17 @@ private final class RelaySocket: @unchecked Sendable {
         }
     }
 
-    func cancel() { connection.cancel() }
+    nonisolated func cancel() { connection.cancel() }
 }
 
 @MainActor
 public final class RelayPairingClient {
     public init() {}
+
+    private func connection(_ address: RelayAddress) -> any RelayByteConnection {
+        if let identifier = address.bluetoothIdentifier { return RelayBLEConnection(identifier: identifier) }
+        return RelaySocket(address)
+    }
 
     /// Returns a verified key, but does not persist it. The caller checks its
     /// current operation token before committing trust, preventing stale success.
@@ -184,13 +197,13 @@ public final class RelayPairingClient {
             digits.withUnsafeBufferPointer { sequence in
                 name.withUnsafeBufferPointer { label in
                     pltr_client_pair_create(key.bindMemory(to: UInt8.self).baseAddress,
-                                            sequence.baseAddress, label.baseAddress, label.count, 2)
+                                            sequence.baseAddress, label.baseAddress, label.count, address.linkType)
                 }
             }
         }
         guard let codec else { throw RelaySetupError.protocolError }
         defer { pltr_client_pair_destroy(codec) }
-        let socket = RelaySocket(address)
+        let socket = connection(address)
         return try await bounded(socket: socket, seconds: 70) {
             try await socket.connect()
             var output = [UInt8](repeating: 0, count: 512)
@@ -233,12 +246,12 @@ public final class RelayPairingClient {
         let codec = privateKey.withUnsafeBytes { client in
             relayKey.withUnsafeBytes { relay in
                 pltr_client_link_create(client.bindMemory(to: UInt8.self).baseAddress,
-                                        relay.bindMemory(to: UInt8.self).baseAddress, 2)
+                                        relay.bindMemory(to: UInt8.self).baseAddress, address.linkType)
             }
         }
         guard let codec else { throw RelaySetupError.protocolError }
         defer { pltr_client_link_destroy(codec) }
-        let socket = RelaySocket(address)
+        let socket = connection(address)
         return try await bounded(socket: socket, seconds: 10) {
             try await socket.connect()
             var output = [UInt8](repeating: 0, count: 8448)
@@ -269,7 +282,8 @@ public final class RelayPairingClient {
                     if let version = pltr_client_link_peer_version(codec) {
                         let peerVersion = String(cString: version)
                         var endSize = 0
-                        if pltr_client_link_send(codec, UInt16(PLTR_GOODBYE.rawValue), nil, 0,
+                        let goodbye: [UInt8] = [1, 0]
+                        if pltr_client_link_send(codec, UInt16(PLTR_GOODBYE.rawValue), goodbye, goodbye.count,
                                                  &output, output.count, &endSize) == 0 {
                             try await socket.send(Data(output.prefix(endSize)))
                         }
@@ -282,7 +296,87 @@ public final class RelayPairingClient {
         }
     }
 
-    private func bounded<T>(socket: RelaySocket, seconds: UInt64,
+    public func observe(address: RelayAddress, privateKey: Data, relayKey: Data,
+                        onSample: (TabletReadings) -> Void) async throws {
+        guard address.bluetoothIdentifier != nil, privateKey.count == 32, relayKey.count == 32 else {
+            throw RelaySetupError.invalidState
+        }
+        let codec = privateKey.withUnsafeBytes { client in
+            relayKey.withUnsafeBytes { relay in
+                pltr_client_link_create(client.bindMemory(to: UInt8.self).baseAddress,
+                    relay.bindMemory(to: UInt8.self).baseAddress, 1)
+            }
+        }
+        guard let codec else { throw RelaySetupError.protocolError }
+        defer { pltr_client_link_destroy(codec) }
+        guard pltr_client_link_enable_input_observer(codec) == 0 else { throw RelaySetupError.protocolError }
+        let socket = connection(address)
+        try await bounded(socket: socket, seconds: 3600) {
+            try await socket.connect()
+            var output = [UInt8](repeating: 0, count: 8448)
+            var written = 0
+            guard pltr_client_link_start(codec, &output, output.count, &written) == 0 else {
+                throw RelaySetupError.protocolError
+            }
+            try await socket.send(Data(output.prefix(written)))
+            var requested = false
+            while true {
+                let data = try await self.receiveWithDeadline(socket)
+                var offset = 0
+                while offset < data.count {
+                    try Task.checkCancellation()
+                    var consumed = 0, replySize = 0, payloadSize = 0
+                    var type: UInt16 = 0
+                    var payload = [UInt8](repeating: 0, count: 8192)
+                    let result = data.withUnsafeBytes { bytes in
+                        pltr_client_link_receive(codec,
+                            bytes.bindMemory(to: UInt8.self).baseAddress!.advanced(by: offset),
+                            data.count-offset, &consumed, &output, output.count, &replySize,
+                            &type, &payload, payload.count, &payloadSize)
+                    }
+                    guard result >= 0, consumed > 0, consumed <= data.count-offset,
+                          replySize <= output.count else { throw RelaySetupError.protocolError }
+                    offset += consumed
+                    if replySize > 0 { try await socket.send(Data(output.prefix(replySize))) }
+                    if !requested, pltr_client_link_peer_version(codec) != nil {
+                        let enable: [UInt8] = [1]
+                        guard pltr_client_link_send(codec, UInt16(PLTR_INPUT_OBSERVE.rawValue), enable, 1,
+                            &output, output.count, &written) == 0 else { throw RelaySetupError.unexpectedMessage }
+                        try await socket.send(Data(output.prefix(written)))
+                        requested = true
+                    }
+                    if type == UInt16(PLTR_INPUT_SAMPLE.rawValue), requested {
+                        onSample(try TabletReadings(data: Data(payload.prefix(payloadSize))))
+                    } else if type == UInt16(PLTR_PING.rawValue), payloadSize == 16 {
+                        var pong = Array(payload.prefix(16))
+                        let now = DispatchTime.now().uptimeNanoseconds / 1000
+                        let timestamp = (0..<8).map { UInt8(truncatingIfNeeded: now >> (8*$0)) }
+                        pong.append(contentsOf: timestamp); pong.append(contentsOf: timestamp)
+                        guard pltr_client_link_send(codec, UInt16(PLTR_PONG.rawValue), pong, pong.count,
+                            &output, output.count, &written) == 0 else { throw RelaySetupError.protocolError }
+                        try await socket.send(Data(output.prefix(written)))
+                    } else if type != 0 { throw RelaySetupError.unexpectedMessage }
+                }
+            }
+        }
+    }
+
+    private func receiveWithDeadline(_ socket: any RelayByteConnection) async throws -> Data {
+        var expired = false
+        let deadline = Task {
+            do { try await Task.sleep(for: .seconds(10)) } catch { return }
+            expired = true
+            socket.cancel()
+        }
+        defer { deadline.cancel() }
+        do { return try await socket.receive() }
+        catch {
+            if expired && !Task.isCancelled { throw RelaySetupError.timedOut }
+            throw error
+        }
+    }
+
+    private func bounded<T>(socket: any RelayByteConnection, seconds: UInt64,
                             operation: () async throws -> T) async throws -> T {
         var expired = false
         let timer = Task {

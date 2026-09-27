@@ -25,7 +25,7 @@ public enum SetupStep: Int, CaseIterable, Sendable {
 }
 
 public enum SetupActivity: Equatable, Sendable {
-    case idle, pairing, checking, failed(String), paired
+    case idle, pairing, checking, observing, failed(String), paired
 }
 
 public enum SimulationScenario: String, CaseIterable, Sendable {
@@ -39,6 +39,8 @@ public enum SimulationScenario: String, CaseIterable, Sendable {
 public struct RelayAddress: Equatable, Sendable {
     public let host: String
     public let port: UInt16
+    public let bluetoothIdentifier: UUID?
+    public let bluetoothName: String?
 
     public init?(host: String, port: String) {
         let normalized = host.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -57,13 +59,26 @@ public struct RelayAddress: Equatable, Sendable {
             self.host = normalized
         }
         self.port = number
+        bluetoothIdentifier = nil
+        bluetoothName = nil
     }
+
+    public init(bluetoothIdentifier: UUID, name: String) {
+        self.bluetoothIdentifier = bluetoothIdentifier
+        bluetoothName = String(name.prefix(64))
+        host = bluetoothIdentifier.uuidString.lowercased()
+        port = 0
+    }
+
+    public var linkType: UInt8 { bluetoothIdentifier == nil ? 2 : 1 }
 
     public var description: String {
-        host.contains(":") ? "[\(host)]:\(port)" : "\(host):\(port)"
+        bluetoothName ?? (host.contains(":") ? "[\(host)]:\(port)" : "\(host):\(port)")
     }
 
-    public var keychainAccount: String { "relay-v1:\(description)" }
+    public var keychainAccount: String {
+        bluetoothIdentifier == nil ? "relay-v1:\(description)" : "relay-ble-v1:\(host)"
+    }
 }
 
 /// Pure workflow state. Cryptographic success is supplied only by the live
@@ -92,6 +107,7 @@ public struct SetupState: Equatable, Sendable {
     public mutating func selectRelay(_ address: RelayAddress, trusted: Bool = false) -> Bool {
         guard !busy else { return false }
         self.address = address
+        if address.bluetoothIdentifier != nil { connection = .bluetooth }
         hasTrust = trusted
         connectionVerified = false
         activity = trusted ? .paired : .idle
@@ -103,7 +119,8 @@ public struct SetupState: Equatable, Sendable {
     @discardableResult
     public mutating func chooseConnection(_ connection: TabletConnection) -> Bool {
         guard !busy, step == .tablet,
-              mode == .simulation || connection == .usb else { return false }
+              mode == .simulation || connection == .usb ||
+                address?.bluetoothIdentifier != nil else { return false }
         self.connection = connection
         return true
     }
@@ -133,6 +150,18 @@ public struct SetupState: Equatable, Sendable {
         activity = .checking
         connectionVerified = false
         return id
+    }
+
+    public mutating func beginObservation() -> UUID? {
+        guard mode == .live, address?.bluetoothIdentifier != nil,
+              let id = beginCheck() else { return nil }
+        activity = .observing
+        return id
+    }
+
+    public mutating func verifyObservation(_ id: UUID) {
+        guard operation == id, activity == .observing else { return }
+        connectionVerified = true
     }
 
     @discardableResult

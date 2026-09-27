@@ -13,5 +13,7 @@
     <key>NSLocalNetworkUsageDescription</key>
     <string>Live setup connects to the tablet relay you select. Simulation does not use the network.</string>
     <key>NSHighResolutionCapable</key><true/>
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>Find your tablet relay, confirm pairing with its ExpressKeys, and display live tablet readings.</string>
     <key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>
 </dict></plist>

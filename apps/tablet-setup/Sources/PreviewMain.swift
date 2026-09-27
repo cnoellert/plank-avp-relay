@@ -12,7 +12,7 @@ enum SetupPreview {
         _ = NSApplication.shared
         let directory = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        for page in ["relay", "usb", "bluetooth", "authorize", "complete"] {
+        for page in ["relay", "usb", "bluetooth", "authorize", "complete", "readings"] {
             let setup = SetupCoordinator()
             if page != "relay" { setup.selectDemoRelay() }
             if page == "bluetooth" {
@@ -26,7 +26,21 @@ enum SetupPreview {
             if page == "complete" {
                 for key in setup.state.code { setup.pressSimulatedKey(key) }
             }
-            let view = TabletSetupView(setup: setup)
+            let content: AnyView
+            if page == "readings" {
+                var sample = Data(repeating: 0, count: 80)
+                sample[0] = 1; sample[1] = 7; sample[2] = 4
+                for (offset, value) in [(16, 4500), (20, 3000), (24, 4096),
+                                        (32, 10000), (40, 7000), (48, 8192), (52, -12), (56, 15)] {
+                    let bits = UInt32(bitPattern: Int32(value))
+                    for byte in 0..<4 { sample[offset+byte] = UInt8(truncatingIfNeeded: bits >> (8*byte)) }
+                }
+                content = AnyView(VStack(alignment: .leading, spacing: 20) {
+                    Text("Input readout preview — synthetic data").font(.title2)
+                    TabletReadingsView(readings: try! TabletReadings(data: sample), count: 120)
+                }.padding(30))
+            } else { content = AnyView(TabletSetupView(setup: setup)) }
+            let view = content
                 .frame(width: 820, height: 820)
                 .environment(\.colorScheme, .dark)
                 .background(Color(red: 0.10, green: 0.12, blue: 0.15))

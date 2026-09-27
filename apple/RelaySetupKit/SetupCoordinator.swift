@@ -12,6 +12,9 @@ public final class SetupCoordinator: ObservableObject {
     @Published public private(set) var simulatedKeys: [UInt8] = []
     @Published public private(set) var bluetoothSelected = false
     @Published public private(set) var peerVersion: String?
+    @Published public private(set) var readings: TabletReadings?
+    @Published public private(set) var readingCount = 0
+    public let scanner = RelayBLEScanner()
     private let keys = RelayKeyStore()
     private let client = RelayPairingClient()
     private var task: Task<Void, Never>?
@@ -24,11 +27,32 @@ public final class SetupCoordinator: ObservableObject {
         simulatedKeys = []
         bluetoothSelected = false
         peerVersion = nil
+        readings = nil
+        readingCount = 0
         host = mode == .live ? UserDefaults.standard.string(forKey: "setup.lastRelayHost") ?? "" : ""
         port = mode == .live ? UserDefaults.standard.string(forKey: "setup.lastRelayPort") ?? "28990" : "28990"
         message = mode == .simulation
             ? "Simulation only. No network connections or pairing keys are used."
-            : "Live USB pairing uses the current relay's manual pairing window. Discovery and Bluetooth setup are not implemented yet."
+            : "Find your relay over Bluetooth, or use its network address. Confirm pairing with the tablet's ExpressKeys."
+    }
+
+    public var savedBluetoothRelay: BluetoothRelay? {
+        guard let value = UserDefaults.standard.string(forKey: "setup.lastBluetoothRelay"),
+              let id = UUID(uuidString: value) else { return nil }
+        return BluetoothRelay(id: id,
+            name: UserDefaults.standard.string(forKey: "setup.lastBluetoothRelayName") ?? "Saved relay", signal: 0)
+    }
+
+    public func selectBluetoothRelay(_ relay: BluetoothRelay) {
+        guard state.mode == .live, !state.busy else { return }
+        scanner.stop()
+        let address = RelayAddress(bluetoothIdentifier: relay.id, name: relay.name)
+        do {
+            let trusted = try keys.relayKey(address) != nil
+            guard state.selectRelay(address, trusted: trusted) else { return }
+            message = trusted ? "Saved pairing found. Start live readings to verify the relay and tablet." :
+                "Wake the tablet attached to this relay, then prepare its ExpressKey enrollment window."
+        } catch { message = error.localizedDescription }
     }
 
     public func selectDemoRelay(second: Bool = false) {
@@ -65,7 +89,7 @@ public final class SetupCoordinator: ObservableObject {
     }
 
     public func preparePairing() {
-        guard state.connection != .bluetooth || bluetoothSelected else { return }
+        guard state.mode == .live || state.connection != .bluetooth || bluetoothSelected else { return }
         guard state.prepareAuthorization() else { return }
         message = state.mode == .simulation
             ? "Generate a sequence, then use the simulated ExpressKeys below."
@@ -105,8 +129,13 @@ public final class SetupCoordinator: ObservableObject {
                         // success: cancellation cannot commit a stale identity.
                         try self.keys.saveRelay(relayKey, address: address)
                         guard self.state.succeed(id) else { return }
-                        UserDefaults.standard.set(address.host, forKey: "setup.lastRelayHost")
-                        UserDefaults.standard.set(String(address.port), forKey: "setup.lastRelayPort")
+                        if let identifier = address.bluetoothIdentifier {
+                            UserDefaults.standard.set(identifier.uuidString, forKey: "setup.lastBluetoothRelay")
+                            UserDefaults.standard.set(address.description, forKey: "setup.lastBluetoothRelayName")
+                        } else {
+                            UserDefaults.standard.set(address.host, forKey: "setup.lastRelayHost")
+                            UserDefaults.standard.set(String(address.port), forKey: "setup.lastRelayPort")
+                        }
                         self.message = "Relay identity verified and saved in this app's Keychain. No Host session or tablet forwarding was started."
                     } catch {
                         guard self.state.operation == id else { return }
@@ -172,17 +201,48 @@ public final class SetupCoordinator: ObservableObject {
     }
 
     public func cancel() {
+        scanner.stop()
         task?.cancel()
         task = nil
         state.cancel()
         simulatedKeys = []
+        readings = nil
         message = "Operation canceled. Existing pairing was not removed."
     }
 
     public func pauseForInactivity() {
+        scanner.stop()
         if state.busy {
             cancel()
             message = "Setup paused while the app is inactive. Retry when you return."
+        }
+    }
+
+    public func startReadings() {
+        guard let address = state.address, let id = state.beginObservation() else { return }
+        readings = nil
+        readingCount = 0
+        message = "Verifying the relay and starting live tablet readings…"
+        task = Task { [weak self] in
+            guard let self else { return }
+            do {
+                guard let relayKey = try self.keys.relayKey(address) else { throw RelaySetupError.invalidStoredKey }
+                try await self.client.observe(address: address, privateKey: self.keys.clientKey(), relayKey: relayKey) {
+                    [weak self] sample in
+                    guard let self, self.state.operation == id else { return }
+                    self.state.verifyObservation(id)
+                    self.readings = sample
+                    self.readingCount += 1
+                    self.message = sample.attached ? "Receiving live tablet readings over Bluetooth." :
+                        "The relay is connected. The tablet is offline; wake it to resume input. Pairing is retained."
+                }
+            } catch {
+                guard self.state.operation == id else { return }
+                self.readings = nil
+                self.state.fail(id, message: error.localizedDescription)
+                self.message = error.localizedDescription
+            }
+            self.task = nil
         }
     }
 

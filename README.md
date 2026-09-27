@@ -8,8 +8,10 @@ Host session; the Relay has no Host credentials.
 A separate [PLANK Tablet Setup workflow lab](apps/tablet-setup/README.md) on the
 `visionos-tablet-setup` branch exercises onboarding without remote desktop.
 Its simulated Bluetooth/headless workflow is clearly separated from the live
-USB pairing supported by the current daemon. This does not change service
-behavior or claim new tablet hardware support.
+USB pairing supported by the current daemon. An explicit
+[Bluetooth headset input lab](docs/bluetooth-headset-lab.md) adds authenticated
+BLE relay discovery/pairing and a live diagnostic readout. It is a separate
+foreground prototype; the production raw-HID service is unchanged.
 
 **Current state:** the bounded `PLTR` frame and byte-stream parsers are tested,
 and the Client's raw Wacom worker is vendored and build-checked on Linux. The
@@ -31,7 +33,12 @@ confirmation tag. Its framed pairing state machine and the Client counterpart
 pass an end-to-end test: the Client pins the Relay key only after verifying the
 Relay's confirmation tag. The Intuos Pro PTH-660's eight physical ExpressKeys
 were checked on the development NUC in order against codes 256 through 263.
-Bluetooth LE and production packaging remain to be implemented.
+Bluetooth LE for the production raw-HID service and production packaging remain
+to be implemented; the separate BLE input lab is described above.
+An initial [headless Bluetooth tablet check](docs/bluetooth-tablet-pairing.md)
+has verified a Linux Bluetooth bond, physical pen/pressure/ExpressKey input and
+reconnection on one tablet. Automated Bluetooth enrollment and Bluetooth capture
+in this daemon remain future work.
 The NUC's Wacom Pad evdev node is readable by the `plank-relay` service user;
 the ExpressKey mapping and 5/15-second hold detector are compiled and tested.
 The existing raw-Wacom worker now has a bounded, validated output queue for
@@ -60,7 +67,7 @@ became active. The Client also resumed pen clicks and pressure after the Relay
 service restarted during a session. After a full NUC reboot, the service
 started automatically and a fresh Vision Pro session again carried pen clicks
 and varying pressure. After the headset was removed for one minute, pen
-movement and pressure returned immediately on wake. DNS-SD, Bluetooth LE, and
+movement and pressure returned immediately on wake. DNS-SD, production BLE, and
 production packaging remain. During an active session, unplugging the tablet's
 USB cable and reconnecting it also recovered without restarting PLANK: movement
 returned first, followed a few seconds later by tip clicks and varying

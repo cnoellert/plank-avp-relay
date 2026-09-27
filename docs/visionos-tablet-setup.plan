@@ -1,5 +1,15 @@
 # Standalone tablet setup app
 
+## Current extension, 2026-09-27
+
+After testing headless Wacom Bluetooth pairing, persistence and idle sleep/wake,
+the operator requested Bluetooth pairing between the relay and Vision Pro and
+live Wacom readings in this app. This advances beyond the original UI-only
+phase below. The explicit BLE lab reuses CPace/Noise, adds negotiated observer
+frames and capability-based read-only evdev capture, and leaves production
+raw-HID/Host forwarding separate. See `bluetooth-headset-lab.md` for the contract
+and hardware acceptance boundaries. The original scope below describes build1.
+
 Branch: `visionos-tablet-setup`, based on relay `465c11a`.
 
 ## Scope

@@ -54,7 +54,7 @@ enum SetupStateTests {
         state.changeMode(.live)
         expect(state.step == .relay && state.address == nil && !state.hasTrust, "No simulated trust in live mode")
         expect(state.selectRelay(address), "Live endpoint")
-        expect(!state.chooseConnection(.bluetooth), "Live Bluetooth not implemented")
+        expect(!state.chooseConnection(.bluetooth), "Legacy TCP pairing remains USB-only")
         expect(state.chooseConnection(.usb), "Live USB")
         expect(state.prepareAuthorization(), "Live manual prerequisite")
         let live = state.beginPairing(code: [1, 1, 1, 1, 1])!
@@ -64,6 +64,22 @@ enum SetupStateTests {
         expect(state.step == .complete && !state.connectionVerified, "Stored trust is not a live connection")
         state.back()
         expect(state.step == .relay && !state.hasTrust, "Back forgets only current UI selection")
+        state.changeMode(.live)
+        let bluetooth = RelayAddress(bluetoothIdentifier: UUID(), name: "Test relay")
+        expect(bluetooth.linkType == 1 && address.linkType == 2, "Transport-specific crypto binding")
+        expect(bluetooth.keychainAccount != address.keychainAccount, "Transport-specific trust lookup")
+        expect(state.selectRelay(bluetooth, trusted: true), "Select saved Bluetooth relay")
+        let observation = state.beginObservation()!
+        expect(state.activity == .observing && state.busy, "One live observation at a time")
+        state.verifyObservation(UUID())
+        expect(!state.connectionVerified, "Ignore stale observation")
+        state.verifyObservation(observation)
+        expect(state.connectionVerified, "Authenticated observation verifies connection")
+        state.cancel()
+        state.verifyObservation(observation)
+        expect(state.hasTrust && !state.connectionVerified, "Cancel retains trust and ignores late readings")
+        state.changeMode(.simulation)
+        expect(state.beginObservation() == nil, "Simulation cannot start live readings")
         print("PASS: \(checks) setup-state assertions")
     }
 }

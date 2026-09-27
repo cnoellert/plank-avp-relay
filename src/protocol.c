@@ -97,7 +97,13 @@ static int valid_payload(uint16_t type, const uint8_t *bytes, size_t size,
                read_le16(bytes + 2) >= PLTR_VERSION &&
                bytes[4] == (direction == PLTR_CLIENT_TO_RELAY ? 2 : 1) &&
                bytes[5] == 0 && bytes[6] == 0 && bytes[7] == 0 &&
-               read_le32(bytes + 8) == 1;
+               (read_le32(bytes + 8) & ~3u) == 0 &&
+               (read_le32(bytes + 8) & PLTR_FEATURE_RAW_HID) != 0;
+    case PLTR_INPUT_OBSERVE:
+        return size == 1 && bytes[0] <= 1;
+    case PLTR_INPUT_SAMPLE:
+        return size == PLTR_INPUT_SAMPLE_SIZE && bytes[0] == 1 &&
+               (bytes[1] & ~63u) == 0 && bytes[78] == 0 && bytes[79] == 0;
     case PLTR_SESSION_READY:
         return size == 5 && (read_le32(bytes) & 0x24u) == 0x24u && bytes[4] <= 1;
     case PLTR_SESSION_ACTIVE:
@@ -159,10 +165,12 @@ static int allowed_type(uint16_t type, PltrDirection direction, PltrPhase phase)
         return 1;
     }
     if (direction == PLTR_CLIENT_TO_RELAY) {
-        return type >= PLTR_SESSION_READY && type <= PLTR_HOST_FRAME;
+        return (type >= PLTR_SESSION_READY && type <= PLTR_HOST_FRAME) ||
+               type == PLTR_INPUT_OBSERVE;
     }
     if (direction == PLTR_RELAY_TO_CLIENT) {
-        return type == PLTR_CLIENT_FRAME || type == PLTR_STATUS;
+        return type == PLTR_CLIENT_FRAME || type == PLTR_STATUS ||
+               type == PLTR_INPUT_SAMPLE;
     }
     return 0;
 }

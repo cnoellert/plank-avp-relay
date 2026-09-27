@@ -14,6 +14,7 @@ typedef enum PltrRelayStage {
     PLTR_RELAY_RECONNECTING = 4,
     PLTR_RELAY_ENDED = 5,
     PLTR_RELAY_BROKEN = 6,
+    PLTR_RELAY_OBSERVING = 7,
 } PltrRelayStage;
 
 typedef struct PltrRelaySession {

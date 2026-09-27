@@ -71,7 +71,7 @@ static int send_hello(PltrLink *link, uint8_t *out, size_t capacity,
     le16(hello, PLTR_VERSION);
     le16(hello + 2, PLTR_VERSION);
     hello[4] = link->role == PLTR_NOISE_INITIATOR ? 2 : 1;
-    le32(hello + 8, 1); // RAW_HID_V2
+    le32(hello + 8, link->local_features);
     hello[12] = 5;
     memcpy(hello + 13, "0.1.1", 5);
     return send_secure(link, PLTR_HELLO, hello, sizeof(hello),
@@ -97,7 +97,22 @@ int pltr_link_init(PltrLink *link, PltrNoiseRole role,
     link->approve_client = approve_client;
     link->approve_context = approve_context;
     link->incoming_sequence = link->outgoing_sequence = 1;
+    link->local_features = PLTR_FEATURE_RAW_HID;
     return 0;
+}
+
+int pltr_link_enable_input_observer(PltrLink *link) {
+    if (link == NULL || link->incoming_sequence != 1 ||
+        link->outgoing_sequence != 1 ||
+        (link->stage != PLTR_LINK_WAIT_OPEN &&
+         link->stage != PLTR_LINK_WAIT_SECOND)) return -1;
+    link->local_features |= PLTR_FEATURE_INPUT_OBSERVER;
+    return 0;
+}
+
+static int observer_enabled(const PltrLink *link) {
+    return (link->local_features & link->peer_features &
+            PLTR_FEATURE_INPUT_OBSERVER) != 0;
 }
 
 void pltr_link_clear(PltrLink *link) {
@@ -194,6 +209,10 @@ int pltr_link_receive(PltrLink *link, const uint8_t *bytes, size_t size,
         link->stage = PLTR_LINK_WAIT_HELLO;
     } else if (link->stage == PLTR_LINK_WAIT_HELLO) {
         if (frame->type != PLTR_HELLO) return fail(link);
+        link->peer_features = (uint32_t)frame->payload[8] |
+            ((uint32_t)frame->payload[9] << 8) |
+            ((uint32_t)frame->payload[10] << 16) |
+            ((uint32_t)frame->payload[11] << 24);
         if (link->role == PLTR_NOISE_RESPONDER &&
             pltr_relay_session_accept(&link->relay_session, body,
                                        body_size, frame) != 0) return fail(link);
@@ -202,6 +221,9 @@ int pltr_link_receive(PltrLink *link, const uint8_t *bytes, size_t size,
         link->peer_version[version_size] = '\0';
         link->stage = PLTR_LINK_READY;
     } else if (link->stage == PLTR_LINK_READY) {
+        if ((frame->type == PLTR_INPUT_OBSERVE ||
+             frame->type == PLTR_INPUT_SAMPLE) && !observer_enabled(link))
+            return fail(link);
         if (frame->type == PLTR_HELLO ||
             (link->role == PLTR_NOISE_RESPONDER &&
              pltr_relay_session_accept(&link->relay_session, body,
@@ -222,6 +244,10 @@ int pltr_link_send(PltrLink *link, uint16_t type,
                    const uint8_t *payload, size_t payload_size,
                    uint8_t *out, size_t capacity, size_t *written) {
     if (link == NULL || link->stage != PLTR_LINK_READY ||
+        ((type == PLTR_INPUT_OBSERVE || type == PLTR_INPUT_SAMPLE) &&
+         !observer_enabled(link)) ||
+        (link->role == PLTR_NOISE_RESPONDER && type == PLTR_INPUT_SAMPLE &&
+         link->relay_session.stage != PLTR_RELAY_OBSERVING) ||
         (link->role == PLTR_NOISE_RESPONDER &&
          type == PLTR_CLIENT_FRAME &&
          link->relay_session.stage != PLTR_RELAY_READY)) return -1;

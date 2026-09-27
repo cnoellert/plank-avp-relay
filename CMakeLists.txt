@@ -59,6 +59,14 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_test(NAME worker_bridge_test COMMAND worker_bridge_test)
 
     if(SODIUM_FOUND)
+        add_library(plank_ble_lab SHARED
+            src/ble_lab.c src/protocol.c src/session.c src/link.c src/noise.c
+            src/cpace.c src/confirm.c src/identity.c src/pair_budget.c
+            src/pairing.c src/pair_wire.c)
+        target_include_directories(plank_ble_lab PUBLIC src)
+        target_compile_features(plank_ble_lab PRIVATE c_std_11)
+        target_link_libraries(plank_ble_lab PRIVATE PkgConfig::SODIUM)
+
         add_library(plank_relay_noise STATIC src/noise.c)
         target_include_directories(plank_relay_noise PUBLIC src)
         target_compile_features(plank_relay_noise PUBLIC c_std_11)
@@ -115,6 +123,14 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         add_executable(client_link_test tests/client_link_test.c)
         target_link_libraries(client_link_test PRIVATE plank_relay_client_link)
         add_test(NAME client_link_test COMMAND client_link_test)
+
+        add_executable(ble_lab_test tests/ble_lab_test.c)
+        target_link_libraries(ble_lab_test PRIVATE plank_ble_lab
+            plank_relay_client_pair plank_relay_client_link)
+        add_test(NAME ble_lab_test COMMAND ble_lab_test)
+        find_package(Python3 COMPONENTS Interpreter REQUIRED)
+        add_test(NAME ble_transport_test COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/ble_transport_test.py")
 
         add_executable(link_test tests/link_test.c)
         target_link_libraries(link_test PRIVATE plank_relay_link)

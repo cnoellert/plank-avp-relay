@@ -7,6 +7,7 @@ struct TabletSetupView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var confirmForget = false
     @State private var liveWindowReady = false
+    @State private var bluetoothRelay = true
 
     init(setup: SetupCoordinator = SetupCoordinator()) {
         _setup = StateObject(wrappedValue: setup)
@@ -40,6 +41,7 @@ struct TabletSetupView: View {
             if phase != .active { setup.pauseForInactivity() }
         }
         .onChange(of: setup.state.mode) { _, _ in liveWindowReady = false }
+        .onDisappear { setup.pauseForInactivity() }
         .confirmationDialog("Forget this relay on this app?", isPresented: $confirmForget) {
             Button("Forget local pairing", role: .destructive) { setup.forget() }
         } message: {
@@ -72,7 +74,7 @@ struct TabletSetupView: View {
                     .font(.headline)
                 Text(setup.state.mode == .simulation
                      ? "Explore USB and Bluetooth setup without a relay. Nothing is saved to Keychain."
-                     : "USB pairing only. Automatic enrollment, discovery and Bluetooth are not yet available in the relay daemon.")
+                     : "Pair with your relay and test live tablet readings over Bluetooth.")
                     .font(.callout)
             }
         } icon: {
@@ -111,6 +113,16 @@ struct TabletSetupView: View {
             .buttonStyle(.bordered)
             scenarioPicker
         } else {
+            Picker("Headset connects to relay by", selection: $bluetoothRelay) {
+                Text("Bluetooth").tag(true)
+                Text("Network").tag(false)
+            }.pickerStyle(.segmented)
+            if bluetoothRelay {
+                BluetoothRelayPicker(scanner: setup.scanner, selected: setup.selectBluetoothRelay)
+                if let saved = setup.savedBluetoothRelay {
+                    Button("Use saved relay: \(saved.name)") { setup.selectBluetoothRelay(saved) }
+                }
+            } else {
             Text("Enter the relay's address. Discovery is not advertised by the current relay build.")
             VStack(alignment: .leading, spacing: 10) {
                 Text("Relay hostname or IP address").font(.headline)
@@ -122,6 +134,7 @@ struct TabletSetupView: View {
             Text("Only connect to a relay you own. An address or advertised device name is not proof of identity.")
                 .font(.callout).foregroundStyle(.secondary)
             Button("Continue") { setup.selectRelay() }.buttonStyle(.borderedProminent)
+            }
         }
     }
 
@@ -146,10 +159,14 @@ struct TabletSetupView: View {
             get: { setup.state.connection }, set: { setup.chooseConnection($0) })) {
             Text("USB cable").tag(TabletConnection.usb)
             Text("Bluetooth").tag(TabletConnection.bluetooth)
-                .disabled(setup.state.mode == .live)
+                .disabled(setup.state.mode == .live && setup.state.address?.bluetoothIdentifier == nil)
         }
         .pickerStyle(.segmented)
-        if setup.state.connection == .usb {
+        if setup.state.mode == .live && setup.state.address?.bluetoothIdentifier != nil {
+            Label("Keep the tablet connected to the relay and awake.", systemImage: "hand.draw")
+            Text("The relay must already be connected to your tablet. Confirm this headset using five presses on its eight ExpressKeys.")
+            Toggle("The relay's ExpressKey enrollment window is ready", isOn: $liveWindowReady)
+        } else if setup.state.connection == .usb {
             Label("Connect the tablet's USB cable to the relay, not to the headset.", systemImage: "cable.connector")
             if setup.state.mode == .simulation {
                 Label("Simulated Wacom pad · 8 ExpressKeys", systemImage: "checkmark.circle.fill")
@@ -172,7 +189,7 @@ struct TabletSetupView: View {
         }
         Button("Continue to authorization") { setup.preparePairing() }
             .buttonStyle(.borderedProminent)
-            .disabled(setup.state.connection == .bluetooth && !setup.bluetoothSelected ||
+            .disabled(setup.state.mode == .simulation && setup.state.connection == .bluetooth && !setup.bluetoothSelected ||
                       setup.state.mode == .live && !liveWindowReady)
     }
 
@@ -220,11 +237,22 @@ struct TabletSetupView: View {
         if let version = setup.peerVersion { LabeledContent("Relay version", value: version) }
         Text(setup.state.mode == .simulation
              ? "Try a connection failure below, then switch back to Successful pairing and check again. Saved pairing should survive the interruption."
-             : "Pairing is independent of a workstation session. This app never starts remote desktop or forwards tablet input.")
-        if setup.state.mode == .live {
+             : setup.state.address?.bluetoothIdentifier != nil
+                 ? "Start live readings, then move the pen and vary its pressure on the tablet."
+                 : "Pairing is independent of a workstation session. This network check does not start tablet forwarding.")
+        if setup.state.mode == .live && setup.state.address?.bluetoothIdentifier == nil {
             Text("Connection check requires the relay's serve mode and occupies its single connection briefly. Do not run it during an active desktop session.")
                 .font(.callout).foregroundStyle(.secondary)
-        } else { scenarioPicker.disabled(setup.state.busy) }
+        } else if setup.state.mode == .simulation { scenarioPicker.disabled(setup.state.busy) }
+        if setup.state.mode == .live && setup.state.address?.bluetoothIdentifier != nil {
+            if setup.state.activity == .observing {
+                Button("Stop readings") { setup.cancel() }.buttonStyle(.borderedProminent)
+            } else {
+                Button("Start live readings") { setup.startReadings() }
+                    .buttonStyle(.borderedProminent).disabled(setup.state.busy)
+            }
+            if let readings = setup.readings { TabletReadingsView(readings: readings, count: setup.readingCount) }
+        }
         HStack {
             Button("Check connection") { setup.checkConnection() }
                 .buttonStyle(.borderedProminent).disabled(setup.state.busy)
