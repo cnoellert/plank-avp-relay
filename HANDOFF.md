@@ -53,7 +53,7 @@ not something the simulated wizard already implements.
 - No product installation, persistent service change, merge or public release
   occurred. The temporary GUI-session build jobs were unloaded after completion.
 
-## Next step: TestFlight
+## TestFlight handoff and next test
 
 Account authentication and signing are repaired. An SSH security session could
 not access the GUI-unlocked login keychain; a one-shot build in the existing GUI
@@ -61,23 +61,31 @@ session succeeded. No password extraction, Keychain reset or ACL weakening was
 needed. Do not confuse this session boundary with an invalid certificate.
 
 The owner created the app record for `la.instinctual.PLANK.TabletSetup`.
-The existing archive uploaded successfully as version0.1.0/build1; Xcode
-confirmed the uploaded package is processing. Do not upload build1 again or
-claim that processing/tester availability has been verified. No TestFlight
-invitation has been configured by this work. Next upload must increment the
-build number.
+The existing archive uploaded successfully as version0.1.0/build1. The owner
+subsequently reported **Ready to Submit** in TestFlight. Their tester initially
+showed **No Builds Available**; after instructions to assign build0.1.0(1) to
+the internal testing group, the owner confirmed that worked. This is acceptance
+of the TestFlight access step, not confirmation of headset installation or
+workflow/hardware acceptance. Do not upload build1 again. Next upload must
+increment the build number.
 
 Apple accepted the binary with a non-blocking symbol-upload warning: the
 archive lacks an application dSYM. Correct Release debug-symbol generation
 and verify its UUID matches the executable before the next archive/upload.
 This did not prevent upload, but limits diagnosis of crashes from this build.
 
-Next: complete the account owner's encryption questionnaire accurately,
-wait for processing/beta-review requirements and select testers. Live mode uses
-CPace/Noise/libsodium, not only OS cryptography; no export-exemption assertion
-is hardcoded. Confirm the headset runs visionOS27. Do not extract/reuse macOS
-notarization credentials or commit signing material. Headset interaction and
-physical pairing remain unqualified.
+Next: install through the TestFlight invitation on a visionOS27 headset and
+review **Simulation** first: readability, gaze/pinch controls, USB/Bluetooth
+steps, ExpressKey sequence presentation, rejection/timeout/cancel and reconnect.
+No relay hardware is needed for this UI review. Real pairing, Bluetooth and
+headset input behavior remain unqualified; do not start daemon changes until
+the workflow is reviewed.
+
+Live mode uses CPace/Noise/libsodium, not only OS cryptography; no export-exemption
+assertion is hardcoded. Distribution geography is an owner decision and was not
+recorded as a confirmed choice. Reassess compliance if distribution or crypto
+changes. Do not extract/reuse macOS notarization credentials or commit signing
+material. The branch is retained without merging or making a public release.
 
 Read `apps/tablet-setup/README.md` for build commands and live-pairing caveats,
 and `docs/visionos-tablet-setup.plan` for the staged relay follow-up.

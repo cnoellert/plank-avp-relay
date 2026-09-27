@@ -138,6 +138,14 @@ Bundle checks verify the actual compiled icon, scene manifest, version, privacy
 declaration and licenses before export. Upload completion still does not prove
 TestFlight processing, compliance approval or headset qualification.
 
+For internal testing, assign the uploaded build to the same TestFlight group
+as the tester. **No Builds Available** on a tester entry can mean this
+assignment is missing; creating the tester alone is insufficient. Accept the
+invitation on the headset using **View in TestFlight → Accept → Install**.
+If an invitation has not arrived, check both group membership and build
+assignment before resending it. Start the review in Simulation; an installation
+or successful invitation is not live tablet/relay qualification.
+
 Apple references: [uploading builds](https://developer.apple.com/help/app-store-connect/manage-builds/upload-builds)
 and [export compliance](https://developer.apple.com/help/app-store-connect/manage-app-information/overview-of-export-compliance).
 

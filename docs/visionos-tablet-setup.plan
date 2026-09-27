@@ -57,8 +57,9 @@ macOS preview or simulator compilation as headset qualification.
 The headset installation step needs appropriate Apple development provisioning;
 Developer ID macOS signing is not a visionOS installation method.
 The operator selected TestFlight delivery. The signed Release archive and
-distribution IPA export pass. Version0.1.0/build1 uploaded successfully after
-the owner created the app record; processing/compliance and tester selection
-remain. Fix the non-blocking missing app dSYM before the next uploaded build.
-See HANDOFF for exact source/build provenance. Do not treat an exported IPA as
-TestFlight availability or simulator compilation as headset qualification.
+distribution IPA export pass. Version0.1.0/build1 uploaded successfully, and
+the owner confirmed the internal tester build-assignment step worked. Next is
+headset installation and Simulation workflow review; this has not yet been
+reported as accepted. Fix the non-blocking missing app dSYM before the next
+uploaded build. See HANDOFF for exact source/build provenance. Do not treat
+TestFlight access or simulator compilation as headset/hardware qualification.
