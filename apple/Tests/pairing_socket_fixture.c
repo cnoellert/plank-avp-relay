@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Loopback-only fixture for the actual Swift NWConnection adapter. No hardware,
 // Host, administrator privileges or system identity store is involved.
-#define _DARWIN_C_SOURCE
 #include "pair_wire.h"
 #include "link.h"
 #include <arpa/inet.h>

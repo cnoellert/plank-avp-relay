@@ -75,6 +75,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     add_executable(pairing-socket-fixture "${RELAY_ROOT}/apple/Tests/pairing_socket_fixture.c"
         "${RELAY_ROOT}/src/pair_wire.c" "${RELAY_ROOT}/src/pairing.c" "${RELAY_ROOT}/src/identity.c")
     target_include_directories(pairing-socket-fixture PRIVATE "${PLANK_SODIUM_PREFIX}/include")
+    target_compile_definitions(pairing-socket-fixture PRIVATE _DARWIN_C_SOURCE)
     target_link_libraries(pairing-socket-fixture PRIVATE CRelayProtocol)
     add_executable(setup-network-tests "${RELAY_ROOT}/apple/Tests/PairingNetworkTests.swift")
     target_include_directories(setup-network-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
