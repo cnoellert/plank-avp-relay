@@ -43,7 +43,7 @@ struct TabletSetupView: View {
         .confirmationDialog("Forget this relay on this app?", isPresented: $confirmForget) {
             Button("Forget local pairing", role: .destructive) { setup.forget() }
         } message: {
-            Text("This removes only this app's saved relay identity. It does not revoke the Client on the relay or affect the full PLANK Client.")
+            Text("This removes only this app's saved relay identity. The current daemon also requires relay-side removal of its Client approval before pairing again. It does not affect the full PLANK Client.")
         }
     }
 

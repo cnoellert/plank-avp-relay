@@ -40,6 +40,12 @@ target_compile_options(RelaySetupKit PRIVATE -strict-concurrency=complete)
 
 add_executable(PlankTabletSetup MACOSX_BUNDLE
     Sources/TabletSetupApp.swift Sources/TabletSetupView.swift)
+configure_file("${PLANK_SODIUM_PREFIX}/share/licenses/libsodium/LICENSE"
+    "${CMAKE_CURRENT_BINARY_DIR}/libsodium-LICENSE.txt" COPYONLY)
+set(APP_LICENSES "${RELAY_ROOT}/LICENSE" "${RELAY_ROOT}/apple/NOTICE.md"
+    "${CMAKE_CURRENT_BINARY_DIR}/libsodium-LICENSE.txt")
+set_source_files_properties(${APP_LICENSES} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources/licenses")
+target_sources(PlankTabletSetup PRIVATE ${APP_LICENSES})
 target_include_directories(PlankTabletSetup PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 target_link_libraries(PlankTabletSetup PRIVATE RelaySetupKit "-framework SwiftUI")
 target_compile_options(PlankTabletSetup PRIVATE -strict-concurrency=complete)

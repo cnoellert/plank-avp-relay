@@ -33,6 +33,10 @@ and closes. It never sends SESSION_READY, claims a tablet or invents Host
 feature bits. The relay has one connection slot; do not check while a full
 Client uses it. **Forget local pairing** removes only this app's local trust,
 not the relay's approved Client key. Relay-side revocation is a future feature.
+The current daemon rejects re-enrollment of an already-approved Client key;
+after local forgetting or an interrupted final confirmation, relay-side removal
+of that approval may be needed before pairing again. Do not forget working live
+trust merely to explore the UI; use Simulation for that exercise.
 
 The app cancels an operation when it becomes inactive. Returning does not
 silently retry pairing; saved identities survive and the user may retry.
@@ -56,6 +60,9 @@ fingerprint under `build/tablet-setup/dependencies`. Jobs default to4; override
 with positive `PLANK_BUILD_JOBS`. CMake/CTest paths may be supplied through
 `CMAKE_COMMAND`/`CTEST_COMMAND`. `PLANK_TABLET_BUILD_ROOT` relocates all output.
 The macOS build also runs pure Swift state and actual C protocol/crypto tests.
+Loopback tests exercise the real Swift networking adapter against the C pairing
+responder: fragmented records, saved-identity verification, wrong identity,
+wrong sequence and cancellation. They never access devices or the app Keychain.
 Existing Linux daemon builds and service behavior are unchanged.
 
 Generated Xcode projects live in `build/tablet-setup/{simulator,device,macos}`.

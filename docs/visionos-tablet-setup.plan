@@ -21,7 +21,7 @@ the test UI. Bluetooth here means tablet-to-Linux-relay, not relay-to-headset.
 - Default simulation with a persistent, prominent simulation banner. Exercise
   success, multiple devices, rejection, timeout, interrupted pairing and reconnect.
   Simulation never uses the network or writes live pairing credentials.
-- Explicit live mode: manual endpoint plus optional Bonjour discovery; use the
+- Explicit live mode: manual endpoint; use the
   existing CPace confirmation protocol and OS Keychain. Never imply that a
   discovered advertisement proves identity. No protocol or crypto replacement.
 - Live mode supports existing USB pairing only; automatic enrollment, Bluetooth

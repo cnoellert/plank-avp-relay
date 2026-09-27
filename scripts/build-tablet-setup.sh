@@ -31,8 +31,9 @@ if [[ ! -f "$archive" ]]; then
     mv "$archive.partial" "$archive"
 fi
 printf '%s  %s\n' "$sodium_sha" "$archive" | shasum -a 256 -c -
-# Both the source digest and exact compiler/SDK affect the dependency cache.
-fingerprint=$( { printf '%s\n' "$sodium_sha" "$target" "$sdk_path" "$sdk_version";
+# Include the complete fixed recipe as well as source and compiler/SDK inputs.
+sodium_recipe='-O2 --disable-shared --enable-static --disable-asm license-v1'
+fingerprint=$( { printf '%s\n' "$sodium_sha" "$target" "$sdk_path" "$sdk_version" "$sodium_recipe";
                  xcrun --sdk "$sdk" clang --version; } | shasum -a 256 | cut -c1-20)
 dependency="$build_root/dependencies/sodium-$platform-$fingerprint"
 prefix="$dependency/install"
@@ -51,7 +52,10 @@ else
         make -j "$jobs"
         make install
     )
-    (cd "$prefix" && shasum -a 256 lib/libsodium.a include/sodium.h include/sodium/*.h > .complete)
+    mkdir -p "$prefix/share/licenses/libsodium"
+    cp "$dependency/source/LICENSE" "$prefix/share/licenses/libsodium/LICENSE"
+    (cd "$prefix" && shasum -a 256 lib/libsodium.a include/sodium.h include/sodium/*.h \
+        share/licenses/libsodium/LICENSE > .complete)
 fi
 app_build="$build_root/$platform"
 "$cmake_bin" -S "$relay_root/apps/tablet-setup" -B "$app_build" -G Xcode \
@@ -62,5 +66,7 @@ app_build="$build_root/$platform"
 if [[ $platform == macos ]]; then
     "${CTEST_COMMAND:-ctest}" --test-dir "$app_build" -C Debug --output-on-failure
 fi
-printf '\nBuilt: %s/Debug/PLANK Tablet Setup.app\n' "$app_build"
+configuration=Debug
+[[ $platform == macos ]] || configuration="Debug-$sdk"
+printf '\nBuilt: %s/%s/PLANK Tablet Setup.app\n' "$app_build" "$configuration"
 printf 'Unsigned prototype. See apps/tablet-setup/README.md for device provisioning.\n'
