@@ -30,10 +30,21 @@ enum SetupPreview {
                 .frame(width: 820, height: 820)
                 .environment(\.colorScheme, .dark)
                 .background(Color(red: 0.10, green: 0.12, blue: 0.15))
-            let renderer = ImageRenderer(content: view)
-            renderer.scale = 1
-            guard let image = renderer.cgImage else { fatalError("No preview for \(page)") }
-            let bitmap = NSBitmapImageRep(cgImage: image)
+            // ImageRenderer substitutes placeholders for AppKit-backed controls
+            // and scroll views. Render the actual native hierarchy offscreen.
+            let hosting = NSHostingView(rootView: view)
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 820, height: 820),
+                                  styleMask: .borderless, backing: .buffered, defer: false)
+            window.appearance = NSAppearance(named: .darkAqua)
+            window.contentView = hosting
+            hosting.frame = NSRect(x: 0, y: 0, width: 820, height: 820)
+            hosting.layoutSubtreeIfNeeded()
+            window.displayIfNeeded()
+            RunLoop.current.run(until: Date().addingTimeInterval(0.15))
+            guard let bitmap = hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds) else {
+                fatalError("No preview for \(page)")
+            }
+            hosting.cacheDisplay(in: hosting.bounds, to: bitmap)
             guard let png = bitmap.representation(using: .png, properties: [:]) else {
                 fatalError("PNG encoding failed")
             }
