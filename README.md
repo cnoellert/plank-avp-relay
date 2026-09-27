@@ -102,9 +102,10 @@ link. On the development NUC, libsodium 1.0.22 was built into a temporary
 project-local prefix from its immutable source archive after verifying its
 Minisign signature with the [publisher's documented key](https://doc.libsodium.org/installation).
 
-The protocol design currently lives in PLANK's
-`docs/development/plans/tablet-relay-plan.md`. This repository will pin a
-contract revision and add shared test vectors before the link is enabled.
+The current client integration lives on the
+[`codex/visionos-client` branch](https://github.com/cnoellert/plank-client/tree/codex/visionos-client).
+The wire format is implemented and exercised by the Relay and Client tests;
+a canonical shared contract revision and test vectors remain to be pinned.
 
 The identity store requires an existing owner-only `0700` directory. It
 creates `identity.key`, `paired-clients.json`, and `store.lock` as `0600` files.
