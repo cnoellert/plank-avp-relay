@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.30)
 project(PlankTabletSetup VERSION 0.1.0 LANGUAGES C Swift)
-set(CMAKE_Swift_LANGUAGE_VERSION 6)
+set(CMAKE_XCODE_ATTRIBUTE_SWIFT_VERSION 6.0)
 set(CMAKE_OSX_DEPLOYMENT_TARGET 27.0 CACHE STRING "Minimum Apple OS" FORCE)
 
 if(NOT APPLE)
@@ -89,6 +89,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
                 "${RELAY_ROOT}/src/pairing.c" "${RELAY_ROOT}/src/pair_wire.c"
                 "${RELAY_ROOT}/src/identity.c")
             target_include_directories(${test}_test PRIVATE "${PLANK_SODIUM_PREFIX}/include")
+            target_compile_definitions(${test}_test PRIVATE _DARWIN_C_SOURCE)
             target_link_libraries(${test}_test PRIVATE CRelayProtocol)
         else()
             add_executable(${test}_test "${RELAY_ROOT}/tests/${test}_test.c")
