@@ -1,1 +1,6 @@
 /build/
+/.build/
+/artifacts/
+.DS_Store
+*.xcuserstate
+xcuserdata/

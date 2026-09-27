@@ -1,0 +1,4 @@
+module CRelayProtocol {
+    header "RelayProtocol.h"
+    export *
+}

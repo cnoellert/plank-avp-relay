@@ -1,0 +1,58 @@
+# Standalone tablet setup app
+
+Branch: `visionos-tablet-setup`, based on relay `465c11a`.
+
+## Scope
+
+Create a small native visionOS workflow test app, independent of PLANK desktop
+streaming. Keep the reusable Swift setup/pairing layer here so the eventual
+Vision Pro Client can consume the same implementation. Do not change the Host,
+desktop Client, tablet capture worker or deployed relay service in this phase.
+
+The operator accepts eight usable ExpressKeys as the initial pairing contract,
+not a particular Wacom model. The existing daemon still selects a PTH-660 and
+requires a separate `pair` process. Neither restriction is silently removed by
+the test UI. Bluetooth here means tablet-to-Linux-relay, not relay-to-headset.
+
+## First reviewable candidate
+
+- Native SwiftUI wizard: choose relay, USB/Bluetooth setup, five ExpressKeys,
+  completion and recovery. One clear task per page; no desktop-session controls.
+- Default simulation with a persistent, prominent simulation banner. Exercise
+  success, multiple devices, rejection, timeout, interrupted pairing and reconnect.
+  Simulation never uses the network or writes live pairing credentials.
+- Explicit live mode: manual endpoint plus optional Bonjour discovery; use the
+  existing CPace confirmation protocol and OS Keychain. Never imply that a
+  discovered advertisement proves identity. No protocol or crypto replacement.
+- Live mode supports existing USB pairing only; automatic enrollment, Bluetooth
+  management and daemon discovery advertisements remain future relay work.
+- Reconnect check authenticates the saved relay through Noise without sending
+  SESSION_READY or claiming a tablet. This is not a remote desktop or HID test.
+- Separate app/Keychain namespace from the full Client. Forget removes only this
+  app's local trust; explicitly explain that relay-side trust is not revoked.
+- SDK/deployment target27, simulator/device builds and a macOS workflow preview.
+  External signing configuration, pinned libsodium, no FFmpeg/Qt/SDL/Rust media.
+
+## Validation
+
+Pure state tests: legal transitions, invalid transitions, Bluetooth live gate,
+mode isolation, cancellation, stale completions, failure retry and trust removal.
+Use the actual existing C protocol/crypto tests, not a second implementation.
+Compile the reusable layer and UI for the real visionOS SDK. Do not describe a
+macOS preview or simulator compilation as headset qualification.
+
+## Follow-up after workflow acceptance
+
+1. Capability-based pad discovery: Wacom with eight usable ExpressKeys; select
+   pad and pen from the same physical device. No model/product ID allowlist.
+2. One daemon with automatic initial enrollment while unpaired and deliberate
+   physical re-enrollment once paired. Bounded individual attempts and lockout.
+3. Actual discovery advertisement and authenticated management/status contract.
+4. BlueZ tablet setup: constrained provisional pairing, physical confirmation,
+   persisted bond, Bluetooth-aware HID grouping and driver qualification.
+5. USB/Bluetooth sleep/wake, unplug, replacement and multi-device hardware tests.
+6. Import the reusable kit/UI into the maintained Vision Pro Client; no duplicate
+   pairing state machine or fake Host/session handshake.
+
+The headset installation step needs appropriate Apple development provisioning;
+Developer ID macOS signing is not a visionOS installation method.

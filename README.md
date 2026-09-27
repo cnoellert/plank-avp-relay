@@ -5,6 +5,12 @@ PLANK Vision Pro Client. The Relay will read the tablet locally and forward its
 existing raw-HID frames to a paired Client. The Client owns the authenticated
 Host session; the Relay has no Host credentials.
 
+A separate [PLANK Tablet Setup workflow lab](apps/tablet-setup/README.md) on the
+`visionos-tablet-setup` branch exercises onboarding without remote desktop.
+Its simulated Bluetooth/headless workflow is clearly separated from the live
+USB pairing supported by the current daemon. This does not change service
+behavior or claim new tablet hardware support.
+
 **Current state:** the bounded `PLTR` frame and byte-stream parsers are tested,
 and the Client's raw Wacom worker is vendored and build-checked on Linux. The
 Noise IK handshake and transport module passes the published Noise-C vector
