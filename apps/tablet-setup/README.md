@@ -83,6 +83,32 @@ For the local macOS preview, apply an ad-hoc signature to the unsigned app
 before opening it if required by the local launcher. This is a UI preview,
 not evidence about gaze/pinch, headset behavior or Bluetooth hardware.
 
+## TestFlight delivery
+
+TestFlight is the selected headset delivery method. The current outputs are
+unsigned development builds, **not** installable TestFlight packages. The app
+currently requires visionOS27; verify the tester's headset OS before submission.
+
+Complete these gates before promising an invitation:
+
+1. Restore usable Xcode developer-account access, or provision an App Store
+   Connect API key privately. Installed signing certificates alone do not grant
+   access to provisioning or uploads. Never put keys or profiles in this repo.
+2. Finish the visionOS icon and distribution metadata, then archive the app
+   target in Release. The app is included in archives; static libraries are not
+   separate installable products. Use Apple distribution provisioning, not
+   macOS Developer ID/notarization.
+3. Create the visionOS app record for `la.instinctual.PLANK.TabletSetup` and
+   complete the account owner's encryption questionnaire accurately. Live mode
+   includes CPace/Noise/libsodium; do not claim the binary only uses OS-provided
+   encryption or disable encryption to avoid the questionnaire.
+4. Validate and upload through Xcode/App Store Connect. Wait for processing;
+   external testers may require beta review. Increment the build number for
+   every subsequent upload and retain the exact source revision.
+
+Apple references: [uploading builds](https://developer.apple.com/help/app-store-connect/manage-builds/upload-builds)
+and [export compliance](https://developer.apple.com/help/app-store-connect/manage-app-information/overview-of-export-compliance).
+
 ## Acceptance checklist
 
 - Every page remains visibly marked Simulation or Live.
