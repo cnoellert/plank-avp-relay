@@ -269,7 +269,7 @@ public final class RelayPairingClient {
                     if let version = pltr_client_link_peer_version(codec) {
                         let peerVersion = String(cString: version)
                         var endSize = 0
-                        if pltr_client_link_send(codec, 12, nil, 0,
+                        if pltr_client_link_send(codec, UInt16(PLTR_GOODBYE), nil, 0,
                                                  &output, output.count, &endSize) == 0 {
                             try await socket.send(Data(output.prefix(endSize)))
                         }

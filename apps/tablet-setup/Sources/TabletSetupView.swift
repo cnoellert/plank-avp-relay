@@ -8,6 +8,10 @@ struct TabletSetupView: View {
     @State private var confirmForget = false
     @State private var liveWindowReady = false
 
+    init(setup: SetupCoordinator = SetupCoordinator()) {
+        _setup = StateObject(wrappedValue: setup)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             header

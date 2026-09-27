@@ -49,7 +49,9 @@ public struct RelayAddress: Equatable, Sendable {
               let number = UInt16(port), number > 0 else { return nil }
         // Network.framework accepts an unbracketed numeric IPv6 host.
         if normalized.hasPrefix("[") && normalized.hasSuffix("]") {
-            self.host = String(normalized.dropFirst().dropLast())
+            let inner = String(normalized.dropFirst().dropLast())
+            guard inner.contains(":"), !inner.contains("["), !inner.contains("]") else { return nil }
+            self.host = inner
         } else {
             guard !normalized.contains("["), !normalized.contains("]") else { return nil }
             self.host = normalized

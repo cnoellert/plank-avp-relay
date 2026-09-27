@@ -19,6 +19,8 @@ enum SetupStateTests {
         expect(RelayAddress(host: "relay.example", port: "0") == nil, "Reject zero port")
         expect(RelayAddress(host: "relay.example", port: "65536") == nil, "Reject oversized port")
         expect(RelayAddress(host: "", port: "28990") == nil, "Reject empty host")
+        expect(RelayAddress(host: "[]", port: "28990") == nil, "Reject empty bracketed host")
+        expect(RelayAddress(host: "[[::1]]", port: "28990") == nil, "Reject nested brackets")
         expect(RelayAddress(host: "relay example", port: "28990") == nil, "Reject whitespace")
         expect(RelayAddress(host: "[2001:db8::1]", port: "28990")?.description == "[2001:db8::1]:28990", "IPv6")
         expect(RelayAddress(host: " Relay.Example ", port: "28990") == address, "Normalize host")
