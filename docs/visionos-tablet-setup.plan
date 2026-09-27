@@ -56,7 +56,8 @@ macOS preview or simulator compilation as headset qualification.
 
 The headset installation step needs appropriate Apple development provisioning;
 Developer ID macOS signing is not a visionOS installation method.
-The operator selected TestFlight delivery. Restore developer-account access,
-complete distribution assets/metadata, validate/export and wait for App Store
-Connect processing before a headset test. Do not treat unsigned SDK builds as
-TestFlight availability.
+The operator selected TestFlight delivery. The signed Release archive and
+distribution IPA export pass. Upload awaits creation of the App Store Connect
+visionOS app record; then complete processing/compliance and tester selection.
+See HANDOFF for exact source/build provenance. Do not treat an exported IPA as
+TestFlight availability or simulator compilation as headset qualification.

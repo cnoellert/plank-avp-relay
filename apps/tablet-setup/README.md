@@ -85,16 +85,17 @@ not evidence about gaze/pinch, headset behavior or Bluetooth hardware.
 
 ## TestFlight delivery
 
-TestFlight is the selected headset delivery method. The current outputs are
-unsigned development builds, **not** installable TestFlight packages. The app
-currently requires visionOS27; verify the tester's headset OS before submission.
+TestFlight is the selected headset delivery method. Ordinary build commands
+above produce unsigned SDK bundles; the separate archive/export commands below
+produce signed distribution packages. Neither is automatically available in
+TestFlight. The app requires visionOS27; verify the tester's headset OS.
 
 Complete these gates before promising an invitation:
 
-1. Restore usable Xcode developer-account access, or provision an App Store
+1. Configure usable Xcode developer-account access, or provision an App Store
    Connect API key privately. Installed signing certificates alone do not grant
    access to provisioning or uploads. Never put keys or profiles in this repo.
-2. Finish the visionOS icon and distribution metadata, then archive the app
+2. Validate the visionOS icon and distribution metadata, then archive the app
    target in Release. The app is included in archives; static libraries are not
    separate installable products. Use Apple distribution provisioning, not
    macOS Developer ID/notarization.
@@ -105,6 +106,37 @@ Complete these gates before promising an invitation:
 4. Validate and upload through Xcode/App Store Connect. Wait for processing;
    external testers may require beta review. Increment the build number for
    every subsequent upload and retain the exact source revision.
+
+```sh
+# Team is provided privately; choose a new number for each uploaded build.
+export PLANK_SETUP_BUILD_NUMBER=1
+bash scripts/archive-tablet-setup.sh
+bash scripts/export-tablet-setup.sh \
+  build/tablet-setup/archives/PLANK-Tablet-Setup-1.xcarchive \
+  build/tablet-setup/exports/build-1
+# Explicit upload, after creating the App Store Connect visionOS app record:
+bash scripts/export-tablet-setup.sh --upload \
+  build/tablet-setup/archives/PLANK-Tablet-Setup-1.xcarchive \
+  build/tablet-setup/uploads/build-1
+```
+
+The archive script requires `PLANK_DEVELOPMENT_TEAM` from the private build
+environment. Export uses the archive's team. Existing output directories are
+not overwritten; use a fresh output directory when retrying a failed upload.
+Xcode must have access to its account and the signing key in the build session.
+An SSH security session can report a locked keychain even after a GUI unlock;
+run signing in the authorized logged-in GUI session rather than resetting the
+keychain, extracting a password or weakening key access controls. Any temporary
+GUI build job must be one-shot and unloaded after it exits, not an installed
+autostart service.
+
+The visionOS layered icon is compiled from generated PNGs. Readable SVG sources
+stay in `Artwork/`; the native AppKit build helper rasterizes them only into the
+ignored build directory. Direct SVG layers are not valid inputs to this asset
+compiler. Static libraries are never separately signed/installed in the archive.
+Bundle checks verify the actual compiled icon, scene manifest, version, privacy
+declaration and licenses before export. Upload completion still does not prove
+TestFlight processing, compliance approval or headset qualification.
 
 Apple references: [uploading builds](https://developer.apple.com/help/app-store-connect/manage-builds/upload-builds)
 and [export compliance](https://developer.apple.com/help/app-store-connect/manage-app-information/overview-of-export-compliance).

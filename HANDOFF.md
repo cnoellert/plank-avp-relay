@@ -4,8 +4,9 @@
 
 Branch: `visionos-tablet-setup`, based on fork main
 `465c11a9708bfce0c155502844ca8d53e4370390`.
-Implementation/build source: `d13dd7d8eabc426e631ba3161c22dc7367d3e280`.
-Version: `0.1.0-visionos-tablet-setup` (prototype, not a release).
+Signed archive source: `9f31af8eae35b7e139d76344460f19c47045a2c5`.
+Export/upload tooling: `a5d7ea15772aa0842835db3d833d1a85d82bbe01`.
+Version: `0.1.0-visionos-tablet-setup (1)` (prototype, not a release).
 
 Standalone native SwiftUI visionOS app in `apps/tablet-setup/`, reusable setup
 state/network/Keychain code in `apple/RelaySetupKit/`. It links the existing C
@@ -40,23 +41,37 @@ not something the simulated wizard already implements.
 - No headset, physical ExpressKeys, real pairing persistence or Bluetooth
   hardware has been qualified. No simulator runtime is installed on the
   inspected builder; simulator compilation is not simulator execution.
-- SDK bundles are unsigned, contain license notices, and are not TestFlight
-  packages. No installation, service change, merge or public release occurred.
+- Rechecked device/simulator bundles and macOS preview/tests with Xcode27.0
+  build27A266a after replacing the beta toolchain. Dependency caches are keyed
+  to the compiler/SDK; CMake refreshes compiler detection without deleting them.
+- Release archive, strict signature verification and App Store Connect IPA
+  export passed. Compiled layered icon, scene manifest, privacy declaration,
+  version and license resources are verified in the actual bundle.
+- IPA retained locally at
+  `artifacts/testflight/0.1.0/build-1/PLANK Tablet Setup.ipa` (ignored).
+  SHA256: `64733a1eb21e7f6da55d6c80c1030ce9ae5b560df2cd15d628dd57e4cf3fb101`.
+- No product installation, persistent service change, merge or public release
+  occurred. The temporary GUI-session build jobs were unloaded after completion.
 
 ## Next step: TestFlight
 
-The operator selected TestFlight rather than Xcode device installation.
-The inspected builder has Apple Development/Distribution certificates, but
-Xcode automatic provisioning failed with `No Accounts` and no matching app
-profile. Its saved account credentials must be repaired in Xcode Settings →
-Accounts, or a private App Store Connect API credential must be provisioned.
-Do not extract/reuse macOS notarization credentials or commit signing material.
+Account authentication and signing are repaired. An SSH security session could
+not access the GUI-unlocked login keychain; a one-shot build in the existing GUI
+session succeeded. No password extraction, Keychain reset or ACL weakening was
+needed. Do not confuse this session boundary with an invalid certificate.
 
-Then finish the visionOS icon/distribution metadata, create/verify the app
-record, archive/export, complete the account owner's encryption questionnaire,
-upload and wait for processing/beta-review requirements before inviting testers.
-The bundle ID is `la.instinctual.PLANK.TabletSetup`. Confirm the headset runs
-visionOS27; the current prototype requires it. No TestFlight upload has occurred.
+Upload was attempted, but App Store Connect returned: app record not found for
+`la.instinctual.PLANK.TabletSetup`. The owner must create the visionOS app record
+(`PLANK Tablet Setup`, English, suggested SKU `plank-tablet-setup`) before retrying
+the existing archive with a new upload-output directory. Build1 has not uploaded;
+do not rebuild it merely to create the record. No TestFlight invitation exists.
+
+After upload: complete the account owner's encryption questionnaire accurately,
+wait for processing/beta-review requirements and select testers. Live mode uses
+CPace/Noise/libsodium, not only OS cryptography; no export-exemption assertion
+is hardcoded. Confirm the headset runs visionOS27. Do not extract/reuse macOS
+notarization credentials or commit signing material. Headset interaction and
+physical pairing remain unqualified.
 
 Read `apps/tablet-setup/README.md` for build commands and live-pairing caveats,
 and `docs/visionos-tablet-setup.plan` for the staged relay follow-up.
