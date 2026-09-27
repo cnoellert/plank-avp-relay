@@ -42,6 +42,7 @@ target_link_libraries(RelaySetupKit PUBLIC CRelayProtocol
 target_compile_options(RelaySetupKit PRIVATE -strict-concurrency=complete)
 set_target_properties(CRelayProtocol RelaySetupKit PROPERTIES
     XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO"
+    XCODE_ATTRIBUTE_GCC_GENERATE_DEBUGGING_SYMBOLS "YES"
     XCODE_ATTRIBUTE_SKIP_INSTALL "YES")
 
 add_executable(PlankTabletSetup MACOSX_BUNDLE
@@ -75,6 +76,7 @@ set_target_properties(PlankTabletSetup PROPERTIES
     XCODE_ATTRIBUTE_SKIP_INSTALL "NO"
     XCODE_ATTRIBUTE_INSTALL_PATH "/Applications"
     XCODE_ATTRIBUTE_DEBUG_INFORMATION_FORMAT "dwarf-with-dsym"
+    XCODE_ATTRIBUTE_GCC_GENERATE_DEBUGGING_SYMBOLS "YES"
     XCODE_ATTRIBUTE_SWIFT_STRICT_CONCURRENCY "complete"
     XCODE_ATTRIBUTE_INFOPLIST_KEY_UIApplicationSceneManifest_Generation "YES"
     XCODE_ATTRIBUTE_INFOPLIST_KEY_UILaunchScreen_Generation "YES")

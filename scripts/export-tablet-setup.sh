@@ -15,6 +15,7 @@ export_path=$2
 python3 "$relay_root/scripts/check-tablet-setup-bundle.py" \
     "$archive_path/Products/Applications/PLANK Tablet Setup.app" --platform device
 codesign --verify --deep --strict "$archive_path/Products/Applications/PLANK Tablet Setup.app"
+python3 "$relay_root/scripts/check-tablet-setup-symbols.py" "$archive_path"
 mkdir -p "$export_path"
 options="$export_path/ExportOptions.plist"
 cp "$relay_root/apps/tablet-setup/ExportOptions.plist" "$options"

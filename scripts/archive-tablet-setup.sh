@@ -19,4 +19,11 @@ xcodebuild archive -project "$build_root/device/PlankTabletSetup.xcodeproj" \
     -scheme PlankTabletSetup -configuration Release \
     -destination 'generic/platform=visionOS' -archivePath "$archive_path" \
     -allowProvisioningUpdates
+# CMake places dSYMs in its configuration output directory. Xcode's archive
+# collector does not include that custom location, so stage the companion here;
+# the UUID check below rejects stale symbols or a mismatched executable.
+symbols="$build_root/device/Release-xros/PLANK Tablet Setup.app.dSYM"
+[[ -d "$symbols" ]] || { echo "Application dSYM was not generated." >&2; exit 1; }
+ditto "$symbols" "$archive_path/dSYMs/PLANK Tablet Setup.app.dSYM"
+python3 "$relay_root/scripts/check-tablet-setup-symbols.py" "$archive_path"
 printf '\nArchived: %s\nNot uploaded to TestFlight.\n' "$archive_path"
