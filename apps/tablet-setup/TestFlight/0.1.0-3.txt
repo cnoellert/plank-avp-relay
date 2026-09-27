@@ -1,0 +1,12 @@
+This build simplifies Bluetooth tablet authorization and opens directly to relay discovery. The Simulation selector and manual readiness checkbox have been removed.
+
+What to test:
+1. Keep the tablet awake and connected to the relay. Scan for relays, select PLANK Relay Lab, and tap Pair.
+2. When the approval countdown appears, briefly press and release the tablet's Home/center button three times, with no more than two seconds between presses. Tablets without that button can use another supported tablet button three times.
+3. Confirm that live readings start automatically. Check pen position, pressure, tilt, pen side buttons, tablet buttons and touch. Hold a tablet button briefly so its state is visible in the readout.
+4. Stop and restart readings to check reconnection using the saved pairing.
+5. Let the tablet sleep, then wake it and check that readings resume without pairing again.
+
+For a new pairing, also try Cancel before the third press, then Pair again. The new request should start at zero presses.
+
+Known limits: this is a diagnostic tablet readout, not a system-wide visionOS pointer or desktop session. Short input transitions may fall between display updates. Physical headset pairing and readings are still being qualified. If authorization fails, report whether the app reaches the three numbered circles/countdown and the exact error text.

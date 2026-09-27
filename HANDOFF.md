@@ -92,6 +92,21 @@ pairing/readings have been accepted yet; compilation and previews do not prove i
 
 ## TestFlight delivery context
 
+Future deliveries include build-specific What to Test notes and export
+compliance completion under the operator's standing authorization. The
+confirmed questionnaire baseline is recorded in private notes. Reuse it only
+while encryption/distribution are unchanged; do not convert "standard
+encryption" into an unsupported exemption assertion. Build3 tester notes are
+prepared in `apps/tablet-setup/TestFlight/0.1.0-3.txt`. Supported App Store Connect
+API access for metadata updates is not configured yet; Xcode GUI upload access
+alone does not provide it. Metadata has not been posted or verified by this
+workflow. Never extract cached account tokens.
+
+The operator has installed build3 and reports that relay discovery succeeds
+but Home-button presses do not authorize. The relay's tablet connection is
+present; its log has not shown a headset protocol request. Investigation is
+checking the GATT connection/subscription before changing button recognition.
+
 Version0.1.0/build1 was uploaded successfully and assigned to the owner's
 internal testing group. TestFlight access was confirmed; headset hardware
 acceptance was not. Do not upload build1 again. Its signed archive source was

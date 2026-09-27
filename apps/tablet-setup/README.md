@@ -132,6 +132,23 @@ Complete these gates before promising an invitation:
 4. Validate and upload through Xcode/App Store Connect. Wait for processing;
    external testers may require beta review. Increment the build number for
    every subsequent upload and retain the exact source revision.
+5. Enter build-specific **What to Test** notes and complete export compliance
+   as part of each delivery. The operator has authorized these metadata updates
+   for future uploads. Reuse the confirmed questionnaire baseline in private
+   deployment notes while encryption and distribution remain unchanged; do not
+   infer an exemption from an answer about standard encryption. Verify the
+   exact app, version and build before updating it, and report any incomplete
+   metadata separately from successful binary upload.
+
+Prepare tester notes alongside each build's source revision. Keep them focused
+on changed behavior, testing steps and known limits. The notes for
+[0.1.0 (3)](TestFlight/0.1.0-3.txt) are ready to enter. App Store Connect supports
+build-specific notes through beta-build localizations and compliance through
+build/encryption-declaration metadata. Automated API updates require separately
+configured, supported App Store Connect access; an Xcode GUI account that can
+upload does not establish API access. Keep API credentials outside Git and
+never extract cached account tokens. Do not claim notes or compliance were
+completed until the resulting metadata has been read back and verified.
 
 ```sh
 # Team is provided privately; choose a new number for each uploaded build.
