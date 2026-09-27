@@ -29,7 +29,7 @@ initial enrollment against a nearby active attacker racing or intercepting it.
 This is the operator-selected convenience tradeoff; do not describe it as the
 same authentication guarantee as the old random challenge. Subsequent sessions
 verify the saved key through Noise and encrypt readings. The BLE lab reuses the
-existing CPace exchange with an explicitly public domain value and a local
+existing CPace exchange with an explicitly public constant and a local
 physical gate. The protocol and limits are documented in the lab guide.
 
 This is a coalesced diagnostic readout, not raw-HID forwarding to a workstation

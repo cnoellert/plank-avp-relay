@@ -29,7 +29,7 @@ supported tablet button; no model-specific selector is hardcoded.
 
 This explicitly accepts weaker first-pairing authentication than the earlier
 random challenge: a nearby active attacker can race/intercept enrollment. Mode3
-reuses CPace with a public domain value and a local physical gate, then confirms
+reuses CPace with a public constant and a local physical gate, then confirms
 and saves the exchanged keys. It is not secret-code-authenticated enrollment.
 Saved-key Noise and encrypted observations remain unchanged. The persistent
 physical-attempt budget is reserved only after three completed presses, so
@@ -74,7 +74,16 @@ remain only in developer tests and the offscreen preview.
   `784a2d24ad98f1db7141305b6e009caf14919117df7f012c9a6e19867dfa1ed1`.
   Temporary GUI signing/export/upload jobs were unloaded.
 
-Build3 contains the simplified flow and is being prepared for TestFlight.
+Build0.1.0(3) contains the simplified flow. Apple accepted it at23:30:56UTC
+on2026-09-27; processing and tester availability remain unconfirmed. Source:
+`5ae78c3b9dc4294cffd7f9fdc39231d9476ae52a`. Archive/signature/bundle checks
+passed, with matching arm64 application/dSYM UUID
+`F6B8301F-76E5-311A-97B1-1F4B0F3290B1`. The ignored retained IPA is
+`artifacts/testflight/0.1.0/build-3/PLANK Tablet Setup.ipa`, SHA256
+`032de3a67df1bf934955d9a09f5ce45dd209f404cc2cd574eaab18b671b8df5e`.
+GUI signing/export/upload jobs are unloaded. The matching foreground relay lab
+is advertising with the tablet connected; saved identity and Wacom bond remain.
+No boot service was installed.
 Next: install TestFlight0.1.0(3) once available, scan for the advertising lab,
 select it and tap Pair. Press/release Home/center three times, then confirm
 position/pressure/ExpressKeys on the automatically started readout. Stop/restart

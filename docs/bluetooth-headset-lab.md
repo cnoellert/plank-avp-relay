@@ -83,7 +83,7 @@ bound to one BlueZ Device1 peer. No plaintext tablet readings are advertised.
 Button approval explicitly uses `OPEN` mode3 over link type1. Legacy mode2
 still requires its secret-code/manual-window flow and is not silently upgraded.
 The button client reuses the existing CPace ephemeral exchange and confirmation
-with the public domain value `11111`; that value is NOT a secret or proof of
+with the public constant `11111`; that value is NOT a secret or proof of
 identity. The relay withholds its exchange response until local approval, and
 persists the submitted client key only after the final confirmation. Record
 sequences and the existing transcript bind the exchange to the pending request.
