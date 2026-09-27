@@ -104,6 +104,9 @@ TestFlight is the selected headset delivery method. Ordinary build commands
 above produce unsigned SDK bundles; the separate archive/export commands below
 produce signed distribution packages. Neither is automatically available in
 TestFlight. The app requires visionOS27; verify the tester's headset OS.
+The archive command generates and includes application debug symbols. Both
+archive and export/upload commands reject missing symbols or executable/dSYM
+UUID mismatches before delivery.
 
 Complete these gates before promising an invitation:
 

@@ -47,10 +47,20 @@ pairing window with SIGUSR1; enrollment is not automatically open to all peers.
 - No new headset pairing or real readings in the app have been accepted yet.
   Simulator compilation is not simulator execution. Physical visionOS UI,
   Bluetooth permissions, GATT indication flow and reconnect remain to test.
-- Release dSYM generation is now enabled. Build2 is being prepared; verify the
-  archive's application/dSYM UUID match before upload and record the result.
+- Build0.1.0(2), source `84851e4948df3f7e0d07e6c929950cb585ee3ffc`, passed
+  Release archive, signature and bundle checks. Application/dSYM UUIDs match:
+  `9F6CCF6B-5A53-3D27-952A-B31A1F442159` (arm64). Symbols are generated and
+  copied from CMake's custom output directory into the archive; archive/export
+  scripts reject missing or mismatched symbols.
+- Apple accepted build2 at22:54:36UTC on2026-09-27; upload completed without
+  the previous symbol warning. Apple processing/tester availability is not yet
+  confirmed. Retained ignored IPA:
+  `artifacts/testflight/0.1.0/build-2/PLANK Tablet Setup.ipa`, SHA256
+  `784a2d24ad98f1db7141305b6e009caf14919117df7f012c9a6e19867dfa1ed1`.
+  Temporary GUI signing/export/upload jobs were unloaded.
 
-Next: deliver TestFlight0.1.0(2), select Live relay → Bluetooth, scan for the
+Next: install TestFlight0.1.0(2) once available, select Live relay → Bluetooth,
+scan for the
 advertising lab and pair using the tablet keys. Start live readings and confirm
 position/pressure/ExpressKeys on the headset. Then stop/reconnect using saved
 trust and check tablet sleep/wake reporting. Do not report end-to-end acceptance
