@@ -75,9 +75,11 @@ set_target_properties(PlankTabletSetup PROPERTIES
     XCODE_ATTRIBUTE_INFOPLIST_KEY_UIApplicationSceneManifest_Generation "YES"
     XCODE_ATTRIBUTE_INFOPLIST_KEY_UILaunchScreen_Generation "YES")
 if(CMAKE_SYSTEM_NAME STREQUAL "visionOS")
+    set_source_files_properties(Assets.xcassets PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
     target_sources(PlankTabletSetup PRIVATE Assets.xcassets)
     set_target_properties(PlankTabletSetup PROPERTIES
         XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "7"
+        XCODE_ATTRIBUTE_GENERATE_INFOPLIST_FILE "YES"
         XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon")
 endif()
 if(PLANK_DEVELOPMENT_TEAM)

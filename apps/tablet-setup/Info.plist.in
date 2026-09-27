@@ -9,7 +9,7 @@
     <key>CFBundleShortVersionString</key><string>0.1.0</string>
     <key>CFBundleVersion</key><string>${PLANK_SETUP_BUILD_NUMBER}</string>
     <key>CFBundleDevelopmentRegion</key><string>en</string>
-    <key>PLANKSetupVersion</key><string>${PLANK_SETUP_VERSION}</string>
+    <key>PLANKSetupVersion</key><string>${PLANK_SETUP_VERSION} (${PLANK_SETUP_BUILD_NUMBER})</string>
     <key>NSLocalNetworkUsageDescription</key>
     <string>Live setup connects to the tablet relay you select. Simulation does not use the network.</string>
     <key>NSHighResolutionCapable</key><true/>

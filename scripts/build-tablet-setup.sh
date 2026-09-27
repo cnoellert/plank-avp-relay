@@ -72,5 +72,7 @@ if [[ $platform == macos ]]; then
 fi
 configuration=Debug
 [[ $platform == macos ]] || configuration="Debug-$sdk"
+python3 "$relay_root/scripts/check-tablet-setup-bundle.py" \
+    "$app_build/$configuration/PLANK Tablet Setup.app" --platform "$platform"
 printf '\nBuilt: %s/%s/PLANK Tablet Setup.app\n' "$app_build" "$configuration"
 printf 'Unsigned prototype. See apps/tablet-setup/README.md for device provisioning.\n'
