@@ -13,34 +13,49 @@ The new foreground Linux BLE lab advertises a custom GATT service. It reuses
 the C CPace/Noise and persistent identity/attempt-budget implementation through
 an opaque shared-library API; Python owns BlueZ transport and readonly evdev
 observation. Discovery groups pen/Pad/touch by physical USB ancestry or Bluetooth
-identity and requires Wacom pen axes and eight Pad buttons, without a model/PID
+identity and requires Wacom pen axes and at least one Pad button, without a model/PID
 allowlist. The selected tablet is retained across sleep and wake. This is a
 separate diagnostic process, not an installed boot service or a production
 raw-HID daemon replacement.
 
-The app now discovers BLE relays, authorizes a headset using five physical
-ExpressKeys, saves mutually confirmed trust in Keychain, and displays encrypted
-pen/pressure/tilt/button/touch snapshots. Optional authenticated HELLO capability
-0x02 gates observation. Both peers must opt in, and observation cannot start a
-workstation session. Display snapshots are coalesced at up to20Hz; short button
-transitions can fall between snapshots. Full raw-HID workstation forwarding
-remains separate. Simulation stays the default and does not request Bluetooth,
-network or Keychain access. The earlier TCP USB pairing path is retained.
+The operator requested simpler authorization: three short Home/center-button
+presses, no manual readiness checkbox/SSH window step, and no Simulation tab.
+The app now opens directly to discovery. Select the relay and tap Pair; the
+relay reports availability, press count and a 60-second deadline. Three releases
+of the same supported Pad button approve that one pending request. Holds,
+duplicate input, mixed buttons, long gaps, detach and cancellation cannot carry
+partial approval into a new request. Devices without Home/center can use another
+supported tablet button; no model-specific selector is hardcoded.
 
-See `docs/bluetooth-headset-lab.md` for UUIDs, wire layout, operation and limits.
-The lab currently requires an operator to wake the tablet and open one bounded
-pairing window with SIGUSR1; enrollment is not automatically open to all peers.
+This explicitly accepts weaker first-pairing authentication than the earlier
+random challenge: a nearby active attacker can race/intercept enrollment. Mode3
+reuses CPace with a public domain value and a local physical gate, then confirms
+and saves the exchanged keys. It is not secret-code-authenticated enrollment.
+Saved-key Noise and encrypted observations remain unchanged. The persistent
+physical-attempt budget is reserved only after three completed presses, so
+unapproved remote cancellations do not consume it. Successful confirmation
+resets that budget. See `docs/bluetooth-headset-lab.md` for the full contract.
+
+After pairing, the app closes its enrollment transport, reconnects using the
+saved key and starts readings automatically. Optional authenticated HELLO
+capability0x02 gates observation; no workstation session is started. Display
+snapshots are coalesced at up to20Hz, so short button transitions can fall between
+updates. Full raw-HID workstation forwarding remains separate. Legacy TCP USB
+pairing is retained under Connect by network address. Simulated state/input
+remain only in developer tests and the offscreen preview.
 
 ## Validation and remaining test
 
-- Linux: all19 CTest suites passed, including fragmented CPace/Noise records,
+- Linux: all20 CTest suites passed, including fragmented CPace/Noise records,
   persisted trust, unauthenticated-client rejection, mutual observer opt-in,
   workstation-session rejection, graceful connection-check closure, indication
-  acknowledgement pacing/overflow, and cleared offline state.
+  acknowledgement pacing/overflow, and cleared offline state. Button approval
+  tests cover two-press rejection, holds/repeats, mixed buttons, cancellation,
+  tablet detach, expiry and confirmation after the third release.
 - Apple: macOS preview/tests and actual visionOS device/simulator SDK builds
   passed with Xcode27/SDK27, arm64, deployment target27.0. All10 Apple CTest
-  suites passed. The new readings page was rendered through a native offscreen
-  hierarchy and visually inspected using explicitly synthetic values.
+  suites passed. The updated discovery and three-press approval screens were rendered through
+  a native offscreen hierarchy and visually inspected with synthetic state.
 - Relay hardware: BlueZ GATT/advertisement registration succeeded on the same
   adapter holding the Wacom connection. This proves peripheral registration,
   not a headset connection or physical radio throughput.
@@ -59,12 +74,12 @@ pairing window with SIGUSR1; enrollment is not automatically open to all peers.
   `784a2d24ad98f1db7141305b6e009caf14919117df7f012c9a6e19867dfa1ed1`.
   Temporary GUI signing/export/upload jobs were unloaded.
 
-Next: install TestFlight0.1.0(2) once available, select Live relay → Bluetooth,
-scan for the
-advertising lab and pair using the tablet keys. Start live readings and confirm
-position/pressure/ExpressKeys on the headset. Then stop/reconnect using saved
-trust and check tablet sleep/wake reporting. Do not report end-to-end acceptance
-from compilation or synthetic previews.
+Build3 contains the simplified flow and is being prepared for TestFlight.
+Next: install TestFlight0.1.0(3) once available, scan for the advertising lab,
+select it and tap Pair. Press/release Home/center three times, then confirm
+position/pressure/ExpressKeys on the automatically started readout. Stop/restart
+using saved trust and check tablet sleep/wake reporting. No physical headset
+pairing/readings have been accepted yet; compilation and previews do not prove it.
 
 ## TestFlight delivery context
 

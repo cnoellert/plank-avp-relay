@@ -6,9 +6,21 @@ import Network
 import Security
 import CRelayProtocol
 
+public struct ButtonApproval: Equatable, Sendable {
+    public let tabletReady: Bool
+    public let presses: Int
+    public let secondsRemaining: Int
+    public init(tabletReady: Bool, presses: Int, secondsRemaining: Int) {
+        self.tabletReady = tabletReady
+        self.presses = presses
+        self.secondsRemaining = secondsRemaining
+    }
+}
+
 public enum RelaySetupError: LocalizedError, Sendable {
     case invalidState, storage(OSStatus), invalidStoredKey, random, protocolError
     case network(String), timedOut, identityChanged, unexpectedMessage
+    case approvalFailed
 
     public var errorDescription: String? {
         switch self {
@@ -21,6 +33,7 @@ public enum RelaySetupError: LocalizedError, Sendable {
         case .timedOut: "The relay did not complete the operation in time. You can try again."
         case .identityChanged: "This address already has a different trusted relay. Forget it explicitly before pairing a replacement."
         case .unexpectedMessage: "The relay sent an unsupported message. The connection closed; saved trust is retained."
+        case .approvalFailed: "Tablet approval expired or could not be verified. Tap Pair to try again."
         }
     }
 }
@@ -189,14 +202,31 @@ public final class RelayPairingClient {
     /// Returns a verified key, but does not persist it. The caller checks its
     /// current operation token before committing trust, preventing stale success.
     public func pair(address: RelayAddress, code: [UInt8], privateKey: Data) async throws -> Data {
-        guard code.count == 5, code.allSatisfy({ (1...8).contains($0) }),
-              privateKey.count == 32 else { throw RelaySetupError.invalidState }
-        let digits = code.map { $0 + 48 }
+        guard code.count == 5, code.allSatisfy({ (1...8).contains($0) }) else {
+            throw RelaySetupError.invalidState
+        }
+        return try await pairExchange(address: address, code: code, privateKey: privateKey, onApproval: nil)
+    }
+
+    public func pairByButton(address: RelayAddress, privateKey: Data,
+                             onApproval: @escaping (ButtonApproval) -> Void) async throws -> Data {
+        guard address.bluetoothIdentifier != nil else { throw RelaySetupError.invalidState }
+        return try await pairExchange(address: address, code: nil, privateKey: privateKey, onApproval: onApproval)
+    }
+
+    private func pairExchange(address: RelayAddress, code: [UInt8]?, privateKey: Data,
+                               onApproval: ((ButtonApproval) -> Void)?) async throws -> Data {
+        guard privateKey.count == 32 else { throw RelaySetupError.invalidState }
+        let digits = (code ?? []).map { $0 + 48 }
         let name = Array("PLANK Tablet Setup".utf8)
         let codec = privateKey.withUnsafeBytes { key in
             digits.withUnsafeBufferPointer { sequence in
                 name.withUnsafeBufferPointer { label in
-                    pltr_client_pair_create(key.bindMemory(to: UInt8.self).baseAddress,
+                    if code == nil {
+                        return pltr_client_pair_create_button(key.bindMemory(to: UInt8.self).baseAddress,
+                            label.baseAddress, label.count)
+                    }
+                    return pltr_client_pair_create(key.bindMemory(to: UInt8.self).baseAddress,
                                             sequence.baseAddress, label.baseAddress, label.count, address.linkType)
                 }
             }
@@ -204,7 +234,7 @@ public final class RelayPairingClient {
         guard let codec else { throw RelaySetupError.protocolError }
         defer { pltr_client_pair_destroy(codec) }
         let socket = connection(address)
-        return try await bounded(socket: socket, seconds: 70) {
+        let result = try await bounded(socket: socket, seconds: 85) {
             try await socket.connect()
             var output = [UInt8](repeating: 0, count: 512)
             var written = 0
@@ -224,10 +254,19 @@ public final class RelayPairingClient {
                             bytes.bindMemory(to: UInt8.self).baseAddress!.advanced(by: offset),
                             data.count - offset, &consumed, &output, output.count, &replySize, &relayKey)
                     }
+                    if result < 0 && code == nil { throw RelaySetupError.approvalFailed }
                     guard result >= 0, consumed > 0, consumed <= data.count - offset,
                           replySize <= output.count else { throw RelaySetupError.protocolError }
                     offset += consumed
                     if replySize > 0 { try await socket.send(Data(output.prefix(replySize))) }
+                    if result == 3 {
+                        var status = [UInt8](repeating: 0, count: 8)
+                        guard pltr_client_pair_approval_status(codec, &status) == 0 else {
+                            throw RelaySetupError.protocolError
+                        }
+                        onApproval?(ButtonApproval(tabletReady: status[1] == 1,
+                            presses: Int(status[2]), secondsRemaining: Int(status[4]) | Int(status[5]) << 8))
+                    }
                     if result == 2 {
                         try Task.checkCancellation()
                         return Data(relayKey)
@@ -235,6 +274,8 @@ public final class RelayPairingClient {
                 }
             }
         }
+        if let bluetooth = socket as? RelayBLEConnection { await bluetooth.finishDisconnect() }
+        return result
     }
 
     /// Verify the saved relay without SESSION_READY, HID attachment or Host

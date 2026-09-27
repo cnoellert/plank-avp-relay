@@ -91,6 +91,26 @@ final class RelayBLEConnection: NSObject, RelayByteConnection,
     private var started = false
     private var connectDeadline: Task<Void, Never>?
     private var writeDeadline: Task<Void, Never>?
+    private var disconnectWaiter: CheckedContinuation<Void, Never>?
+    private var disconnected = false
+
+    func finishDisconnect() async {
+        fail(CancellationError())
+        guard peripheral != nil, !disconnected else { return }
+        let timer = Task { [weak self] in
+            do { try await Task.sleep(for: .seconds(2)) } catch { return }
+            self?.completeDisconnect()
+        }
+        defer { timer.cancel() }
+        await withCheckedContinuation { disconnectWaiter = $0 }
+    }
+
+    private func completeDisconnect() {
+        disconnected = true
+        let waiter = disconnectWaiter
+        disconnectWaiter = nil
+        waiter?.resume()
+    }
 
     init(identifier: UUID) {
         self.identifier = identifier
@@ -208,6 +228,7 @@ final class RelayBLEConnection: NSObject, RelayByteConnection,
     }
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
+        completeDisconnect()
         fail(RelaySetupError.network(error?.localizedDescription ?? "The relay disconnected. Saved trust is retained."))
     }
 

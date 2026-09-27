@@ -8,7 +8,13 @@ live Wacom readings in this app. This advances beyond the original UI-only
 phase below. The explicit BLE lab reuses CPace/Noise, adds negotiated observer
 frames and capability-based read-only evdev capture, and leaves production
 raw-HID/Host forwarding separate. See `bluetooth-headset-lab.md` for the contract
-and hardware acceptance boundaries. The original scope below describes build1.
+and hardware acceptance boundaries. The operator then requested three short
+Home/center-button presses, removal of the manual readiness checkbox, and removal
+of Simulation from the product UI. The new flow opens one pending request from
+Pair, reports actual status, and starts readings after approval. This deliberately
+accepts reduced first-pairing authentication; saved-key Noise remains unchanged.
+Simulation remains only in developer tests/previews. The original scope below
+describes build1 and is historical.
 
 Branch: `visionos-tablet-setup`, based on relay `465c11a`.
 

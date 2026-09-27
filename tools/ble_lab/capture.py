@@ -54,9 +54,9 @@ def candidates(root=Path('/sys/class/input')):
                 continue
             keys = bitmap(device / 'capabilities/key')
             axes = bitmap(device / 'capabilities/abs')
-            pad = [code for code in range(0x100, 0x110) if keys & (1 << code)]
+            pad = [code for code in (102, 172, *range(0x100, 0x110)) if keys & (1 << code)]
             pen = bool(keys & (1 << 0x140)) and all(axes & (1 << code) for code in (0, 1, 24))
-            kind = 'pen' if pen else 'pad' if len(pad) >= 8 else 'touch'
+            kind = 'pen' if pen else 'pad' if pad else 'touch'
             groups.setdefault(identity, []).append((node.name, kind, pad))
         except (OSError, ValueError):
             continue
@@ -66,10 +66,10 @@ def candidates(root=Path('/sys/class/input')):
 
 
 class Capture:
-    def __init__(self, selected=None, on_key=lambda digit: None):
+    def __init__(self, selected=None, on_button=lambda code, value: None):
         self.selected = selected.lower() if selected else None
         self.identity = None
-        self.on_key = on_key
+        self.on_button = on_button
         self.selector = selectors.DefaultSelector()
         self.nodes = {}
         self.axes = {}
@@ -146,7 +146,7 @@ class Capture:
         self.identity = identity
         self.generation += 1
         self.dirty = True
-        print('Tablet input attached; pen and eight ExpressKeys available.', flush=True)
+        print('Tablet input attached; pen and tablet buttons available.', flush=True)
 
     def poll(self):
         self.discover()
@@ -177,12 +177,13 @@ class Capture:
                         self.axes[code] = value
                     elif event == 1 and value in (0, 1):
                         self.keys.add(code) if value else self.keys.discard(code)
-                elif kind == 'pad' and event == 1 and code in pad and value in (0, 1):
+                elif kind == 'pad' and event == 1 and code in pad and value in (0, 1, 2):
+                    self.on_button(code, value)
+                    if value == 2:
+                        continue
                     index = pad.index(code)
                     if value:
                         self.pad_mask |= 1 << index
-                        if index < 8:
-                            self.on_key(index + 1)
                     else:
                         self.pad_mask &= ~(1 << index)
                 elif kind == 'touch' and event == 3:
@@ -200,7 +201,7 @@ class Capture:
         low_x, high_x = self.ranges.get(0, (0, 0))
         low_y, high_y = self.ranges.get(1, (0, 0))
         low_p, high_p = self.ranges.get(24, (0, 0))
-        return SAMPLE.pack(1, flags, self.pad_mask, self.sequence,
+        return SAMPLE.pack(1, flags, self.pad_mask & 0xffff, self.sequence,
             time.monotonic_ns() // 1000,
             self.axes.get(0, 0), self.axes.get(1, 0), self.axes.get(24, 0),
             low_x, high_x, low_y, high_y, low_p, high_p,

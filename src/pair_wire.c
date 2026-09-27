@@ -32,10 +32,23 @@ int pltr_pair_wire_init(PltrPairWire *wire, PltrPairing *pairing,
     memset(wire, 0, sizeof(*wire));
     wire->pairing = pairing;
     wire->link_type = link_type;
+    wire->open_mode = 2;
     wire->incoming_sequence = wire->outgoing_sequence = 1;
     wire->stage = PLTR_PAIR_WIRE_OPEN;
     pltr_record_reader_init(&wire->reader, PLTR_PRE_AUTH);
     return 0;
+}
+
+int pltr_pair_wire_button_approval(PltrPairWire *wire) {
+    if (!wire || wire->stage != PLTR_PAIR_WIRE_OPEN || wire->link_type != 1) return -1;
+    wire->open_mode = 3;
+    return 0;
+}
+
+int pltr_pair_wire_approval_status(PltrPairWire *wire, const uint8_t status[8],
+    uint8_t *out, size_t capacity, size_t *written) {
+    if (!wire || wire->open_mode != 3 || wire->stage != PLTR_PAIR_WIRE_KEYS) return -1;
+    return emit(wire, PLTR_PAIR_APPROVAL, status, 8, out, capacity, written);
 }
 
 int pltr_pair_wire_receive(PltrPairWire *wire, const uint8_t *bytes, size_t size,
@@ -57,7 +70,7 @@ int pltr_pair_wire_receive(PltrPairWire *wire, const uint8_t *bytes, size_t size
         wire->incoming_sequence == UINT32_MAX) return fail(wire, now_ms);
     ++wire->incoming_sequence;
     if (wire->stage == PLTR_PAIR_WIRE_OPEN) {
-        if (frame.type != PLTR_OPEN || frame.payload[0] != 2 ||
+        if (frame.type != PLTR_OPEN || frame.payload[0] != wire->open_mode ||
             wire->pairing->stage != PLTR_PAIR_WINDOW)
             return fail(wire, now_ms);
         wire->stage = PLTR_PAIR_WIRE_START;

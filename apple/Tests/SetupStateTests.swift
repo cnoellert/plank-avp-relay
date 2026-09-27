@@ -11,8 +11,9 @@ enum SetupStateTests {
     }
     static func main() {
         let address = RelayAddress(host: "relay.example", port: "28990")!
-        var state = SetupState()
-        expect(state.mode == .simulation, "Default must be offline simulation")
+        expect(SetupState().mode == .live, "App opens directly in live mode")
+        var state = SetupState(mode: .simulation)
+        expect(state.mode == .simulation, "Explicit preview remains isolated")
         expect(state.beginPairing(code: [1, 2, 3, 4, 5]) == nil, "No endpoint")
         expect(!state.prepareAuthorization(), "No premature authorization")
         expect(RelayAddress(host: "https://relay.example", port: "28990") == nil, "Reject URL")
@@ -69,6 +70,15 @@ enum SetupStateTests {
         expect(bluetooth.linkType == 1 && address.linkType == 2, "Transport-specific crypto binding")
         expect(bluetooth.keychainAccount != address.keychainAccount, "Transport-specific trust lookup")
         expect(state.selectRelay(bluetooth, trusted: true), "Select saved Bluetooth relay")
+        state.forget()
+        expect(state.prepareAuthorization(), "Prepare button approval")
+        let canceledApproval = state.beginButtonApproval()!
+        expect(state.code.isEmpty, "Button approval has no challenge sequence")
+        expect(state.beginButtonApproval() == nil, "Only one pending approval")
+        state.cancel()
+        expect(!state.succeed(canceledApproval), "Late approval cannot persist after cancellation")
+        let approved = state.beginButtonApproval()!
+        expect(state.succeed(approved), "Current approval completes")
         let observation = state.beginObservation()!
         expect(state.activity == .observing && state.busy, "One live observation at a time")
         state.verifyObservation(UUID())

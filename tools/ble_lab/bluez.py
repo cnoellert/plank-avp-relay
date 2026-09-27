@@ -106,7 +106,7 @@ class Server(dbus.service.Object):
         self.loop = GLib.MainLoop()
         self.adapter = '/org/bluez/' + args.adapter
         self.native = Native(args.library, args.state_dir)
-        self.capture = Capture(args.tablet, self.key)
+        self.capture = Capture(args.tablet, self.button)
         self.peer = None
         self.notifying = False
         self.queue = Indications(self.emit)
@@ -118,7 +118,6 @@ class Server(dbus.service.Object):
         self.rx, self.tx = Characteristic(self, False), Characteristic(self, True)
         self.advertisement = Advertisement(self.bus)
         self.gatt_registered = self.advertising = False
-        self.want_pairing = args.pair
         self.bus.add_signal_receiver(self.device_changed, dbus_interface=PROPERTIES,
             signal_name='PropertiesChanged', path_keyword='path', arg0='org.bluez.Device1')
         self.bus.add_signal_receiver(self.removed, dbus_interface=OBJECTS,
@@ -141,19 +140,24 @@ class Server(dbus.service.Object):
             str(options.get('type', 'request')) != 'request' or
             not 1 <= len(data) <= 512 or (self.peer and self.peer != peer)):
             raise Rejected('One selected LE client and sequential writes are required.')
-        if not self.peer:
-            self.peer = peer
-            print('Headset transport connected; authenticating.', flush=True)
         self.queue.mtu_payload = max(20, min(512, int(options.get('mtu', 23)) - 3))
         try:
+            # Drain before every fragment, including the one completing START.
+            # Earlier physical events must not become approval for a new request.
+            self.capture.poll()
+            self.native.tablet(self.capture.attached)
+            if not self.peer:
+                self.peer = peer
+                print('Headset transport connected; authenticating.', flush=True)
             for reply in self.native.receive(data):
                 self.queue.append(reply)
         except (ProtocolError, BufferError, TimeoutError):
             self.disconnect()
             raise Rejected('Protocol rejected; existing trust retained.')
 
-    def key(self, digit):
-        self.queue.append(self.native.key(digit))
+    def button(self, code, value):
+        self.native.tablet(self.capture.attached)
+        self.queue.append(self.native.button(code, value))
 
     def disconnect(self):
         peer, self.peer = self.peer, None
@@ -176,6 +180,7 @@ class Server(dbus.service.Object):
     def tick(self):
         try:
             self.capture.poll()
+            self.native.tablet(self.capture.attached)
             self.queue.check_timeout()
             self.queue.append(self.native.tick())
             observing = self.native.observing
@@ -197,16 +202,6 @@ class Server(dbus.service.Object):
             return False
         return True
 
-    def open_pairing(self):
-        if not self.capture.attached:
-            print('Wake the selected tablet before opening its pairing window.', flush=True)
-            return
-        try:
-            self.native.open_pairing()
-            print('ExpressKey enrollment window open for 120 seconds.', flush=True)
-        except ProtocolError as error:
-            print(str(error), flush=True)
-
     def run(self):
         adapter = self.bus.get_object('org.bluez', self.adapter)
         gatt = dbus.Interface(adapter, 'org.bluez.GattManager1')
@@ -219,8 +214,6 @@ class Server(dbus.service.Object):
         def advertised():
             self.advertising = True
             print('PLANK Relay Lab is advertising. Use the app to discover it.', flush=True)
-            if self.want_pairing:
-                self.open_pairing()
 
         def registered():
             self.gatt_registered = True
@@ -229,7 +222,6 @@ class Server(dbus.service.Object):
 
         signal.signal(signal.SIGINT, lambda *_: self.loop.quit())
         signal.signal(signal.SIGTERM, lambda *_: self.loop.quit())
-        signal.signal(signal.SIGUSR1, lambda *_: GLib.idle_add(lambda: (self.open_pairing(), False)[1]))
         self.capture.discover()
         gatt.RegisterApplication(BASE, {}, reply_handler=registered, error_handler=failed)
         GLib.timeout_add(10, self.tick)

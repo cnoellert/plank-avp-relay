@@ -128,6 +128,9 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         target_link_libraries(ble_lab_test PRIVATE plank_ble_lab
             plank_relay_client_pair plank_relay_client_link)
         add_test(NAME ble_lab_test COMMAND ble_lab_test)
+        add_executable(button_pair_test tests/button_pair_test.c)
+        target_link_libraries(button_pair_test PRIVATE plank_ble_lab plank_relay_client_pair plank_relay_client_link)
+        add_test(NAME button_pair_test COMMAND button_pair_test)
         find_package(Python3 COMPONENTS Interpreter REQUIRED)
         add_test(NAME ble_transport_test COMMAND "${Python3_EXECUTABLE}"
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/ble_transport_test.py")

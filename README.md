@@ -7,8 +7,7 @@ Host session; the Relay has no Host credentials.
 
 A separate [PLANK Tablet Setup workflow lab](apps/tablet-setup/README.md) on the
 `visionos-tablet-setup` branch exercises onboarding without remote desktop.
-Its simulated Bluetooth/headless workflow is clearly separated from the live
-USB pairing supported by the current daemon. An explicit
+It opens directly to relay discovery and retains legacy network/USB pairing. An explicit
 [Bluetooth headset input lab](docs/bluetooth-headset-lab.md) adds authenticated
 BLE relay discovery/pairing and a live diagnostic readout. It is a separate
 foreground prototype; the production raw-HID service is unchanged.

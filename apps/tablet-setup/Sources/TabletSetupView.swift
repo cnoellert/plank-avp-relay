@@ -6,8 +6,6 @@ struct TabletSetupView: View {
     @StateObject private var setup = SetupCoordinator()
     @Environment(\.scenePhase) private var scenePhase
     @State private var confirmForget = false
-    @State private var liveWindowReady = false
-    @State private var bluetoothRelay = true
 
     init(setup: SetupCoordinator = SetupCoordinator()) {
         _setup = StateObject(wrappedValue: setup)
@@ -15,9 +13,11 @@ struct TabletSetupView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            header
-            modeBanner
-            stepIndicator
+            VStack(alignment: .leading, spacing: 5) {
+                Text("PLANK Tablet Setup").font(.title2.bold())
+                Text(Bundle.main.object(forInfoDictionaryKey: "PLANKSetupVersion") as? String ?? "development")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     Text(setup.state.step.title).font(.largeTitle.bold())
@@ -32,270 +32,135 @@ struct TabletSetupView: View {
                 .padding(22)
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22))
             }
-            status
-            footer
+            HStack(alignment: .top, spacing: 10) {
+                if setup.state.busy { ProgressView().controlSize(.small) }
+                Text(setup.message).font(.callout).fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("setup-status")
+            }
+            HStack {
+                Text("No workstation connection required").font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                if setup.state.busy { Button("Cancel") { setup.cancel() } }
+                else if setup.state.step != .relay { Button("Back") { setup.back() } }
+            }
         }
         .padding(28)
         .frame(minWidth: 680, idealWidth: 820, minHeight: 640, idealHeight: 760)
         .onChange(of: scenePhase) { _, phase in
             if phase != .active { setup.pauseForInactivity() }
         }
-        .onChange(of: setup.state.mode) { _, _ in liveWindowReady = false }
         .onDisappear { setup.pauseForInactivity() }
         .confirmationDialog("Forget this relay on this app?", isPresented: $confirmForget) {
             Button("Forget local pairing", role: .destructive) { setup.forget() }
         } message: {
-            Text("This removes only this app's saved relay identity. The current daemon also requires relay-side removal of its Client approval before pairing again. It does not affect the full PLANK Client.")
+            Text("This removes this app's saved relay identity. The relay still retains its approval; it may need to be removed there before pairing again.")
         }
     }
 
-    private var header: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text("PLANK Tablet Setup").font(.title2.bold())
-                Text("Standalone workflow lab · \(Bundle.main.object(forInfoDictionaryKey: "PLANKSetupVersion") as? String ?? "development")")
-                    .font(.caption).foregroundStyle(.secondary)
+    private var relayPage: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            BluetoothRelayPicker(scanner: setup.scanner, selected: setup.selectBluetoothRelay)
+            if let saved = setup.savedBluetoothRelay {
+                Button("Use saved relay: \(saved.name)") { setup.selectBluetoothRelay(saved) }
             }
-            Spacer()
-            Picker("Connection mode", selection: Binding(
-                get: { setup.state.mode }, set: { setup.changeMode($0) })) {
-                ForEach(SetupMode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(width: 260)
-        }
-    }
-
-    private var modeBanner: some View {
-        Label {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(setup.state.mode == .simulation ? "SIMULATION — no devices are connected" : "LIVE — real pairing and saved trust")
-                    .font(.headline)
-                Text(setup.state.mode == .simulation
-                     ? "Explore USB and Bluetooth setup without a relay. Nothing is saved to Keychain."
-                     : "Pair with your relay and test live tablet readings over Bluetooth.")
-                    .font(.callout)
-            }
-        } icon: {
-            Image(systemName: setup.state.mode == .simulation ? "theatermasks" : "network.badge.shield.half.filled")
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background((setup.state.mode == .simulation ? Color.orange : Color.blue).opacity(0.16),
-                    in: RoundedRectangle(cornerRadius: 14))
-    }
-
-    private var stepIndicator: some View {
-        HStack {
-            ForEach(SetupStep.allCases, id: \.self) { step in
-                HStack(spacing: 6) {
-                    Image(systemName: step.rawValue < setup.state.step.rawValue ? "checkmark.circle.fill" : "\(step.rawValue + 1).circle")
-                    Text(["Relay", "Tablet", "Authorize", "Ready"][step.rawValue])
-                        .font(.callout.weight(step == setup.state.step ? .bold : .regular))
-                }
-                .foregroundStyle(step == setup.state.step ? Color.primary : Color.secondary)
-                if step != .complete { Spacer(); Image(systemName: "chevron.right").foregroundStyle(.tertiary); Spacer() }
-            }
-        }
-        .accessibilityElement(children: .combine)
-    }
-
-    @ViewBuilder private var relayPage: some View {
-        if setup.state.mode == .simulation {
-            Text("Your relay lives next to the tablet. Pick a demonstration device to begin.")
-            Button { setup.selectDemoRelay() } label: {
-                relayRow("Desk relay", detail: "Unpaired · demonstration device", symbol: "desktopcomputer")
-            }
-            Button { setup.selectDemoRelay(second: true) } label: {
-                relayRow("Studio relay", detail: "Unpaired · second-device selection test", symbol: "network")
-            }
-            .buttonStyle(.bordered)
-            scenarioPicker
-        } else {
-            Picker("Headset connects to relay by", selection: $bluetoothRelay) {
-                Text("Bluetooth").tag(true)
-                Text("Network").tag(false)
-            }.pickerStyle(.segmented)
-            if bluetoothRelay {
-                BluetoothRelayPicker(scanner: setup.scanner, selected: setup.selectBluetoothRelay)
-                if let saved = setup.savedBluetoothRelay {
-                    Button("Use saved relay: \(saved.name)") { setup.selectBluetoothRelay(saved) }
-                }
-            } else {
-            Text("Enter the relay's address. Discovery is not advertised by the current relay build.")
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Relay hostname or IP address").font(.headline)
-                TextField("relay.example", text: $setup.host).textFieldStyle(.roundedBorder)
-                    .autocorrectionDisabled()
-                Text("TCP port").font(.headline)
-                TextField("28990", text: $setup.port).textFieldStyle(.roundedBorder).frame(width: 160)
-            }
-            Text("Only connect to a relay you own. An address or advertised device name is not proof of identity.")
-                .font(.callout).foregroundStyle(.secondary)
-            Button("Continue") { setup.selectRelay() }.buttonStyle(.borderedProminent)
+            DisclosureGroup("Connect by network address") {
+                VStack(alignment: .leading, spacing: 12) {
+                    TextField("Relay hostname or IP address", text: $setup.host)
+                        .textFieldStyle(.roundedBorder).autocorrectionDisabled()
+                    TextField("TCP port", text: $setup.port).textFieldStyle(.roundedBorder).frame(width: 160)
+                    Button("Continue") { setup.selectRelay() }
+                }.padding(.top, 12)
             }
         }
     }
 
-    private func relayRow(_ title: String, detail: String, symbol: String) -> some View {
-        HStack(spacing: 16) {
-            Image(systemName: symbol).font(.title)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title).font(.headline)
-                Text(detail).font(.callout).foregroundStyle(.secondary)
-            }
-            Spacer()
-            Image(systemName: "chevron.right")
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
-    }
-
-    @ViewBuilder private var tabletPage: some View {
-        Text("How does the tablet connect to \(setup.state.address?.description ?? "your relay")?")
-        Picker("Tablet connection", selection: Binding(
-            get: { setup.state.connection }, set: { setup.chooseConnection($0) })) {
-            Text("USB cable").tag(TabletConnection.usb)
-            Text("Bluetooth").tag(TabletConnection.bluetooth)
-                .disabled(setup.state.mode == .live && setup.state.address?.bluetoothIdentifier == nil)
-        }
-        .pickerStyle(.segmented)
-        if setup.state.mode == .live && setup.state.address?.bluetoothIdentifier != nil {
-            Label("Keep the tablet connected to the relay and awake.", systemImage: "hand.draw")
-            Text("The relay must already be connected to your tablet. Confirm this headset using five presses on its eight ExpressKeys.")
-            Toggle("The relay's ExpressKey enrollment window is ready", isOn: $liveWindowReady)
-        } else if setup.state.connection == .usb {
-            Label("Connect the tablet's USB cable to the relay, not to the headset.", systemImage: "cable.connector")
-            if setup.state.mode == .simulation {
-                Label("Simulated Wacom pad · 8 ExpressKeys", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-            } else {
-                Label("Tablet detection is not exposed by the current pairing protocol.", systemImage: "info.circle")
-                Text("The current relay daemon still limits pairing to PTH-660 and requires its manual pair command. This app does not remove those restrictions.")
+    private var tabletPage: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            LabeledContent("Relay", value: setup.state.address?.description ?? "")
+            if setup.state.usesButtonApproval {
+                Text("Keep your tablet connected to the relay. Tap Pair, then press and release its Home or center button three times.")
+                Text("If your tablet has no Home or center button, use the same tablet button for all three presses.")
                     .font(.callout).foregroundStyle(.secondary)
-                Toggle("The relay's manual pairing window is ready", isOn: $liveWindowReady)
+                Button("Pair") { setup.pairSelectedRelay() }.buttonStyle(.borderedProminent)
+            } else {
+                Text("Connect the tablet by USB. This network relay uses the existing five-ExpressKey pairing procedure; its operator must start pairing on the relay first.")
+                Button("Pair") { setup.pairSelectedRelay() }.buttonStyle(.borderedProminent)
             }
-        } else {
-            Label("Put the tablet into its Bluetooth pairing mode.", systemImage: "antenna.radiowaves.left.and.right")
-            Text("Bluetooth connects the tablet to the relay. The headset still reaches the relay over the network.")
-            Button { setup.selectBluetoothTablet() } label: {
-                relayRow("Wacom tablet — simulated", detail: setup.bluetoothSelected ? "Provisional connection ready" : "Tap to simulate selecting a discovered tablet",
-                         symbol: setup.bluetoothSelected ? "checkmark.circle.fill" : "wave.3.right")
-            }
-            Text("No Bluetooth scan or bond is performed. The ExpressKey step authorizes the headset separately.")
-                .font(.callout).foregroundStyle(.secondary)
         }
-        Button("Continue to authorization") { setup.preparePairing() }
-            .buttonStyle(.borderedProminent)
-            .disabled(setup.state.mode == .simulation && setup.state.connection == .bluetooth && !setup.bluetoothSelected ||
-                      setup.state.mode == .live && !liveWindowReady)
     }
 
     @ViewBuilder private var authorizePage: some View {
-        Text("Press the five displayed ExpressKeys on your tablet, in order. Repeated numbers mean press and release that key again.")
-        if setup.state.code.isEmpty {
-            Button("Generate pairing sequence") { setup.startPairing() }
-                .buttonStyle(.borderedProminent)
-        } else {
-            HStack(spacing: 16) {
-                ForEach(Array(setup.state.code.enumerated()), id: \.offset) { _, digit in
-                    Text(String(digit)).font(.system(size: 38, weight: .semibold, design: .rounded))
-                        .frame(width: 68, height: 72)
-                        .background(.blue.opacity(0.18), in: RoundedRectangle(cornerRadius: 14))
-                        .accessibilityLabel("Key \(digit)")
+        if setup.state.usesButtonApproval {
+            if setup.state.busy {
+                if let approval = setup.approval {
+                    ButtonApprovalView(approval: approval)
+                } else {
+                    ProgressView("Connecting to your relay…")
                 }
+            } else {
+                Text("Tap Pair to start a new approval request.")
+                Button("Pair") { setup.startPairing() }.buttonStyle(.borderedProminent)
             }
-            .frame(maxWidth: .infinity)
-            if setup.state.mode == .simulation {
-                Divider()
-                Text("SIMULATED EXPRESSKEYS").font(.caption.bold()).foregroundStyle(.orange)
-                HStack {
-                    ForEach(1...8, id: \.self) { number in
-                        Button(String(number)) { setup.pressSimulatedKey(UInt8(number)) }
-                            .frame(minWidth: 42, minHeight: 44)
+        } else {
+            if setup.state.code.isEmpty {
+                Button("Generate pairing sequence") { setup.startPairing() }.buttonStyle(.borderedProminent)
+            } else {
+                Text("Press and release the five displayed ExpressKeys on the tablet, in order.")
+                HStack(spacing: 16) {
+                    ForEach(Array(setup.state.code.enumerated()), id: \.offset) { _, digit in
+                        Text(String(digit)).font(.system(size: 38, weight: .semibold, design: .rounded))
+                            .frame(width: 68, height: 72)
+                            .background(.blue.opacity(0.18), in: RoundedRectangle(cornerRadius: 14))
                     }
                 }
-                Text("\(setup.simulatedKeys.count) of 5 simulated presses entered")
-                    .font(.callout).foregroundStyle(.secondary)
-            } else {
                 ProgressView("Waiting for the relay to verify the sequence…")
-                Text("Physical button order varies. This prototype uses the existing relay's logical numbering; a model-independent button guide is still required.")
-                    .font(.callout).foregroundStyle(.secondary)
             }
         }
-        if setup.state.mode == .simulation { scenarioPicker.disabled(setup.state.busy) }
     }
 
-    @ViewBuilder private var completePage: some View {
-        Label(setup.state.mode == .simulation ? "Simulated pairing complete" : "Relay trust saved",
-              systemImage: "checkmark.shield.fill")
-            .font(.title2).foregroundStyle(.green)
-        LabeledContent("Relay", value: setup.state.address?.description ?? "")
-        LabeledContent("Identity", value: setup.state.connectionVerified ? "Verified this operation" : "Saved; not currently verified")
-        if let version = setup.peerVersion { LabeledContent("Relay version", value: version) }
-        Text(setup.state.mode == .simulation
-             ? "Try a connection failure below, then switch back to Successful pairing and check again. Saved pairing should survive the interruption."
-             : setup.state.address?.bluetoothIdentifier != nil
-                 ? "Start live readings, then move the pen and vary its pressure on the tablet."
-                 : "Pairing is independent of a workstation session. This network check does not start tablet forwarding.")
-        if setup.state.mode == .live && setup.state.address?.bluetoothIdentifier == nil {
-            Text("Connection check requires the relay's serve mode and occupies its single connection briefly. Do not run it during an active desktop session.")
-                .font(.callout).foregroundStyle(.secondary)
-        } else if setup.state.mode == .simulation { scenarioPicker.disabled(setup.state.busy) }
-        if setup.state.mode == .live && setup.state.address?.bluetoothIdentifier != nil {
-            if setup.state.activity == .observing {
-                Button("Stop readings") { setup.cancel() }.buttonStyle(.borderedProminent)
+    private var completePage: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Label("Pairing saved", systemImage: "checkmark.shield.fill")
+                .font(.title2).foregroundStyle(.green)
+            LabeledContent("Relay", value: setup.state.address?.description ?? "")
+            if setup.state.address?.bluetoothIdentifier != nil {
+                if setup.state.activity == .observing {
+                    Button("Stop readings") { setup.cancel() }.buttonStyle(.borderedProminent)
+                } else {
+                    Button("Start live readings") { setup.startReadings() }
+                        .buttonStyle(.borderedProminent).disabled(setup.state.busy)
+                }
+                if let readings = setup.readings {
+                    TabletReadingsView(readings: readings, count: setup.readingCount)
+                }
             } else {
-                Button("Start live readings") { setup.startReadings() }
-                    .buttonStyle(.borderedProminent).disabled(setup.state.busy)
+                Text("Start serve mode on the network relay, then check the saved connection.")
             }
-            if let readings = setup.readings { TabletReadingsView(readings: readings, count: setup.readingCount) }
-        }
-        HStack {
-            Button("Check connection") { setup.checkConnection() }
-                .buttonStyle(.borderedProminent).disabled(setup.state.busy)
-            Button("Forget local pairing", role: .destructive) { confirmForget = true }
-                .disabled(setup.state.busy)
-        }
-    }
-
-    private var scenarioPicker: some View {
-        Picker("Test scenario", selection: $setup.scenario) {
-            ForEach(SimulationScenario.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-        }
-        .pickerStyle(.menu)
-    }
-
-    private var status: some View {
-        HStack(alignment: .top, spacing: 10) {
-            if setup.state.busy { ProgressView().controlSize(.small) }
-            else { Image(systemName: statusSymbol).foregroundStyle(statusColor) }
-            Text(setup.message).font(.callout).fixedSize(horizontal: false, vertical: true)
-                .accessibilityIdentifier("setup-status")
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var statusSymbol: String {
-        if case .failed = setup.state.activity { return "exclamationmark.triangle.fill" }
-        return "info.circle"
-    }
-    private var statusColor: Color {
-        if case .failed = setup.state.activity { return .orange }
-        return .secondary
-    }
-
-    private var footer: some View {
-        HStack {
-            Text("No workstation connection required").font(.caption).foregroundStyle(.secondary)
-            Spacer()
-            if setup.state.busy {
-                Button("Cancel") { setup.cancel() }
-            } else if setup.state.step != .relay {
-                Button("Back") { setup.back() }
+            HStack {
+                Button("Check connection") { setup.checkConnection() }.disabled(setup.state.busy)
+                Button("Forget local pairing", role: .destructive) { confirmForget = true }
+                    .disabled(setup.state.busy)
             }
+        }
+    }
+}
+
+struct ButtonApprovalView: View {
+    let approval: ButtonApproval
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text(approval.tabletReady ? "Press the Home or center button three times" : "Wake your tablet")
+                .font(.title2.bold())
+            Text(approval.tabletReady
+                 ? "Use short presses, releasing between each. If your tablet has no Home button, use the same tablet button three times."
+                 : "Wait for the tablet to reconnect before entering the three presses.")
+            HStack(spacing: 18) {
+                ForEach(1...3, id: \.self) { number in
+                    Image(systemName: number <= approval.presses ? "checkmark.circle.fill" : "\(number).circle")
+                        .font(.system(size: 44)).foregroundStyle(number <= approval.presses ? Color.green : Color.secondary)
+                }
+            }.accessibilityLabel("\(approval.presses) of 3 presses received")
+            Text("\(approval.secondsRemaining) seconds remaining").font(.callout).foregroundStyle(.secondary)
         }
     }
 }

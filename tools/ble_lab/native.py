@@ -25,6 +25,9 @@ class Native:
                          C.c_uint64, C.c_void_p, C.c_size_t, C.POINTER(C.c_size_t)], C.c_int),
             'key': ([C.c_void_p, C.c_uint8, C.c_uint64, C.c_void_p,
                      C.c_size_t, C.POINTER(C.c_size_t)], C.c_int),
+            'tablet': ([C.c_void_p, C.c_int], None),
+            'button': ([C.c_void_p, C.c_uint16, C.c_int, C.c_uint64, C.c_uint64,
+                        C.c_void_p, C.c_size_t, C.POINTER(C.c_size_t)], C.c_int),
             'tick': ([C.c_void_p, C.c_uint64, C.c_void_p,
                       C.c_size_t, C.POINTER(C.c_size_t)], C.c_int),
             'observing': ([C.c_void_p], C.c_int),
@@ -65,6 +68,12 @@ class Native:
 
     def key(self, digit):
         return self.output('key', digit, now_ms())
+
+    def tablet(self, attached):
+        self.lib.pltr_ble_lab_tablet(self.handle, bool(attached))
+
+    def button(self, code, value):
+        return self.output('button', code, value, int(time.time()), now_ms())
 
     def tick(self):
         return self.output('tick', now_ms())

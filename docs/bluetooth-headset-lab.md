@@ -1,15 +1,23 @@
 # Bluetooth headset input lab
 
 The standalone Test Setup app can discover a Linux relay over Bluetooth LE,
-authorize the headset using five physical ExpressKey presses, and display pen,
+authorize a pending headset using three presses of one tablet button, and display pen,
 pressure, tilt, button and touch readings. This is an explicit diagnostic mode;
 raw-HID forwarding to a workstation remains a separate implementation.
 
 The two radio connections are independent: Wacom to relay uses the tablet's
 supported transport; relay to headset uses a custom BLE GATT service. Pair the
-headset inside the Test Setup app. The app's saved trust is established by the
-existing CPace mutual confirmation and verified on reconnect with Noise IK.
-Neither a Bluetooth name nor a system Bluetooth bond authorizes readings.
+headset inside the Test Setup app. Three short button presses approve the
+current connection locally; the app pins the exchanged relay key and verifies
+it on reconnect with Noise IK. Neither a Bluetooth name nor a system Bluetooth
+bond authorizes readings.
+
+This button approval is deliberately simpler than the earlier random five-key
+challenge, as requested by the operator. It does not authenticate the intended
+headset against a nearby active attacker during first pairing. A racing peer or
+man-in-the-middle can win initial enrollment despite a short window and one
+pending request. Do not describe the gesture as equivalent to secret-code or
+QR-authenticated enrollment. Saved-key checks and encrypted observations remain.
 
 ## Operator procedure
 
@@ -28,22 +36,34 @@ python3 tools/ble-tablet-lab.py \
 
 The tablet selector is a Bluetooth address or physical USB identity. It is an
 operator selection, not a model allowlist. With no selector, exactly one Wacom
-device group must expose pen X/Y/pressure and at least eight Pad buttons. Pen,
-Pad and touch are grouped by physical USB ancestry or Bluetooth remote identity
-and local adapter. As with the earlier pairing check, verify the actual eight
-ExpressKeys and their order before enrollment; advertised capabilities alone
-do not establish a usable physical layout.
+device group must expose pen X/Y/pressure and a Pad button. Pen, Pad and touch
+are grouped by physical USB ancestry or Bluetooth remote identity/local adapter.
+Recognized button capabilities include Pad BTN_0..BTN_15 and Home/Homepage;
+no model/PID table selects a particular button. The first completed press chooses
+the authorization button for that request. On a tablet without Home/center,
+use any one supported Pad button three times. Capability discovery and the
+physical button still need qualification on each new device family.
 
-In the app, select **Live relay → Bluetooth → Scan for relays**. Select the
-intended relay. With the tablet awake, signal this lab process with `SIGUSR1`
-to open one 120-second ExpressKey enrollment window, or launch with `--pair`.
-Confirm the window is ready in the app and generate the five-key sequence.
-Press those physical tablet keys. Each window reserves a persistent attempt;
-the existing three-attempt/ten-minute lockout and 60-second attempt deadline
-apply. Do not remove stored trust to work around a timeout.
+The app opens directly to relay discovery, with no Simulation selector. Choose
+**Scan for relays**, select the intended relay, then tap **Pair**. There is no
+readiness checkbox, SIGUSR1 step or `--pair` switch. The relay reports tablet
+availability, press count and a 60-second deadline. Wake the tablet first if
+shown offline. Press/release the Home or center button three times, using short
+presses. Holds longer than one second do not count; gaps longer than two seconds,
+a different button, tablet detach or cancellation reset the gesture. A duplicate
+down or autorepeat cannot count as multiple presses. Do not hold the PTH-660's
+center button: a long hold has a separate tablet Bluetooth-pairing function.
 
-After successful pairing, choose **Start live readings**. The app authenticates
-the saved relay and opts into observation. Tablet sleep leaves the headset link
+Only events from the selected tablet and current pending request can authorize
+it. Earlier queued input is drained before starting a new peer request. Stopping
+or leaving the app cancels the request. An unapproved remote request cannot
+consume the persistent physical-attempt budget; the three-attempt/ten-minute
+budget is reserved only after the third completed press. Successful confirmed
+enrollment resets it. Do not remove saved trust to work around a timeout.
+
+After successful pairing, live readings start automatically. The app waits for
+the pairing transport to close, reconnects, authenticates the saved relay and
+opts into observation. **Start live readings** can restart a stopped readout. Tablet sleep leaves the headset link
 and trust intact, reports the tablet offline, and clears held input state.
 Waking the same tablet rediscovers its nodes and resumes snapshots. Leaving the
 app or stopping readings closes the headset link; trust remains in Keychain.
@@ -59,6 +79,22 @@ in CPace/Noise. Arbitrary ATT fragments feed the existing bounded record reader.
 Only one indication fragment is outstanding at a time, paced by confirmation;
 queue overflow or a missing acknowledgement closes the connection. Writes are
 bound to one BlueZ Device1 peer. No plaintext tablet readings are advertised.
+
+Button approval explicitly uses `OPEN` mode3 over link type1. Legacy mode2
+still requires its secret-code/manual-window flow and is not silently upgraded.
+The button client reuses the existing CPace ephemeral exchange and confirmation
+with the public domain value `11111`; that value is NOT a secret or proof of
+identity. The relay withholds its exchange response until local approval, and
+persists the submitted client key only after the final confirmation. Record
+sequences and the existing transcript bind the exchange to the pending request.
+
+`PAIR_APPROVAL (36)` is a pre-authentication relay-to-client status, valid only
+for the explicit mode3 client while waiting for its response. Its eight bytes
+are schema1, tablet-ready0/1, completed-press count0..3, target3, remaining seconds
+(u16 LE, max60), and chosen evdev button code (u16 LE, zero before selection).
+Status is advisory and cannot establish trust. It is sent at request acceptance,
+progress changes and once a second while waiting. No response with key material
+is released by one/two presses, a held button or a request that has expired.
 
 The optional HELLO capability `INPUT_OBSERVER = 0x02` adds two secure frame types
 to PLTR version1. Existing clients and TCP services default to capability0x01.
@@ -98,7 +134,9 @@ query current state and is surfaced in the diagnostic UI.
 Portable tests cover fragmented BLE pairing and encrypted records, persistent
 trust, rejection of unknown clients, mutual observer opt-in, streaming gates,
 workstation-session rejection, ATT acknowledgement pacing, bounded overflow
-and cleared offline state. Apple builds and physical headset checks must be
+and cleared offline state. Button tests cover pre-request presses, an offline
+tablet, cancellation/retry, duplicate/repeated input, long holds, mixed buttons,
+sleep/wake, slow gestures, expiry and confirmation after the third release. Apple builds and physical headset checks must be
 recorded separately; compilation and simulated input are not radio evidence.
 
 References: [Apple Core Bluetooth](https://developer.apple.com/documentation/corebluetooth),

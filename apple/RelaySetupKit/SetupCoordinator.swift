@@ -14,12 +14,13 @@ public final class SetupCoordinator: ObservableObject {
     @Published public private(set) var peerVersion: String?
     @Published public private(set) var readings: TabletReadings?
     @Published public private(set) var readingCount = 0
+    @Published public private(set) var approval: ButtonApproval?
     public let scanner = RelayBLEScanner()
     private let keys = RelayKeyStore()
     private let client = RelayPairingClient()
     private var task: Task<Void, Never>?
 
-    public init() {}
+    public init(mode: SetupMode = .live) { changeMode(mode) }
 
     public func changeMode(_ mode: SetupMode) {
         cancel()
@@ -33,7 +34,7 @@ public final class SetupCoordinator: ObservableObject {
         port = mode == .live ? UserDefaults.standard.string(forKey: "setup.lastRelayPort") ?? "28990" : "28990"
         message = mode == .simulation
             ? "Simulation only. No network connections or pairing keys are used."
-            : "Find your relay over Bluetooth, or use its network address. Confirm pairing with the tablet's ExpressKeys."
+            : "Scan for the relay beside your tablet."
     }
 
     public var savedBluetoothRelay: BluetoothRelay? {
@@ -51,7 +52,7 @@ public final class SetupCoordinator: ObservableObject {
             let trusted = try keys.relayKey(address) != nil
             guard state.selectRelay(address, trusted: trusted) else { return }
             message = trusted ? "Saved pairing found. Start live readings to verify the relay and tablet." :
-                "Wake the tablet attached to this relay, then prepare its ExpressKey enrollment window."
+                "Tap Pair, then press your tablet's Home or center button three times."
         } catch { message = error.localizedDescription }
     }
 
@@ -97,6 +98,7 @@ public final class SetupCoordinator: ObservableObject {
     }
 
     public func startPairing() {
+        if state.usesButtonApproval { startButtonApproval(); return }
         guard let address = state.address else { return }
         do {
             let code = try RelayKeyStore.newSequence()
@@ -146,6 +148,57 @@ public final class SetupCoordinator: ObservableObject {
                 }
             }
         } catch { message = error.localizedDescription }
+    }
+
+    public func pairSelectedRelay() {
+        guard state.prepareAuthorization() else { return }
+        startPairing()
+    }
+
+    private func startButtonApproval() {
+        guard let address = state.address, let id = state.beginButtonApproval() else { return }
+        approval = nil
+        message = "Connecting to the relay…"
+        if state.mode == .simulation {
+            approval = ButtonApproval(tabletReady: true, presses: 0, secondsRemaining: 60)
+            message = "Preview data only."
+            return
+        }
+        task = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let relayKey = try await self.client.pairByButton(address: address,
+                    privateKey: self.keys.clientKey()) { [weak self] status in
+                    guard let self, self.state.operation == id else { return }
+                    self.approval = status
+                    self.message = status.tabletReady ? "Press and release the same tablet button three times." :
+                        "Wake the tablet. Approval presses will count when it reconnects."
+                }
+                try Task.checkCancellation()
+                guard self.state.operation == id else { return }
+                try self.keys.saveRelay(relayKey, address: address)
+                guard self.state.succeed(id) else { return }
+                UserDefaults.standard.set(address.bluetoothIdentifier!.uuidString, forKey: "setup.lastBluetoothRelay")
+                UserDefaults.standard.set(address.description, forKey: "setup.lastBluetoothRelayName")
+                self.approval = nil
+                self.task = nil
+                self.startReadings()
+            } catch {
+                guard self.state.operation == id else { return }
+                self.approval = nil
+                self.state.fail(id, message: error.localizedDescription)
+                self.message = error.localizedDescription
+                self.task = nil
+            }
+        }
+    }
+
+    // Used by the offscreen preview only; no simulation control is in the app.
+    public func pressPreviewButton() {
+        guard state.mode == .simulation, let id = state.operation,
+              let approval, approval.presses < 3 else { return }
+        self.approval = ButtonApproval(tabletReady: true, presses: approval.presses + 1, secondsRemaining: 60)
+        if approval.presses == 2 { _ = state.succeed(id) }
     }
 
     public func pressSimulatedKey(_ key: UInt8) {
@@ -207,6 +260,7 @@ public final class SetupCoordinator: ObservableObject {
         state.cancel()
         simulatedKeys = []
         readings = nil
+        approval = nil
         message = "Operation canceled. Existing pairing was not removed."
     }
 

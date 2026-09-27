@@ -15,6 +15,10 @@ int pltr_ble_lab_receive(PltrBleLab *lab, const uint8_t *data, size_t size,
     size_t *consumed, uint64_t now_ms, uint8_t *out, size_t capacity, size_t *written);
 int pltr_ble_lab_key(PltrBleLab *lab, uint8_t key, uint64_t now_ms,
     uint8_t *out, size_t capacity, size_t *written);
+void pltr_ble_lab_tablet(PltrBleLab *lab, int attached);
+int pltr_ble_lab_button(PltrBleLab *lab, uint16_t code, int value,
+    uint64_t wall_seconds, uint64_t now_ms,
+    uint8_t *out, size_t capacity, size_t *written);
 int pltr_ble_lab_tick(PltrBleLab *lab, uint64_t now_ms,
     uint8_t *out, size_t capacity, size_t *written);
 int pltr_ble_lab_observing(const PltrBleLab *lab);

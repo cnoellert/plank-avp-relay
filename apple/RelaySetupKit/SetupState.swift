@@ -18,7 +18,7 @@ public enum SetupStep: Int, CaseIterable, Sendable {
         switch self {
         case .relay: "Find your relay"
         case .tablet: "Connect your tablet"
-        case .authorize: "Confirm with ExpressKeys"
+        case .authorize: "Authorize your headset"
         case .complete: "Your tablet relay"
         }
     }
@@ -84,7 +84,7 @@ public struct RelayAddress: Equatable, Sendable {
 /// Pure workflow state. Cryptographic success is supplied only by the live
 /// adapter after BOTH confirmation tags; simulated success has separate state.
 public struct SetupState: Equatable, Sendable {
-    public private(set) var mode: SetupMode = .simulation
+    public private(set) var mode: SetupMode = .live
     public private(set) var step: SetupStep = .relay
     public private(set) var connection: TabletConnection = .usb
     public private(set) var activity: SetupActivity = .idle
@@ -94,7 +94,9 @@ public struct SetupState: Equatable, Sendable {
     public private(set) var hasTrust = false
     public private(set) var connectionVerified = false
 
-    public init() {}
+    public init(mode: SetupMode = .live) { self.mode = mode }
+
+    public var usesButtonApproval: Bool { mode == .simulation || address?.bluetoothIdentifier != nil }
 
     public var busy: Bool { operation != nil }
 
@@ -139,6 +141,15 @@ public struct SetupState: Equatable, Sendable {
         let id = UUID()
         operation = id
         self.code = code
+        activity = .pairing
+        return id
+    }
+
+    public mutating func beginButtonApproval() -> UUID? {
+        guard !busy, step == .authorize, !hasTrust, address != nil, usesButtonApproval else { return nil }
+        let id = UUID()
+        operation = id
+        code = []
         activity = .pairing
         return id
     }

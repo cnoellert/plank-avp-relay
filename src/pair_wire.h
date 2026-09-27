@@ -22,13 +22,17 @@ typedef struct PltrPairWire {
     PltrRecordReader reader;
     PltrPairWireStage stage;
     uint32_t incoming_sequence, outgoing_sequence;
-    uint8_t link_type;
+    uint8_t link_type, open_mode;
 } PltrPairWire;
 
 // One connection has one OPEN/PAIR_START attempt. The pairing engine persists
 // across connections so lockout cannot be bypassed by reconnecting.
 int pltr_pair_wire_init(PltrPairWire *wire, PltrPairing *pairing,
                         uint8_t link_type);
+// Explicit opt-in, used only by the physical-approval BLE lab.
+int pltr_pair_wire_button_approval(PltrPairWire *wire);
+int pltr_pair_wire_approval_status(PltrPairWire *wire, const uint8_t status[8],
+    uint8_t *out, size_t capacity, size_t *written);
 int pltr_pair_wire_receive(PltrPairWire *wire, const uint8_t *bytes, size_t size,
                             size_t *consumed, uint64_t now_ms,
                             uint8_t *out, size_t capacity, size_t *written);

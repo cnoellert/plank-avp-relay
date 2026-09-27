@@ -4,28 +4,37 @@ A standalone SwiftUI visionOS app for reviewing tablet-relay onboarding. Also
 builds as a macOS UI preview. No workstation, remote desktop, Qt, SDL, FFmpeg or
 Rust media transport is required. The app is **not** a full PLANK Client.
 
-The default is **Simulation**, clearly labelled on every page. It never opens
-a socket or writes pairing identities. Choose a demo relay, choose USB or
-Bluetooth, generate a sequence and press the simulated keys. Test scenarios
-cover rejection, timeout and interrupted connections. Successful pairing lets
-you simulate reconnection without losing trust. Switching modes clears all
-simulated state; simulation is not hardware acceptance.
+The app opens directly to relay discovery. There is no Simulation selector.
+Synthetic state and input remain available only to developer tests and the
+separate offscreen preview executable.
 
-## Live Bluetooth readings
+## Bluetooth pairing and readings
 
-Live mode now offers relay discovery over Bluetooth LE. With the Linux
-[Bluetooth input lab](../../docs/bluetooth-headset-lab.md) running, select the
-relay, confirm the headset using five physical ExpressKey presses, and choose
-**Start live readings**. The screen shows pen position, pressure, tilt, Pad
+With the Linux [Bluetooth input lab](../../docs/bluetooth-headset-lab.md) running,
+choose **Scan for relays**, select the relay and tap **Pair**. The app reports
+actual tablet availability, a countdown and completed presses. Press and release
+the tablet's Home/center button three times. If the tablet has no such button,
+use the same supported tablet button three times. No manual pairing-window
+checkbox or SSH signal is required. Use short presses, no more than two seconds
+apart; holds, mixed buttons, sleep or cancellation reset progress.
+
+After approval and key confirmation, the app saves the relay key and starts live
+readings automatically. The screen shows pen position, pressure, tilt, Pad
 buttons and touch count. Tablet sleep shows an offline state while retaining
-trust; waking the same tablet resumes readings. The relay selects tablets by
-physical ancestry and capabilities, not a product-ID allowlist.
+trust; waking the same tablet resumes readings. Selection uses physical ancestry
+and capabilities rather than a product-ID allowlist.
 
-The headset connects to the relay through this app's custom BLE service.
-CPace authorizes the headset and Noise encrypts the readings; the advertisement
-is not an identity proof. This is a coalesced diagnostic readout, not raw-HID
-forwarding to a workstation or a system-wide visionOS pointer. Existing TCP
-pairing remains available under **Network**.
+The three-press gesture authorizes the pending connection, but does not protect
+initial enrollment against a nearby active attacker racing or intercepting it.
+This is the operator-selected convenience tradeoff; do not describe it as the
+same authentication guarantee as the old random challenge. Subsequent sessions
+verify the saved key through Noise and encrypt readings. The BLE lab reuses the
+existing CPace exchange with an explicitly public domain value and a local
+physical gate. The protocol and limits are documented in the lab guide.
+
+This is a coalesced diagnostic readout, not raw-HID forwarding to a workstation
+or a system-wide visionOS pointer. Legacy TCP pairing remains under
+**Connect by network address**.
 
 ## Existing network/USB pairing
 
@@ -33,8 +42,7 @@ Explicit Live mode uses the current relay's real C CPace/Noise protocol and OS
 Keychain. Enter the relay address/port. The existing daemon must already have
 its manual `pair` window open; follow the root README as the service owner.
 The existing daemon still selects PTH-660 for pairing. The app does not silently
-relax that or pretend to detect other models on this legacy TCP path. The new
-BLE lab uses the eight-ExpressKey capability contract described above.
+relax that or pretend to detect other models on this legacy TCP path. The BLE lab instead requires a pen and at least one supported tablet button.
 
 Use the **physical tablet** for the displayed sequence in Live mode. Trust is
 stored only after the final cryptographic confirmation and after verifying
@@ -51,7 +59,7 @@ not the relay's approved Client key. Relay-side revocation is a future feature.
 The current daemon rejects re-enrollment of an already-approved Client key;
 after local forgetting or an interrupted final confirmation, relay-side removal
 of that approval may be needed before pairing again. Do not forget working live
-trust merely to explore the UI; use Simulation for that exercise.
+trust merely to explore the UI; use the developer preview for that exercise.
 
 The app cancels an operation when it becomes inactive. Returning does not
 silently retry pairing; saved identities survive and the user may retry.
@@ -161,7 +169,7 @@ as the tester. **No Builds Available** on a tester entry can mean this
 assignment is missing; creating the tester alone is insufficient. Accept the
 invitation on the headset using **View in TestFlight → Accept → Install**.
 If an invitation has not arrived, check both group membership and build
-assignment before resending it. Start the review in Simulation; an installation
+assignment before resending it. Start with relay discovery; an installation
 or successful invitation is not live tablet/relay qualification.
 
 Apple references: [uploading builds](https://developer.apple.com/help/app-store-connect/manage-builds/upload-builds)
@@ -169,13 +177,13 @@ and [export compliance](https://developer.apple.com/help/app-store-connect/manag
 
 ## Acceptance checklist
 
-- Every page remains visibly marked Simulation or Live.
-- Simulation needs no network, tablet, Host or permission prompts.
-- USB/Bluetooth steps and ExpressKey instructions are clear in the headset.
-- Wrong sequence, timeout, interruption, cancel and backgrounding are recoverable.
+- The app opens directly to relay discovery, with no Simulation selector.
+- Pair requests a single bounded approval and shows actual relay status.
+- Three completed short presses authorize only the current request.
+- Timeout, interruption, cancel and backgrounding are recoverable.
 - No stale callback can save trust after cancellation or mode/relay changes.
 - Existing trust survives failed reconnect; identity mismatch does not replace it.
-- Real paired reconnect does not attach a tablet or start a workstation session.
-- Test button numbering on each supported physical layout before relying on it.
+- Readings start after pairing, using saved-key authentication and no workstation session.
+- Test the actual authorization button on each supported physical layout.
 
 See `docs/visionos-tablet-setup.plan` for the subsequent daemon/Bluetooth work.

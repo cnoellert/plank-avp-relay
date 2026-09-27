@@ -32,7 +32,14 @@ static void check(uint16_t type, PltrDirection direction, PltrPhase phase,
 }
 int main(void) {
     const uint8_t open[] = {1};
-    const uint8_t bad_open[] = {3};
+    const uint8_t button_open[] = {3};
+    const uint8_t bad_open[] = {4};
+    check(PLTR_OPEN, PLTR_CLIENT_TO_RELAY, PLTR_PRE_AUTH, button_open, 1, 1);
+    uint8_t approval[] = {1, 1, 2, 3, 60, 0, 8, 1};
+    check(PLTR_PAIR_APPROVAL, PLTR_RELAY_TO_CLIENT, PLTR_PRE_AUTH, approval, 8, 1);
+    check(PLTR_PAIR_APPROVAL, PLTR_CLIENT_TO_RELAY, PLTR_PRE_AUTH, approval, 8, 0);
+    approval[2] = 4;
+    check(PLTR_PAIR_APPROVAL, PLTR_RELAY_TO_CLIENT, PLTR_PRE_AUTH, approval, 8, 0);
     check(PLTR_OPEN, PLTR_CLIENT_TO_RELAY, PLTR_PRE_AUTH, open, 1, 1);
     check(PLTR_OPEN, PLTR_RELAY_TO_CLIENT, PLTR_PRE_AUTH, open, 1, 0);
     check(PLTR_OPEN, PLTR_CLIENT_TO_RELAY, PLTR_SECURE, open, 1, 0);

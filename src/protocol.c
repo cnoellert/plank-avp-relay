@@ -130,7 +130,7 @@ static int valid_payload(uint16_t type, const uint8_t *bytes, size_t size,
     case PLTR_GOODBYE:
         return size == 2 && read_le16(bytes) >= 1 && read_le16(bytes) <= 5;
     case PLTR_OPEN:
-        return size == 1 && (bytes[0] == 1 || bytes[0] == 2);
+        return size == 1 && bytes[0] >= 1 && bytes[0] <= 3;
     case PLTR_NOISE:
         return size >= 1;
     case PLTR_PAIR_START:
@@ -142,6 +142,10 @@ static int valid_payload(uint16_t type, const uint8_t *bytes, size_t size,
     case PLTR_PAIR_RESULT:
         return (size == 33 && bytes[0] == 0) ||
                (size == 1 && bytes[0] >= 1 && bytes[0] <= 3);
+    case PLTR_PAIR_APPROVAL:
+        return size == 8 && bytes[0] == 1 && bytes[1] <= 1 &&
+               bytes[2] <= 3 && bytes[3] == 3 &&
+               read_le16(bytes + 4) <= 60 && read_le16(bytes + 6) < 768;
     default:
         return 0;
     }
@@ -155,7 +159,8 @@ static int allowed_type(uint16_t type, PltrDirection direction, PltrPhase phase)
                    type == PLTR_PAIR_CONFIRM;
         }
         if (direction == PLTR_RELAY_TO_CLIENT) {
-            return type == PLTR_PAIR_RESPONSE || type == PLTR_PAIR_RESULT;
+            return type == PLTR_PAIR_RESPONSE || type == PLTR_PAIR_RESULT ||
+                   type == PLTR_PAIR_APPROVAL;
         }
         return 0;
     }

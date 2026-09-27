@@ -13,7 +13,7 @@ enum SetupPreview {
         let directory = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         for page in ["relay", "usb", "bluetooth", "authorize", "complete", "readings"] {
-            let setup = SetupCoordinator()
+            let setup = SetupCoordinator(mode: .simulation)
             if page != "relay" { setup.selectDemoRelay() }
             if page == "bluetooth" {
                 setup.chooseConnection(.bluetooth)
@@ -24,8 +24,9 @@ enum SetupPreview {
                 setup.startPairing()
             }
             if page == "complete" {
-                for key in setup.state.code { setup.pressSimulatedKey(key) }
+                for _ in 0..<3 { setup.pressPreviewButton() }
             }
+            if page == "authorize" { setup.pressPreviewButton() }
             let content: AnyView
             if page == "readings" {
                 var sample = Data(repeating: 0, count: 80)

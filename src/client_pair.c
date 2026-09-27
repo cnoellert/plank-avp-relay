@@ -24,6 +24,7 @@ struct PltrClientPair {
     uint8_t client_ad[97], relay_ad[97], relay_key[32], intermediate_key[64];
     size_t client_ad_size, relay_ad_size;
     uint8_t link_type;
+    uint8_t button_approval, approval_status[8];
     uint32_t incoming_sequence, outgoing_sequence;
 };
 
@@ -79,6 +80,20 @@ PltrClientPair *pltr_client_pair_create(const uint8_t private_key[32],
     return pair;
 }
 
+PltrClientPair *pltr_client_pair_create_button(const uint8_t private_key[32],
+    const uint8_t *name, size_t name_size) {
+    PltrClientPair *pair = pltr_client_pair_create(private_key,
+        (const uint8_t *)PLTR_BUTTON_APPROVAL_CODE, name, name_size, 1);
+    if (pair) pair->button_approval = 1;
+    return pair;
+}
+
+int pltr_client_pair_approval_status(const PltrClientPair *pair, uint8_t out[8]) {
+    if (!pair || !out || !pair->button_approval || pair->approval_status[0] != 1) return -1;
+    memcpy(out, pair->approval_status, 8);
+    return 0;
+}
+
 void pltr_client_pair_destroy(PltrClientPair *pair) {
     if (pair == NULL) return;
     pltr_cpace_clear(&pair->cpace);
@@ -99,7 +114,7 @@ int pltr_client_pair_start(PltrClientPair *pair, uint8_t *out,
     memcpy(payload, pair->sid, 16);
     memcpy(payload + 16, pair->client_share, 32);
     memcpy(payload + 48, pair->client_ad, pair->client_ad_size);
-    const uint8_t mode = 2;
+    const uint8_t mode = pair->button_approval ? 3 : 2;
     size_t open_size, start_size;
     if (emit(pair, PLTR_OPEN, &mode, 1,
               out, capacity, &open_size) != 0 ||
@@ -136,6 +151,10 @@ int pltr_client_pair_receive(PltrClientPair *pair, const uint8_t *bytes,
     if (frame.type == PLTR_PAIR_RESULT && frame.payload[0] != 0)
         return fail(pair);
     if (pair->stage == CLIENT_PAIR_WAIT_RESPONSE) {
+        if (frame.type == PLTR_PAIR_APPROVAL && pair->button_approval) {
+            memcpy(pair->approval_status, frame.payload, 8);
+            return 3;
+        }
         if (frame.type != PLTR_PAIR_RESPONSE || reply == NULL ||
             reply_capacity < 2 + PLTR_HEADER_SIZE + 32)
             return fail(pair);

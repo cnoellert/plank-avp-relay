@@ -17,6 +17,9 @@ extern "C" {
 #define PLTR_FEATURE_RAW_HID 1u
 #define PLTR_FEATURE_INPUT_OBSERVER 2u
 #define PLTR_INPUT_SAMPLE_SIZE 80u
+// Public domain value for physically approved lab enrollment, NOT a password.
+// This mode has no first-pairing MITM protection. Saved-key Noise is unchanged.
+#define PLTR_BUTTON_APPROVAL_CODE "11111"
 
 typedef enum PltrType {
     PLTR_HELLO = 1,
@@ -39,6 +42,7 @@ typedef enum PltrType {
     PLTR_PAIR_RESPONSE = 33,
     PLTR_PAIR_CONFIRM = 34,
     PLTR_PAIR_RESULT = 35,
+    PLTR_PAIR_APPROVAL = 36,
 } PltrType;
 
 typedef enum PltrDirection {
