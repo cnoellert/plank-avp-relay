@@ -118,6 +118,11 @@ not a sustained isolation test: the bonded tablet reconnected automatically
 after about20seconds. No button-recognition defect or radio fix is established.
 The Mac builder has only a simulator listed, not a paired physical headset for
 logs. Preserve trust while investigating the pre-authorization connection.
+The operator's follow-up center-button test produced seven complete evdev
+press/release pairs (code264) in a separate readonly probe. Button delivery to
+the relay is working; no headset approval request was active to count them.
+The temporary radio-isolation block was removed and the tablet is again
+bonded/trusted/connected. Headset connection failure remains unresolved.
 
 Version0.1.0/build1 was uploaded successfully and assigned to the owner's
 internal testing group. TestFlight access was confirmed; headset hardware
