@@ -32,9 +32,9 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     file(SHA256 "${PLANK_CLIENT_VENDOR}/linuxrawwacom.h" WORKER_H_SHA256)
     file(SHA256 "${PLANK_CLIENT_VENDOR}/plank.h" PLANK_H_SHA256)
     if(NOT WORKER_CPP_SHA256 STREQUAL
-            "4a38abe73b662e2b07015971f2b9f6be14a83aef7c9545af1a73f444af664066" OR
+            "fcb22a140232dc5eabd1f1a9de8db059992b4813334747da584429690979bcdc" OR
        NOT WORKER_H_SHA256 STREQUAL
-            "38f06ed27fd5f6e08bebc2cbc10c88a613133ed8307fb5da383ea39b0d433096" OR
+            "7f6c9880c2a91f80b1100246c8692e47b39a0973f460e10909ed8d20ccf916e4" OR
        NOT PLANK_H_SHA256 STREQUAL
             "b6a197da614ec5becc812b73d1d8e0ac5861cea22805f8443690b71ee16c8392")
         message(FATAL_ERROR "Vendored PLANK Client worker differs from its pinned snapshot")

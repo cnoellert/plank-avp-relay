@@ -64,6 +64,10 @@ the link reconnected. The Host showed one Wacom device set after recovery.
 The Relay now saves each raw-HID attachment generation before sending it.
 In a live same-session check, two consecutive service restarts attached as
 generations 2 and 3; tip clicks and varying pressure worked after each restart.
+Relay software version 0.1.1 reports `STATUS=attached` only after Linux has
+successfully claimed every local Wacom event node. If claiming fails, it
+suspends the Host tablet and reports attach rejection. The Vision Pro Client
+uses this stronger signal in its six-gate Wacom preflight.
 
 Development service entry points (use the Relay service account that owns the
 0700 state directory, and confirm the Pad key order before physical pairing):

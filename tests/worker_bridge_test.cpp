@@ -52,6 +52,17 @@ int main() {
            attaching.epoch != 0);
     assert(bridge.pop(item));
 
+    // A Host success code alone does not prove that the Relay owns the local
+    // event nodes. This bridge has no discovered tablet, so STATUS must fail.
+    std::uint8_t accepted[sizeof(PLANK_RAW_HID_WIRE_HEADER) + 4] = {};
+    le32(accepted, PLANK_RAW_HID_WIRE_MAGIC);
+    le16(accepted + 4, PLANK_RAW_HID_WIRE_VERSION);
+    le16(accepted + 6, PLANK_RAW_HID_ATTACH_RESULT);
+    le16(accepted + 10, 0x1234);
+    le32(accepted + 16, 4);
+    bridge.handleControl(accepted, sizeof(accepted));
+    assert(bridge.status().state == 7);
+
     std::uint8_t detach[sizeof(PLANK_RAW_HID_WIRE_HEADER)] = {};
     le32(detach, PLANK_RAW_HID_WIRE_MAGIC);
     le16(detach + 4, PLANK_RAW_HID_WIRE_VERSION);

@@ -67,6 +67,7 @@ public:
     void beginReconnect();
     void finishReconnect();
     void handleControl(const unsigned char* data, unsigned int length);
+    bool ownsTablet();
 
 private:
     struct HidInterface {
@@ -86,7 +87,7 @@ private:
     void handleSetReport(std::uint16_t type, std::uint16_t interfaceId,
                          std::uint32_t transactionId,
                          const unsigned char* payload, std::size_t payloadLength);
-    void setGrabbed(bool grabbed);
+    bool setGrabbed(bool grabbed);
     void suspendForFocusLoss();
     void release(bool notifyHost);
     void log(LogLevel level, const std::string& message) const;

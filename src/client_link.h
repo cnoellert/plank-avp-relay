@@ -35,6 +35,10 @@ int pltr_client_link_send(PltrClientLink *client, uint16_t type,
                           const uint8_t *payload, size_t payload_size,
                           uint8_t *out, size_t capacity, size_t *written);
 
+// Software version from the authenticated peer HELLO, or NULL until ready.
+// The returned pointer remains valid until the Client link is destroyed.
+const char *pltr_client_link_peer_version(const PltrClientLink *client);
+
 #ifdef __cplusplus
 }
 #endif

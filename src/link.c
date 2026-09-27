@@ -73,7 +73,7 @@ static int send_hello(PltrLink *link, uint8_t *out, size_t capacity,
     hello[4] = link->role == PLTR_NOISE_INITIATOR ? 2 : 1;
     le32(hello + 8, 1); // RAW_HID_V2
     hello[12] = 5;
-    memcpy(hello + 13, "0.1.0", 5);
+    memcpy(hello + 13, "0.1.1", 5);
     return send_secure(link, PLTR_HELLO, hello, sizeof(hello),
                        out, capacity, written);
 }
@@ -197,6 +197,9 @@ int pltr_link_receive(PltrLink *link, const uint8_t *bytes, size_t size,
         if (link->role == PLTR_NOISE_RESPONDER &&
             pltr_relay_session_accept(&link->relay_session, body,
                                        body_size, frame) != 0) return fail(link);
+        const size_t version_size = frame->payload[12];
+        memcpy(link->peer_version, frame->payload + 13, version_size);
+        link->peer_version[version_size] = '\0';
         link->stage = PLTR_LINK_READY;
     } else if (link->stage == PLTR_LINK_READY) {
         if (frame->type == PLTR_HELLO ||

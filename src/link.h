@@ -34,6 +34,7 @@ typedef struct PltrLink {
     PltrLinkStage stage;
     uint32_t incoming_sequence;
     uint32_t outgoing_sequence;
+    char peer_version[65];
     uint8_t plaintext[PLTR_MAX_FRAME_SIZE];
 } PltrLink;
 

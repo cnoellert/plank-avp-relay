@@ -66,7 +66,9 @@ void PltrWorkerBridge::handleControl(const std::uint8_t *bytes, std::size_t size
         le16(bytes + 4) == PLANK_RAW_HID_WIRE_VERSION &&
         le16(bytes + 6) == PLANK_RAW_HID_ATTACH_RESULT &&
         le32(bytes + 16) == sizeof(std::int32_t)) {
-        const std::uint8_t state = le32(bytes + sizeof(PLANK_RAW_HID_WIRE_HEADER)) == 0 ? 3 : 7;
+        const std::uint8_t state =
+            le32(bytes + sizeof(PLANK_RAW_HID_WIRE_HEADER)) == 0 &&
+            worker_->ownsTablet() ? 3 : 7;
         {
             std::lock_guard<std::mutex> lock(mutex_);
             if (generation_ != 0 && le16(bytes + 10) == generation_ &&

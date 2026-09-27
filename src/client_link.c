@@ -68,3 +68,8 @@ int pltr_client_link_send(PltrClientLink *client, uint16_t type,
     return pltr_link_send(&client->link, type, payload, payload_size,
                           out, capacity, written);
 }
+
+const char *pltr_client_link_peer_version(const PltrClientLink *client) {
+    if (client == NULL || client->link.stage != PLTR_LINK_READY) return NULL;
+    return client->link.peer_version;
+}

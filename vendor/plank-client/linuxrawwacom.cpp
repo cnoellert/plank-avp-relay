@@ -580,14 +580,17 @@ void LinuxRawWacomInput::handleControl(const unsigned char* data,
         std::memcpy(&result, payload, sizeof(result));
         result = littleEndian(result);
         m_AttachPending = false;
-        if (result == 0) {
-            setGrabbed(true);
+        if (result == 0 && setGrabbed(true)) {
             m_Attached = true;
             log(LogLevel::Info, "Exact Wacom device attached to host");
         }
         else {
-            log(LogLevel::Warning,
+            log(LogLevel::Warning, result == 0 ?
+                "Unable to claim all Wacom event nodes after host attach" :
                 std::string("Host rejected exact Wacom attach: ") + std::strerror(result));
+            if (result == 0) {
+                sendFrame(PLANK_RAW_HID_SUSPEND, 0, 0, nullptr, 0);
+            }
             release(false);
             m_AttachFailed.store(true);
         }
@@ -649,16 +652,28 @@ void LinuxRawWacomInput::handleSetReport(std::uint16_t type,
     }
 }
 
-void LinuxRawWacomInput::setGrabbed(bool grabbed)
+bool LinuxRawWacomInput::ownsTablet()
+{
+    std::lock_guard<std::recursive_mutex> lock(m_Mutex);
+    return m_Attached && !m_EventFds.empty();
+}
+
+bool LinuxRawWacomInput::setGrabbed(bool grabbed)
 {
     const int value = grabbed ? 1 : 0;
+    bool success = true;
     for (int fd : m_EventFds) {
-        if (ioctl(fd, EVIOCGRAB, value) < 0 && errno != ENODEV) {
+        if (ioctl(fd, EVIOCGRAB, value) < 0 && (grabbed || errno != ENODEV)) {
             log(LogLevel::Warning,
                 std::string("Unable to ") + (grabbed ? "grab" : "release") +
                 " Wacom event node: " + std::strerror(errno));
+            success = false;
         }
     }
+    if (grabbed && !success) {
+        for (int fd : m_EventFds) ioctl(fd, EVIOCGRAB, 0);
+    }
+    return success;
 }
 
 void LinuxRawWacomInput::suspendForFocusLoss()
