@@ -75,8 +75,16 @@ set_target_properties(PlankTabletSetup PROPERTIES
     XCODE_ATTRIBUTE_INFOPLIST_KEY_UIApplicationSceneManifest_Generation "YES"
     XCODE_ATTRIBUTE_INFOPLIST_KEY_UILaunchScreen_Generation "YES")
 if(CMAKE_SYSTEM_NAME STREQUAL "visionOS")
-    set_source_files_properties(Assets.xcassets PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
-    target_sources(PlankTabletSetup PRIVATE Assets.xcassets)
+    set(GENERATED_ASSETS "${CMAKE_CURRENT_BINARY_DIR}/generated/Assets.xcassets")
+    file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/Assets.xcassets/" DESTINATION "${GENERATED_ASSETS}")
+    # visionOS layered icons require raster layers. Retain readable SVG source
+    # and rasterize through the build Mac's native AppKit without new tools.
+    execute_process(COMMAND xcrun --sdk macosx swift
+        "${RELAY_ROOT}/scripts/render-tablet-setup-icon.swift"
+        "${CMAKE_CURRENT_SOURCE_DIR}/Artwork" "${GENERATED_ASSETS}"
+        COMMAND_ERROR_IS_FATAL ANY)
+    set_source_files_properties("${GENERATED_ASSETS}" PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
+    target_sources(PlankTabletSetup PRIVATE "${GENERATED_ASSETS}")
     set_target_properties(PlankTabletSetup PROPERTIES
         XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "7"
         XCODE_ATTRIBUTE_GENERATE_INFOPLIST_FILE "YES"
