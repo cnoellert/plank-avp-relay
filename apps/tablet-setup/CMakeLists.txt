@@ -37,6 +37,9 @@ add_library(RelaySetupKit STATIC
 target_link_libraries(RelaySetupKit PUBLIC CRelayProtocol
     "-framework Foundation" "-framework Security" "-framework Network" "-framework Combine")
 target_compile_options(RelaySetupKit PRIVATE -strict-concurrency=complete)
+set_target_properties(CRelayProtocol RelaySetupKit PROPERTIES
+    XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO"
+    XCODE_ATTRIBUTE_SKIP_INSTALL "YES")
 
 add_executable(PlankTabletSetup MACOSX_BUNDLE
     Sources/TabletSetupApp.swift Sources/TabletSetupView.swift)
@@ -45,12 +48,17 @@ configure_file("${PLANK_SODIUM_PREFIX}/share/licenses/libsodium/LICENSE"
 set(APP_LICENSES "${RELAY_ROOT}/LICENSE" "${RELAY_ROOT}/apple/NOTICE.md"
     "${CMAKE_CURRENT_BINARY_DIR}/libsodium-LICENSE.txt")
 set_source_files_properties(${APP_LICENSES} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources/licenses")
-target_sources(PlankTabletSetup PRIVATE ${APP_LICENSES})
+set_source_files_properties(PrivacyInfo.xcprivacy PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
+target_sources(PlankTabletSetup PRIVATE ${APP_LICENSES} PrivacyInfo.xcprivacy)
 target_include_directories(PlankTabletSetup PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 target_link_libraries(PlankTabletSetup PRIVATE RelaySetupKit "-framework SwiftUI")
 target_compile_options(PlankTabletSetup PRIVATE -strict-concurrency=complete)
 
 set(PLANK_SETUP_VERSION "0.1.0-visionos-tablet-setup" CACHE STRING "Visible prototype version")
+set(PLANK_SETUP_BUILD_NUMBER "1" CACHE STRING "Monotonically increasing TestFlight build number")
+if(NOT PLANK_SETUP_BUILD_NUMBER MATCHES "^[1-9][0-9]*$")
+    message(FATAL_ERROR "PLANK_SETUP_BUILD_NUMBER must be a positive integer")
+endif()
 set(PLANK_DEVELOPMENT_TEAM "" CACHE STRING "Optional Apple development team; never hardcoded")
 set_target_properties(PlankTabletSetup PROPERTIES
     OUTPUT_NAME "PLANK Tablet Setup"
@@ -58,7 +66,7 @@ set_target_properties(PlankTabletSetup PROPERTIES
     XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "la.instinctual.PLANK.TabletSetup"
     XCODE_ATTRIBUTE_PRODUCT_NAME "PLANK Tablet Setup"
     XCODE_ATTRIBUTE_MARKETING_VERSION "0.1.0"
-    XCODE_ATTRIBUTE_CURRENT_PROJECT_VERSION "1"
+    XCODE_ATTRIBUTE_CURRENT_PROJECT_VERSION "${PLANK_SETUP_BUILD_NUMBER}"
     XCODE_ATTRIBUTE_CODE_SIGN_STYLE "Automatic"
     XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO"
     XCODE_ATTRIBUTE_SKIP_INSTALL "NO"
@@ -67,7 +75,10 @@ set_target_properties(PlankTabletSetup PROPERTIES
     XCODE_ATTRIBUTE_INFOPLIST_KEY_UIApplicationSceneManifest_Generation "YES"
     XCODE_ATTRIBUTE_INFOPLIST_KEY_UILaunchScreen_Generation "YES")
 if(CMAKE_SYSTEM_NAME STREQUAL "visionOS")
-    set_target_properties(PlankTabletSetup PROPERTIES XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "7")
+    target_sources(PlankTabletSetup PRIVATE Assets.xcassets)
+    set_target_properties(PlankTabletSetup PROPERTIES
+        XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "7"
+        XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon")
 endif()
 if(PLANK_DEVELOPMENT_TEAM)
     set_target_properties(PlankTabletSetup PROPERTIES

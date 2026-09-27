@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Code-native prototype icon: tablet, eight keys and pen; not new brand artwork. -->
+  <rect x="211" y="275" width="580" height="442" rx="50" fill="#163e51" stroke="#8cddea" stroke-width="18"/>
+  <rect x="311" y="317" width="433" height="352" rx="20" fill="#0d2636" stroke="#467a8b" stroke-width="8"/>
+  <g fill="#a9edf2">
+    <rect x="247" y="329" width="31" height="21" rx="7"/>
+    <rect x="247" y="369" width="31" height="21" rx="7"/>
+    <rect x="247" y="409" width="31" height="21" rx="7"/>
+    <rect x="247" y="449" width="31" height="21" rx="7"/>
+    <rect x="247" y="504" width="31" height="21" rx="7"/>
+    <rect x="247" y="544" width="31" height="21" rx="7"/>
+    <rect x="247" y="584" width="31" height="21" rx="7"/>
+    <rect x="247" y="624" width="31" height="21" rx="7"/>
+  </g>
+  <path d="M445 579l37-73 193-193a23 23 0 0 1 33 33L515 539z" fill="#e2faf9" stroke="#071722" stroke-width="10" stroke-linejoin="round"/>
+  <path d="M463 596c41 27 111 38 170 10" fill="none" stroke="#61c5d6" stroke-width="14" stroke-linecap="round"/>
+</svg>
