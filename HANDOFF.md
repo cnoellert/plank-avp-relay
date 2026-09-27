@@ -98,14 +98,26 @@ confirmed questionnaire baseline is recorded in private notes. Reuse it only
 while encryption/distribution are unchanged; do not convert "standard
 encryption" into an unsupported exemption assertion. Build3 tester notes are
 prepared in `apps/tablet-setup/TestFlight/0.1.0-3.txt`. Supported App Store Connect
-API access for metadata updates is not configured yet; Xcode GUI upload access
-alone does not provide it. Metadata has not been posted or verified by this
-workflow. Never extract cached account tokens.
+API access for metadata updates is partly configured: the operator provided a
+valid team key, now stored privately with0600 permissions. The Issuer ID is
+still needed. `scripts/update-tablet-testflight.py` performs exact-build lookup,
+bounded processing wait, idempotent notes/compliance updates and readback;
+eight offline tests pass. Establish the private compliance baseline from the
+operator's confirmed answers and Apple's existing build3 metadata once access
+works. Metadata has not been posted or verified by this workflow. Never extract
+cached account tokens.
 
 The operator has installed build3 and reports that relay discovery succeeds
 but Home-button presses do not authorize. The relay's tablet connection is
-present; its log has not shown a headset protocol request. Investigation is
-checking the GATT connection/subscription before changing button recognition.
+present; its log has not shown a headset protocol request. The app remains on
+Connecting to your relay, Cancel responds immediately, and the connection
+eventually times out back to Pair. Radio capture shows no completed headset LE
+connection. A relay-lab restart confirmed connectable undirected advertising,
+enabled with an unrestricted connection filter. A brief tablet disconnect was
+not a sustained isolation test: the bonded tablet reconnected automatically
+after about20seconds. No button-recognition defect or radio fix is established.
+The Mac builder has only a simulator listed, not a paired physical headset for
+logs. Preserve trust while investigating the pre-authorization connection.
 
 Version0.1.0/build1 was uploaded successfully and assigned to the owner's
 internal testing group. TestFlight access was confirmed; headset hardware

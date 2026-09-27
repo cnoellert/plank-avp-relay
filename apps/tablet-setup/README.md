@@ -150,6 +150,39 @@ upload does not establish API access. Keep API credentials outside Git and
 never extract cached account tokens. Do not claim notes or compliance were
 completed until the resulting metadata has been read back and verified.
 
+Use `scripts/update-tablet-testflight.py` for the post-upload step on the
+operator's automation machine (Python3 with `cryptography` installed). Its
+default configuration is the private file
+`~/.local/share/plank/private-notes/tablet-setup-asc.json`; use `--config` to
+select another. Required fields are `key_id`, `issuer_id`, `private_key_path`,
+`bundle_id` and `platform` (`VISION_OS`). Both config and key must be owned by
+the current user with private permissions. Credentials stay on that machine;
+they need not be copied to the Apple signing builder.
+
+```sh
+# Read only: verify access and inspect the exact build's existing classification.
+python3 scripts/update-tablet-testflight.py --version 0.1.0 --build 3 --inspect
+# After establishing the confirmed private compliance baseline:
+python3 scripts/update-tablet-testflight.py --version 0.1.0 --build 3 \
+  --notes apps/tablet-setup/TestFlight/0.1.0-3.txt
+```
+
+The private `compliance` object contains the confirmed boolean
+`uses_non_exempt_encryption`. Non-exempt encryption also requires a
+`declaration_id`; the helper verifies that it belongs to this app and is
+approved. Optional `answers` are matched against that declaration. Establish
+this baseline from the operator's answers and Apple's resulting metadata,
+never by guessing from the cryptography library name. Reassess it if encryption
+or distribution changes. The helper refuses to overwrite a conflicting
+classification already entered on a build.
+
+For each future upload, prepare the new notes file and run the helper with that
+exact version/build once Xcode finishes uploading. It waits up to ten minutes
+for processing, updates notes idempotently, and reads back notes and compliance
+before reporting success. Retry later if Apple is still processing. This step
+does not invite testers, change groups or submit a public release. Offline
+verification is `python3 tests/testflight_metadata_test.py`.
+
 ```sh
 # Team is provided privately; choose a new number for each uploaded build.
 export PLANK_SETUP_BUILD_NUMBER=1
