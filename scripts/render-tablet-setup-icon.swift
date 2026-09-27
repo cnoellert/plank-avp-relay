@@ -9,11 +9,15 @@ for layer in ["Front", "Back"] {
     let name = layer.lowercased()
     let alpha = layer == "Front"
     guard let image = NSImage(contentsOf: artwork.appendingPathComponent("\(name).svg")),
-          let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 1024, pixelsHigh: 1024,
-                                        bitsPerSample: 8, samplesPerPixel: alpha ? 4 : 3,
-                                        hasAlpha: alpha, isPlanar: false, colorSpaceName: .deviceRGB,
-                                        bytesPerRow: 0, bitsPerPixel: 0),
-          let context = NSGraphicsContext(bitmapImageRep: bitmap) else { fatalError("Invalid icon source") }
+          let space = CGColorSpace(name: CGColorSpace.sRGB),
+          let raster = CGContext(data: nil, width: 1024, height: 1024, bitsPerComponent: 8,
+                                 bytesPerRow: 0, space: space,
+                                 bitmapInfo: (alpha ? CGImageAlphaInfo.premultipliedLast
+                                                   : CGImageAlphaInfo.noneSkipLast).rawValue)
+    else { fatalError("Invalid icon source or raster context") }
+    // Core Graphics needs a supported 32-bit RGB layout even for the opaque
+    // background; a tightly packed 24-bit AppKit bitmap cannot be drawn into.
+    let context = NSGraphicsContext(cgContext: raster, flipped: false)
     NSGraphicsContext.saveGraphicsState()
     NSGraphicsContext.current = context
     context.imageInterpolation = .high
@@ -21,7 +25,9 @@ for layer in ["Front", "Back"] {
                from: .zero, operation: .copy, fraction: 1)
     context.flushGraphics()
     NSGraphicsContext.restoreGraphicsState()
-    guard let png = bitmap.representation(using: .png, properties: [:]) else { fatalError("Icon export failed") }
+    guard let rendered = raster.makeImage(),
+          let png = NSBitmapImageRep(cgImage: rendered).representation(using: .png, properties: [:])
+    else { fatalError("Icon export failed") }
     let destination = assets.appendingPathComponent(
         "AppIcon.solidimagestack/\(layer).solidimagestacklayer/Content.imageset/\(name).png")
     try png.write(to: destination, options: .atomic)
