@@ -60,13 +60,19 @@ not access the GUI-unlocked login keychain; a one-shot build in the existing GUI
 session succeeded. No password extraction, Keychain reset or ACL weakening was
 needed. Do not confuse this session boundary with an invalid certificate.
 
-Upload was attempted, but App Store Connect returned: app record not found for
-`la.instinctual.PLANK.TabletSetup`. The owner must create the visionOS app record
-(`PLANK Tablet Setup`, English, suggested SKU `plank-tablet-setup`) before retrying
-the existing archive with a new upload-output directory. Build1 has not uploaded;
-do not rebuild it merely to create the record. No TestFlight invitation exists.
+The owner created the app record for `la.instinctual.PLANK.TabletSetup`.
+The existing archive uploaded successfully as version0.1.0/build1; Xcode
+confirmed the uploaded package is processing. Do not upload build1 again or
+claim that processing/tester availability has been verified. No TestFlight
+invitation has been configured by this work. Next upload must increment the
+build number.
 
-After upload: complete the account owner's encryption questionnaire accurately,
+Apple accepted the binary with a non-blocking symbol-upload warning: the
+archive lacks an application dSYM. Correct Release debug-symbol generation
+and verify its UUID matches the executable before the next archive/upload.
+This did not prevent upload, but limits diagnosis of crashes from this build.
+
+Next: complete the account owner's encryption questionnaire accurately,
 wait for processing/beta-review requirements and select testers. Live mode uses
 CPace/Noise/libsodium, not only OS cryptography; no export-exemption assertion
 is hardcoded. Confirm the headset runs visionOS27. Do not extract/reuse macOS
