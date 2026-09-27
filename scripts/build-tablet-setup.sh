@@ -58,7 +58,9 @@ else
         share/licenses/libsodium/LICENSE > .complete)
 fi
 app_build="$build_root/$platform"
-"$cmake_bin" -S "$relay_root/apps/tablet-setup" -B "$app_build" -G Xcode \
+# Re-detect the selected Xcode; an OS/Xcode update can remove the old compiler
+# path. This refreshes configuration, not the verified dependency cache.
+"$cmake_bin" --fresh -S "$relay_root/apps/tablet-setup" -B "$app_build" -G Xcode \
     -DCMAKE_SYSTEM_NAME="$system" -DCMAKE_OSX_SYSROOT="$sdk" \
     -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=27.0 \
     -DPLANK_DEVELOPMENT_TEAM= \
