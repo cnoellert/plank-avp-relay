@@ -15,7 +15,7 @@ separate write/indication characteristics, with bounded queues and timeouts.
 It does not pair, grant trust or access tablet input. The larger payload tests
 fragmentation and indication acknowledgements. No Simulation tab was restored.
 
-The foreground relay is now running `--transport-only`. This registers only
+The normal foreground relay runs `--transport-only`. This registers only
 the echo channels and does not instantiate tablet capture, the native pairing
 library or identity storage. Runtime checks confirmed no input-device file
 descriptors and no native pairing library mapped. The Wacom bond and persistent
@@ -126,18 +126,42 @@ The probe exited and the capture is closed. Current matrix: Mac-to-Linux passes,
 AVP-to-Mac passes, AVP-to-Linux fails. This isolates the failing combination,
 without proving which controller or stack causes the incompatibility.
 
-Recommended next test: an independent client on the same AVP. LightBlue's
+An independent client on the same AVP also failed. LightBlue's
 [App Store listing](https://apps.apple.com/us/app/lightblue/id557428110)
-lists visionOS compatibility and service/characteristic discovery. Close Test
-Setup, connect LightBlue to PLANK Relay Lab, and check whether its services
-appear. This comparison has not been run. A pass calls for comparing the app's
-connection lifecycle; the same early failure strengthens a platform/controller
-interoperability diagnosis. Do not propose reversing the AVP into an advertising
+lists visionOS compatibility and service/characteristic discovery. The operator
+reports Connecting followed by a return to the device list. Screenshots show
+the correct relay/service advertisement, marked connectable, and the Connecting
+dialog; they do not show discovered GATT services. The relay capture from
+01:20:58 to01:25:24UTC contains no completed LE link or ATT exchange and is closed.
+This strengthens a platform/controller interoperability diagnosis independent
+of Test Setup. Do not propose reversing the AVP into an advertising
 peripheral: Apple's current
 [CBPeripheralManager documentation](https://developer.apple.com/documentation/corebluetooth/cbperipheralmanager)
 explicitly excludes service advertising on visionOS.
 Preserve trust and distinguish advertising reception from connection success.
 Private screenshots, raw captures and machine details stay outside Git.
+
+The operator offered a Linux rewrite if useful. Instead, an isolated comparison
+now uses `tools/bumble-ble-echo.py` with Bumble0.0.235 through an HCI user socket,
+bypassing the BlueZ/kernel host while retaining the same controller/firmware.
+Only Python venv support was installed system-wide; Bumble dependencies are in
+a separate private cache venv. The original foreground lab is stopped. A
+transient unit has a15minute runtime bound and an exit hook that restarts BlueZ
+and restores its original dual-mode settings. No boot service or bond change.
+The probe uses the existing public address,1280ms advertising, service and echo
+UUIDs; LE-only flags match the previous unsuccessful BlueZ LE-only experiment.
+It rejects pairing and has bounded bytes, connection lifetime and indications.
+
+The independent Mac central passed against Bumble at01:29:49UTC: all three
+round trips and1600matchingbytes each direction, RSSI-57dBm. Linux confirms a
+successful LE link and1600receivedbytes. Its last indication-confirmation count
+was1088 when the Mac closed immediately after validating its final reply; do not
+claim1600server-confirmedbytes. The Mac probe has exited. The operator has been
+asked to retry LightBlue on the AVP against the replacement stack; that result
+is pending. The diagnostic window began01:29:27UTC and ends by01:44:27UTC.
+After the result, stop the unit/capture, verify bond retention and controller
+restoration, and restart the normal transport-only foreground lab. Exact unit,
+session, capture and restoration details are retained privately.
 
 ## Build4 delivery and validation
 

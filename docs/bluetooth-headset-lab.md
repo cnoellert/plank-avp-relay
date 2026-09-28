@@ -74,6 +74,35 @@ one subscriber, limits each subscription to4096bytes, bounds queued replies and
 automatically closes its advertising/service after ten minutes. The app's
 byte-for-byte comparison determines a pass; the Mac's write count alone does not.
 
+For a comparison that changes the Linux host stack while retaining its radio,
+`tools/bumble-ble-echo.py` uses [Bumble's HCI socket transport](https://google.github.io/bumble/platforms/linux.html).
+Install `bumble==0.0.235` in a separate virtual environment. Stop the foreground
+BlueZ lab, record the controller/service state, stop `bluetooth.service`, and
+bring the selected HCI interface down before giving the script exclusive access:
+
+```sh
+sudo "$PLANK_BUMBLE_VENV/bin/python" tools/bumble-ble-echo.py --adapter 0 --seconds 600
+```
+
+Arrange bounded cleanup before taking over the controller: on exit or failure,
+restart BlueZ if it was running, restore the recorded controller settings, and
+restart the original foreground lab. A transient systemd unit with a runtime
+limit and an `ExecStopPost` restoration script can guard against a lost SSH
+session. Do not delete bonds, edit saved relay identities or install a boot
+service. Other Bluetooth devices cannot use this controller during the test.
+
+The probe advertises **PLANK Relay Lab** with the existing echo UUIDs, its public
+controller address, legacy connectable advertising and a1280ms interval. It
+uses LE-only advertisement flags, as in the earlier BlueZ LE-only comparison.
+Controller initialization and host behavior differ; this is not a comparison
+of only the GATT callback. Connections last at most60seconds and accept at most
+4096bytes, with one acknowledged indication at a time and a10second ACK limit.
+The process lasts at most15minutes. Pairing requests are rejected, key storage
+is in memory, and no tablet or native relay library is used. First qualify with
+the independent Mac central; then use LightBlue or the existing headset echo
+test. A client byte-for-byte pass, rather than server write/ACK counts, determines
+echo success: a client can disconnect immediately after receiving its last reply.
+
 ### Tablet pairing and readings
 
 Build the relay project with libsodium available. The target `plank_ble_lab`
