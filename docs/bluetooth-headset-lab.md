@@ -141,6 +141,34 @@ confirming no other advertiser was in use, clearing that orphan with
 `btmgmt -i hci0 clr-adv` allowed restart. Do not clear unrelated advertisements
 automatically. Automatic recovery from this condition remains unimplemented.
 
+### Unrelated BlueZ battery polling during authorization
+
+After resolving the early link failure, longer authorization attempts exposed
+a second interaction. BlueZ acts as a GATT client of the connected headset and
+its [battery plugin](https://github.com/bluez/bluez/blob/master/profiles/battery/battery.c)
+reads Battery Level automatically. On the tested AVP, that read requires
+authentication. The trace shows an ATT authentication error, an SMP security
+request, a rejected Bluetooth pairing attempt, then a local disconnect while
+PLANK's authorization status indications are still flowing. The same failure
+occurs without pressing a tablet button.
+
+For this lab, adding `--noplugin=battery` to the existing `bluetoothd` invocation
+avoids that optional read. Preserve other daemon arguments and settings; use
+a reversible runtime service override for qualification. Stop the foreground
+lab before restarting BlueZ, then restart it with the controller workaround.
+The tested Wacom uses Classic HID; its existing bond is retained. This disables
+the separate GATT battery profile, not the PLANK three-press approval or saved-key
+protocol. It may remove battery reporting for other GATT devices, so do not
+apply it globally to unrelated machines. No OS-level AVP bond is required by
+the application protocol.
+
+With that override, the regular lab completed physical authorization and logged
+an authenticated input observer after the app reconnected with its saved key.
+The corresponding capture has no SMP exchange or Battery Level read. The
+operator confirmed pen position, pressure and ExpressKeys all update on AVP. The runtime override disappears on reboot;
+the opt-in controller command is reapplied only when the lab starts. These are
+qualification workarounds, not a completed unattended service installation.
+
 ### Tablet pairing and readings
 
 Build the relay project with libsodium available. The target `plank_ble_lab`

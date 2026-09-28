@@ -1,0 +1,17 @@
+Local tablet input test
+
+1. With your tablet paired directly in Vision Pro Settings, open the Local tab.
+2. Choose Start input test. Move the pen, vary pressure and press an ExpressKey.
+3. Check whether a pointer or stylus is listed, whether Device updates increases,
+   and whether pressure or button changes appear. Try the Input test area too.
+4. If no useful input arrives, expand Inspect direct Bluetooth access, scan,
+   and choose Inspect on the tablet. Report the status and visible services.
+   Listen tests one available notification channel for up to 60 seconds.
+
+This build tests what visionOS exposes to the app; it does not yet contain a
+direct Wacom report decoder. Hand gestures and other mice can also generate
+events in the test area. Pointer motion or Bluetooth notifications alone do
+not confirm full tablet support. No particular tablet model is required.
+
+The Relay tab retains existing relay pairing and readings. Tests stop when
+you leave their tab or background the app. Saved relay trust is retained.

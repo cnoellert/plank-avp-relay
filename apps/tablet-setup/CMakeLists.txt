@@ -45,8 +45,9 @@ set_target_properties(CRelayProtocol RelaySetupKit PROPERTIES
     XCODE_ATTRIBUTE_GCC_GENERATE_DEBUGGING_SYMBOLS "YES"
     XCODE_ATTRIBUTE_SKIP_INSTALL "YES")
 
+set(LOCAL_TABLET_SOURCES Sources/LocalTabletView.swift Sources/LocalTabletInput.swift Sources/LocalBluetoothProbe.swift)
 add_executable(PlankTabletSetup MACOSX_BUNDLE
-    Sources/TabletSetupApp.swift Sources/TabletSetupView.swift Sources/TabletReadingsView.swift)
+    Sources/TabletSetupApp.swift Sources/TabletSetupView.swift Sources/TabletReadingsView.swift ${LOCAL_TABLET_SOURCES})
 configure_file("${PLANK_SODIUM_PREFIX}/share/licenses/libsodium/LICENSE"
     "${CMAKE_CURRENT_BINARY_DIR}/libsodium-LICENSE.txt" COPYONLY)
 set(APP_LICENSES "${RELAY_ROOT}/LICENSE" "${RELAY_ROOT}/apple/NOTICE.md"
@@ -55,7 +56,7 @@ set_source_files_properties(${APP_LICENSES} PROPERTIES MACOSX_PACKAGE_LOCATION "
 set_source_files_properties(PrivacyInfo.xcprivacy PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
 target_sources(PlankTabletSetup PRIVATE ${APP_LICENSES} PrivacyInfo.xcprivacy)
 target_include_directories(PlankTabletSetup PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
-target_link_libraries(PlankTabletSetup PRIVATE RelaySetupKit "-framework SwiftUI")
+target_link_libraries(PlankTabletSetup PRIVATE RelaySetupKit "-framework SwiftUI" "-framework GameController")
 target_compile_options(PlankTabletSetup PRIVATE -strict-concurrency=complete)
 
 set(PLANK_SETUP_VERSION "0.1.0-visionos-tablet-setup" CACHE STRING "Visible prototype version")
@@ -104,9 +105,9 @@ endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     enable_testing()
-    add_executable(setup-preview Sources/PreviewMain.swift Sources/TabletSetupView.swift Sources/TabletReadingsView.swift)
+    add_executable(setup-preview Sources/PreviewMain.swift Sources/TabletSetupView.swift Sources/TabletReadingsView.swift ${LOCAL_TABLET_SOURCES})
     target_include_directories(setup-preview PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
-    target_link_libraries(setup-preview PRIVATE RelaySetupKit "-framework SwiftUI" "-framework AppKit")
+    target_link_libraries(setup-preview PRIVATE RelaySetupKit "-framework SwiftUI" "-framework AppKit" "-framework GameController")
     add_executable(pairing-socket-fixture "${RELAY_ROOT}/apple/Tests/pairing_socket_fixture.c"
         "${RELAY_ROOT}/src/pair_wire.c" "${RELAY_ROOT}/src/pairing.c" "${RELAY_ROOT}/src/identity.c")
     target_include_directories(pairing-socket-fixture PRIVATE "${PLANK_SODIUM_PREFIX}/include")

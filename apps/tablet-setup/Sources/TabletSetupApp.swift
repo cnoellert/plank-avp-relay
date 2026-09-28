@@ -6,7 +6,7 @@ import RelaySetupKit
 struct TabletSetupApp: App {
     var body: some Scene {
         WindowGroup {
-            TabletSetupView()
+            TabletAppView()
         }
         .defaultSize(width: 820, height: 760)
     }

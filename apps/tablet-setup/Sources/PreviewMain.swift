@@ -12,7 +12,7 @@ enum SetupPreview {
         _ = NSApplication.shared
         let directory = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        for page in ["relay", "usb", "bluetooth", "authorize", "complete", "readings"] {
+        for page in ["relay", "usb", "bluetooth", "authorize", "complete", "readings", "local"] {
             let setup = SetupCoordinator(mode: .simulation)
             if page != "relay" { setup.selectDemoRelay() }
             if page == "bluetooth" {
@@ -28,7 +28,9 @@ enum SetupPreview {
             }
             if page == "authorize" { setup.pressPreviewButton() }
             let content: AnyView
-            if page == "readings" {
+            if page == "local" {
+                content = AnyView(LocalTabletView())
+            } else if page == "readings" {
                 var sample = Data(repeating: 0, count: 80)
                 sample[0] = 1; sample[1] = 7; sample[2] = 4
                 for (offset, value) in [(16, 4500), (20, 3000), (24, 4096),

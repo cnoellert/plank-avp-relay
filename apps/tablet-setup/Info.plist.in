@@ -11,9 +11,9 @@
     <key>CFBundleDevelopmentRegion</key><string>en</string>
     <key>PLANKSetupVersion</key><string>${PLANK_SETUP_VERSION} (${PLANK_SETUP_BUILD_NUMBER})</string>
     <key>NSLocalNetworkUsageDescription</key>
-    <string>Live setup connects to the tablet relay you select. Simulation does not use the network.</string>
+    <string>Connect to the tablet relay you select by network address.</string>
     <key>NSHighResolutionCapable</key><true/>
     <key>NSBluetoothAlwaysUsageDescription</key>
-    <string>Find your tablet relay, confirm pairing with its ExpressKeys, and display live tablet readings.</string>
+    <string>Find your tablet relay or directly connected tablet, test its Bluetooth services, and display live input readings.</string>
     <key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>
 </dict></plist>

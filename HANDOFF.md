@@ -1,13 +1,19 @@
 # Tablet setup workflow lab
 
-## Current work: Bluetooth authorization follow-up, 2026-09-28 UTC
+## Current work: direct tablet input probe, 2026-09-28 UTC
 
 Branch `visionos-tablet-setup`; parent main
 `465c11a9708bfce0c155502844ca8d53e4370390` is already included. The requested
 pull with rebase completed without replay. Work is pushed, not merged or
 publicly released. Root PLANK and its unrelated work remain untouched.
 
-**Latest result:** AVP LightBlue and the unchanged Test Setup build4 both
+**Latest result:** The operator confirmed pen position, pressure and ExpressKeys
+all update on AVP through the relay in build4. Both Linux workarounds below
+were active. The user then paired the Wacom directly to AVP and requested a
+Local tab to investigate app access without a relay. The new probe is under
+validation; direct full-feature tablet support is not established.
+
+AVP LightBlue and the unchanged Test Setup build4 both
 connect through Bumble on the existing Linux radio. The operator confirmed
 all three echo round trips. The same radio therefore has a working path;
 the earlier failure belongs to the original host/controller configuration.
@@ -19,8 +25,10 @@ Authorization reaches the three circles, but the headset disconnects even when
 the operator presses nothing. A trace shows BlueZ reading the AVP battery,
 receiving Insufficient Authentication, requesting SMP security, rejecting the
 resulting pairing request, and disconnecting the headset locally. A temporary
-runtime BlueZ override now disables the optional `battery` plugin; the operator
-has been asked to retry. No tablet pairing/readings are accepted yet.
+runtime BlueZ override disables the optional `battery` plugin. The retry reached
+`Authenticated input observer started`, confirming authorization and saved-key
+reconnection. The operator confirmed changing pen position, pressure and
+ExpressKey values on the readings screen.
 
 Build0.1.0(4), source `6e71fa93b3fc8556802f91fdafd534839b1a82f1`, adds
 **Test Bluetooth connection** after selecting a discovered relay. It sends
@@ -51,7 +59,8 @@ Bluetooth link**. It never reached service discovery or byte exchange. This
 failure occurs before tablet authorization. No successful physical headset
 connection to the Linux relay had been accepted at that point. The same headset
 app subsequently passed against both the Mac echo endpoint and Linux with the
-controller workaround below. Tablet pairing/readings remain unqualified.
+controller workaround below, then completed tablet authorization and readings
+with the battery-plugin workaround described below.
 
 Build3 also discovered the relay and stalled before authorization; Cancel
 worked immediately. Turning off the headset's keyboard, mouse and AirPods made
@@ -217,9 +226,16 @@ interrupting app authorization, not a proven ExpressKey bug.
 At01:48UTC, stopped the lab and restarted the existing Bluetooth service with
 a reversible `/run` drop-in adding `--noplugin=battery`; no persistent service
 configuration changed. Restarted the regular lab with the controller workaround.
-A bounded trace and an operator retry are pending. Headset battery polling is
-not required for relay authorization. Record the result before accepting this
-second workaround. Machine-specific paths, logs and recovery details are private.
+The retry completed app authorization, disconnected, reconnected and started
+an authenticated input observer. The bounded capture has no SMP exchange or
+Battery Level read; its only battery reference is characteristic discovery.
+The original Wacom bond file remains byte-identical. The capture is closed.
+The operator confirmed position, pressure and ExpressKeys all update in the
+headset readings screen. The regular lab remains available; the user has since
+paired the tablet directly to the headset for a separate Local input test.
+The runtime override disappears on reboot and the controller workaround is
+only reapplied at lab startup; unattended restart recovery is not implemented.
+Machine-specific paths, logs and recovery details are private.
 
 ## Build4 delivery and validation
 

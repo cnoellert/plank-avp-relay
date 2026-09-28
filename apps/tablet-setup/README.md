@@ -4,7 +4,8 @@ A standalone SwiftUI visionOS app for reviewing tablet-relay onboarding. Also
 builds as a macOS UI preview. No workstation, remote desktop, Qt, SDL, FFmpeg or
 Rust media transport is required. The app is **not** a full PLANK Client.
 
-The app opens directly to relay discovery. There is no Simulation selector.
+The app opens to relay discovery in the **Relay** tab. The **Local** tab tests
+a tablet paired directly to the headset. There is no Simulation selector.
 Synthetic state and input remain available only to developer tests and the
 separate offscreen preview executable.
 
@@ -45,6 +46,33 @@ physical gate. The protocol and limits are documented in the lab guide.
 This is a coalesced diagnostic readout, not raw-HID forwarding to a workstation
 or a system-wide visionOS pointer. Legacy TCP pairing remains under
 **Connect by network address**.
+
+## Local tablet test
+
+Pair the tablet in visionOS Settings, open **Local**, and choose **Start input
+test**. Move the pen, vary pressure and press tablet buttons. This uses public
+GameController pointer/stylus APIs and an in-window UIKit input surface. Device
+names and event counts distinguish OS-exposed devices from unclassified window
+events. Hand interactions and other mice can also produce window events; a
+moving pointer does not establish pressure or ExpressKey support. Position on
+the test surface is in window coordinates, not raw tablet coordinates. Stylus
+and button polling is a diagnostic snapshot, not lossless event capture.
+
+If no useful input arrives, expand **Inspect direct Bluetooth access**, scan,
+and choose **Inspect** on the tablet. The probe discovers visible GATT services
+and characteristics without reading values or writing tablet control commands.
+**Listen** explicitly subscribes to one notification/indication characteristic
+for up to60seconds and displays counts only. Reports are not decoded or logged.
+A notification may be battery/status data, not a tablet report. Discovery takes
+at most20seconds; an idle inspection closes after2minutes. Stop, leaving Local
+or backgrounding cancels the probe and closes its app-owned connection.
+
+The scan is not an inventory of all OS-paired devices. Classic HID reports may
+be consumed or hidden by visionOS; copying the Linux driver's decoder cannot
+make an unavailable transport accessible. The relay currently reads Linux evdev
+input after the kernel driver has decoded it. Direct access to useful reports
+must be established before porting driver decoding or initialization. No tablet
+model, generation, Bluetooth address or proprietary report layout is assumed.
 
 ## Existing network/USB pairing
 
