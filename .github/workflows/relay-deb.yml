@@ -83,6 +83,9 @@ jobs:
           package=(artifacts/deb/*/debian-12/${{ matrix.arch }}/plank-tablet-relay-ble_*.deb)
           test "${#package[@]}" = 1
           test "$(dpkg-deb -f "${package[0]}" Architecture)" = '${{ matrix.arch }}'
+          dependencies=$(dpkg-deb -f "${package[0]}" Depends)
+          # ctypes does not require the builder's CPython minor version.
+          [[ ! $dependencies =~ python3\.[0-9] ]]
           lintian --fail-on error,warning "${package[0]}" 2>&1 | tee artifacts/logs/lintian.log
           apt-get install -y "./${package[0]}"
           plank-tablet-relay-ble --check-config
@@ -100,3 +103,53 @@ jobs:
           path: artifacts/
           if-no-files-found: error
           retention-days: 30
+
+  compatibility:
+    name: Install on ${{ matrix.image }} / ${{ matrix.arch }}
+    needs: package
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+        image: ['debian:trixie', 'ubuntu:24.04']
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.image }}
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    env:
+      DEBIAN_FRONTEND: noninteractive
+    steps:
+      - name: Prepare disposable install environment
+        run: |
+          printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d
+          chmod 755 /usr/sbin/policy-rc.d
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates git python3
+          test "$(dpkg --print-architecture)" = '${{ matrix.arch }}'
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: relay-debian12-${{ matrix.arch }}-${{ github.sha }}
+          path: artifacts
+      - name: Install, exercise and remove package
+        run: |
+          package=(artifacts/deb/*/debian-12/${{ matrix.arch }}/plank-tablet-relay-ble_*.deb)
+          test "${#package[@]}" = 1
+          (cd "$(dirname "${package[0]}")" && sha256sum -c SHA256SUMS)
+          apt-get install -y "./${package[0]}"
+          plank-tablet-relay-ble --check-config
+          python3 tests/installed_relay_smoke.py /
+          dpkg --verify plank-tablet-relay-ble
+          systemd-analyze verify /lib/systemd/system/plank-tablet-relay-ble.service
+          apt-get remove -y plank-tablet-relay-ble
+          test ! -e /usr/lib/plank-tablet-relay-ble/ble_lab
+          test ! -e /usr/lib/plank-tablet-relay-ble/libplank_ble_lab.so

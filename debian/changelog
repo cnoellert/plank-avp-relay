@@ -3,6 +3,7 @@ plank-tablet-relay-ble (0.2.0~visionos-tablet-setup.7) experimental; urgency=med
   * Build and test native arm64 and amd64 packages against Debian 12.
   * Separate artifacts by distribution and architecture, with provenance.
   * Validate installed packages in disposable native build containers.
+  * Keep the ctypes library outside Python extension dependency inference.
 
  -- PLANK contributors <625982+alatteri@users.noreply.github.com>  Mon, 28 Sep 2026 06:20:00 +0000
 

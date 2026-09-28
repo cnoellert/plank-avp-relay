@@ -128,7 +128,10 @@ for inspection. The package includes the libsodium license.
 
 The `Linux relay packages` GitHub Actions workflow builds both architectures
 in Debian 12 containers, runs the tests, checks the binary with lintian, and
-installs it for a configuration/native-library smoke check. Download the
+installs it for a configuration/native-library smoke check.
+The same binaries are installed, smoke-tested and removed in Debian 13 and
+Ubuntu 24.04 containers on both architectures, including Python bytecode cleanup.
+Download the
 matching `relay-debian12-arm64-<commit>` or `relay-debian12-amd64-<commit>` artifact
 from the workflow run, then check `sha256sum -c SHA256SUMS` inside its package
 directory. CI does not exercise a physical Bluetooth controller or systemd
