@@ -30,6 +30,8 @@ struct LocalTabletView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 Text("Local tablet test").font(.largeTitle.bold())
+                Text(Bundle.main.object(forInfoDictionaryKey: "PLANKSetupVersion") as? String ?? "development")
+                    .font(.caption).foregroundStyle(.secondary)
                 Text("Test a tablet paired directly to this headset. No relay is used.")
                 Text("Wake the tablet, start the test, then move the pen, vary its pressure and press an ExpressKey.")
                     .foregroundStyle(.secondary)
@@ -110,7 +112,7 @@ struct LocalTabletView: View {
         }
         .frame(minWidth: 680, idealWidth: 820, minHeight: 640, idealHeight: 760)
         #if os(visionOS)
-        .handlesGameControllerEvents(matching: .stylus)
+        .handlesGameControllerEvents(matching: input.running ? .stylus : [])
         #endif
         .onDisappear { stop() }
         .onChange(of: scenePhase) { _, phase in if phase != .active { stop() } }

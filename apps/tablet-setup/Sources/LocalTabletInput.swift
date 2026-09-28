@@ -13,11 +13,13 @@ final class LocalTabletInput: ObservableObject {
     @Published private(set) var surfaceEvents = 0
     @Published private(set) var lastSurfaceEvent = "No input in the test area"
     private var monitor: Task<Void, Never>?
+    private var generation = UUID()
     private var mice: [GCMouse] = []
     private var timestamps: [ObjectIdentifier: TimeInterval] = [:]
 
     func start() {
         guard !running else { return }
+        generation = UUID()
         running = true
         deviceEvents = 0; surfaceEvents = 0
         lastDeviceEvent = "No device input received"
@@ -32,6 +34,7 @@ final class LocalTabletInput: ObservableObject {
 
     func stop() {
         running = false
+        generation = UUID()
         monitor?.cancel(); monitor = nil
         for mouse in mice { mouse.mouseInput?.mouseMovedHandler = nil }
         mice = []; timestamps = [:]; devices = []
@@ -58,9 +61,11 @@ final class LocalTabletInput: ObservableObject {
         }
         for mouse in current where !mice.contains(where: { $0 === mouse }) {
             let name = String((mouse.vendorName ?? "Pointer").prefix(80))
+            let generation = generation
             mouse.handlerQueue = .main
             mouse.mouseInput?.mouseMovedHandler = { [weak self] _, x, y in
                 MainActor.assumeIsolated {
+                    guard self?.generation == generation else { return }
                     self?.record(String(format: "%@: pointer Δx %.2f, Δy %.2f", name, x, y))
                 }
             }
@@ -92,6 +97,11 @@ final class LocalTabletInput: ObservableObject {
             timestamps[id] = state.lastEventTimestamp
         }
         #endif
+        var activeIDs = Set(current.map(ObjectIdentifier.init))
+        #if os(visionOS)
+        activeIDs.formUnion(GCStylus.styli.map(ObjectIdentifier.init))
+        #endif
+        timestamps = timestamps.filter { activeIDs.contains($0.key) }
         devices = names.map { String($0.prefix(160)) }
     }
 }

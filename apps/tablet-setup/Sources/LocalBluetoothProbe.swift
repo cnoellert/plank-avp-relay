@@ -162,6 +162,11 @@ final class LocalBluetoothProbe: NSObject, ObservableObject,
         finishDiscoveryIfReady()
     }
 
+    func peripheral(_ peripheral: CBPeripheral, didModifyServices invalidatedServices: [CBService]) {
+        guard peripheral === selected else { return }
+        stop(); status = "The device changed its services. Scan to inspect again."
+    }
+
     func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
         guard peripheral === selected, pendingServices.remove(ObjectIdentifier(service)) != nil else { return }
         if error != nil { discoveryErrors += 1 }
