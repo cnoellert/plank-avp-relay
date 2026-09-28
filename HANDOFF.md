@@ -85,17 +85,37 @@ original advertising interval were restored; the fallback timer and captures
 are stopped. Tablet bond/trust remain intact. Transport-only advertising stays
 active. No replacement Bluetooth adapter is available for comparison.
 
-Next: retrieve AVP-side diagnostics through the nearby laptop. It has Xcode27
-and supports device sysdiagnose collection. Device Hub discovers the headset,
-but pairing fails before the PIN exchange: its IPv4 control connection times
-out and its advertised IPv6 address has no route from the laptop. The devices
-currently occupy different IPv4 subnets. The Mac firewall is disabled; no
-network settings were changed. The operator was asked to put the headset on
-the laptop's Wi-Fi, or confirm if both already use the same network name.
-This explains a developer-pairing obstacle, not the original BLE failure.
-No headset logs have been collected yet; filtered Mac pairing logs are private.
-Apple's detailed Bluetooth logging profile/instructions require authenticated
-Developer downloads. No new TestFlight binary has been built.
+AVP-side diagnostics were retrieved through the nearby laptop with Xcode27.
+Developer pairing initially failed
+before the PIN exchange: the IPv4 control connection timed out and the
+advertised IPv6 address had no route. The operator changed the headset's Wi-Fi;
+pairing then succeeded and developer tools confirm it is available/paired,
+running visionOS27.0. This resolves developer pairing, not the BLE relay issue.
+The operator enabled Developer Mode and restarted; remote sysdiagnose then
+completed. Its archive and filtered logs are retained privately outside Git.
+
+The fresh failed test's headset logs show the app's connection request accepted,
+with zero existing app connections and a limit of two. Five controller-level
+connection-complete reports are followed within0.36–0.39seconds by a failed
+remote-version read (internal status762) and disconnect before link readiness.
+visionOS retries internally and suppresses app disconnect notifications while
+the link is unready; the app cancels after its20second timeout. A simultaneous
+relay capture overlaps the final three attempts and has no LE completion/ATT.
+The same archive includes earlier successful Mac echo tests: remote-version
+reads succeed and GATT discovery follows. Encryption-status4803 appears in
+both passing and failing cases, so it does not establish an authentication
+problem. Do not assign a standard HCI meaning to internal status762 without
+evidence, or infer that a controller-level completion means a usable link.
+
+A retry within about one metre with a clear radio path also timed out. Its
+bounded relay capture has no LE completion/ATT and is now closed. This makes
+a simple range explanation less likely, but does not identify which controller
+or stack is responsible. After refreshing package indexes, installed BlueZ and
+firmware versions match the configured repositories' candidates; no packages
+were installed. Next qualification needs another meaningful controller/role
+comparison or detailed radio capture, rather than another identical retry.
+No adapter configuration changes or new TestFlight binary were made during
+diagnostic collection. No fix for AVP-to-Linux interoperability is established.
 Preserve trust and distinguish advertising reception from connection success.
 Private screenshots, raw captures and machine details stay outside Git.
 
