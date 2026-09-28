@@ -86,9 +86,14 @@ are stopped. Tablet bond/trust remain intact. Transport-only advertising stays
 active. No replacement Bluetooth adapter is available for comparison.
 
 Next: retrieve AVP-side diagnostics through the nearby laptop. It has Xcode27
-and supports device sysdiagnose collection, but the headset is not yet visible
-to its developer tools. The operator was asked to open the headset's Remote
-Devices screen for wireless pairing. No headset logs have been collected yet.
+and supports device sysdiagnose collection. Device Hub discovers the headset,
+but pairing fails before the PIN exchange: its IPv4 control connection times
+out and its advertised IPv6 address has no route from the laptop. The devices
+currently occupy different IPv4 subnets. The Mac firewall is disabled; no
+network settings were changed. The operator was asked to put the headset on
+the laptop's Wi-Fi, or confirm if both already use the same network name.
+This explains a developer-pairing obstacle, not the original BLE failure.
+No headset logs have been collected yet; filtered Mac pairing logs are private.
 Apple's detailed Bluetooth logging profile/instructions require authenticated
 Developer downloads. No new TestFlight binary has been built.
 Preserve trust and distinguish advertising reception from connection success.
