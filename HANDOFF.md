@@ -52,9 +52,20 @@ This verifies controller configuration, not over-the-air connection requests.
 The temporary tablet block is removed; the tablet remains powered off by the
 operator. Captures are closed.
 
-Next: use the operator's nearby laptop as an independent Bluetooth central. Its
-OS/access details are pending. The Mac builder is physically elsewhere and has
-no physical headset developer connection for console logs.
+A nearby Apple Silicon laptop running macOS27 passed two physical tests:
+- Independent Core Bluetooth probe, source `7f2cfd2`: all three round trips,
+  1600 matching bytes each direction, at00:32:41UTC. Relay controller trace
+  confirms LE connection, ATT writes, indications and confirmations.
+- The Mac build of Test Setup from the same source as TestFlight4 (`6e71fa9`):
+  operator confirmed a pass at about00:34:39UTC. The relay received1600bytes;
+  app stage logs confirm service/channel discovery and reply subscription.
+
+This establishes working relay-to-Mac communication and the shared app path on
+macOS. It does not establish AVP compatibility or identify the AVP failure's
+cause. The operator is now testing after a normal Vision Pro restart, with the
+Wacom powered off and the Mac comparison app closed. The relay remains in
+transport-only mode. The Mac builder is physically elsewhere and has no
+physical headset developer connection for console logs.
 Preserve trust and distinguish advertising reception from connection success.
 Private screenshots, raw captures and machine details stay outside Git.
 
