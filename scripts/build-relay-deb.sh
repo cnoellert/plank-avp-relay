@@ -9,6 +9,8 @@ if [[ -n $(git status --porcelain) ]]; then
     exit 1
 fi
 command -v dpkg-buildpackage >/dev/null
+jobs=${PLANK_BUILD_JOBS:-4}
+[[ $jobs =~ ^[1-9][0-9]*$ ]] || { echo 'Invalid PLANK_BUILD_JOBS' >&2; exit 2; }
 source_commit=$(git rev-parse HEAD)
 build_root=${PLANK_DEB_BUILD_ROOT:-"$relay_root/build/deb"}
 mkdir -p "$build_root/dependencies" "$relay_root/artifacts/deb"
@@ -28,11 +30,12 @@ mkdir -p "$stage/source/debian/vendor"
 cp "$archive" "$stage/source/debian/vendor/"
 (
     cd "$stage/source"
-    dpkg-buildpackage --build=binary --no-sign
+    dpkg-buildpackage --build=binary --no-sign --jobs-force="$jobs"
 )
 destination="$relay_root/artifacts/deb/$source_commit"
 mkdir -p "$destination"
-cp "$stage/"*.deb "$stage/"*.buildinfo "$stage/"*.changes "$destination/"
+shopt -s nullglob
+cp "$stage/"*.{deb,ddeb,buildinfo,changes} "$destination/"
 printf '%s\n' "$source_commit" > "$destination/source-commit.txt"
-(cd "$destination" && sha256sum *.deb *.buildinfo *.changes source-commit.txt > SHA256SUMS)
+(cd "$destination" && sha256sum *.{deb,ddeb,buildinfo,changes} source-commit.txt > SHA256SUMS)
 printf 'Package artifacts: %s\nBuild source: %s\n' "$destination" "$stage/source"

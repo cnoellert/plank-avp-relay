@@ -1,3 +1,10 @@
+plank-tablet-relay-ble (0.2.0~visionos-tablet-setup.2) experimental; urgency=medium
+
+  * Include operator documentation, manual page and debug-symbol artifacts.
+  * Bound build parallelism and qualify installation and state retention.
+
+ -- PLANK contributors <625982+alatteri@users.noreply.github.com>  Mon, 28 Sep 2026 02:48:00 +0000
+
 plank-tablet-relay-ble (0.2.0~visionos-tablet-setup.1) experimental; urgency=medium
 
   * Package the authenticated Bluetooth input relay with managed recovery,

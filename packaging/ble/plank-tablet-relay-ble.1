@@ -1,0 +1,35 @@
+.TH PLANK-TABLET-RELAY-BLE 1 "September 2026" "PLANK" "User Commands"
+.SH NAME
+plank-tablet-relay-ble \- Bluetooth tablet readings relay
+.SH SYNOPSIS
+.B plank-tablet-relay-ble
+.RI [ --config " file" ]
+.RI [ --check-config ]
+.SH DESCRIPTION
+Publishes PLANK Tablet Setup's Bluetooth LE service and reads qualifying
+Wacom pen and tablet-button input through Linux input devices.
+The headset approves its first connection using three tablet-button presses;
+subsequent connections authenticate the saved keys.
+Normally run through the plank-tablet-relay-ble system service.
+.SH OPTIONS
+.TP
+.BI --config " file"
+Read the specified configuration instead of the system default.
+.TP
+.B --check-config
+Validate configuration and exit without opening Bluetooth or tablet devices.
+.SH FILES
+.TP
+.I /etc/plank-tablet-relay-ble/relay.conf
+Adapter, tablet selection and opt-in controller compatibility settings.
+.TP
+.I /var/lib/plank-tablet-relay-ble
+Private identity, approved headset keys and pairing attempt budget.
+Retained by package upgrades, removal and purge.
+.TP
+.I /usr/share/doc/plank-tablet-relay-ble/linux-ble-package.md.gz
+Installation, hardware qualification and compatibility guidance.
+.SH SEE ALSO
+.BR systemctl (1),
+.BR journalctl (1),
+.BR bluetoothctl (1)
