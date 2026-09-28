@@ -15,8 +15,8 @@ from the legacy TCP/raw-HID workstation relay.
 
 ## Linux package
 
-`plank-tablet-relay-ble` version `0.2.0~visionos-tablet-setup.5`, source
-`ce62527`, targets Ubuntu 26.04 amd64. See
+`plank-tablet-relay-ble` version `0.2.0~visionos-tablet-setup.6`, source
+`f23e36b`, targets Ubuntu 26.04 amd64. See
 [installation, configuration and hardware guidance](docs/linux-ble-package.md).
 Build from a clean committed checkout with `scripts/build-relay-deb.sh` in a
 Debian/Ubuntu builder. It verifies pinned libsodium 1.0.22, runs its tests and
@@ -37,28 +37,44 @@ Original foreground state has been copied and compared, with the original
 retained for rollback. Tablet bonds are unchanged. The controller workaround
 is reapplied whenever the managed relay starts.
 
-Hardware checks cover managed startup, BlueZ restart, controller power
+Revision 5 hardware checks cover managed startup, BlueZ restart, controller power
 off/recovery, process crash/recovery, a deliberate orphan advertisement and a
 full host reboot. The final package was installed and its files compared to
 the package manifest. It advertised automatically five seconds after the new
 boot, with no service restarts. The exact relay state and BlueZ tablet bond
-file remained unchanged; the tablet is currently offline. Persistent BlueZ
+file remained unchanged. Persistent BlueZ
 policy, limited process capabilities and configuration also survived. Package lifecycle checks preserve identity through upgrade,
 remove/reinstall and purge; configuration survives upgrades and is removed
 only on purge. Debian Python helpers clean installed bytecode on removal, without renaming
 the ctypes library. The build smoke-tests extracted package contents before
 collecting artifacts. All 22 relay suites and 101 libsodium tests pass; the
-final package has no lintian findings.
+revision 6 binary package has no lintian findings. Ubuntu lintian flags the
+private `.changes` file's Debian `experimental` distribution; this package is
+installed directly and is not an Ubuntu archive upload.
 
 Package SHA-256:
-`92a8e6dd13b18003ce5e97918671719ca1f116833dd2a765ff4de7c3577bd3d0`.
+`83fb4e202224375eef39052cbd96aaecf345e1b306b7594e299070b88d534d82`.
 The deliverable and matching symbols/build metadata are retained under ignored
-`artifacts/deb/ce6252721d6dbe5a39d4a02fc3ef246b9cb5fa30/`.
-Earlier package candidates are superseded; use revision 5.
+`artifacts/deb/f23e36b1cccdb34714de41f87845f60a2556f63a/`.
+Earlier package candidates are superseded; use revision 6.
 
-No physical tablet input or AVP round-trip acceptance has been repeated with
-the packaged service while the operator is away. The tablet was last paired
-directly to AVP; do not remove bonds or force reconnection unattended.
+On return, the operator reported “Writing is not permitted.” Echo passed, but
+pairing rejected the app's already-approved Client key. This was reproduced
+with the installed revision 5 library and an isolated copy of its public
+allowlist: a new key reached approval; the existing key failed immediately.
+Revision 6 permits full re-approval with fresh physical input and cryptographic
+confirmation, retaining the existing entry even on cancellation/failure. Tests
+cover a full allowlist, early/invalid confirmation, persistence and subsequent
+saved-key authentication. The extracted-package smoke test also exercises a
+fragmented request from an existing Client. No app update is required.
+
+Revision 6 is installed, and its package files, state, tablet bond and config
+were verified. The operator forgot the direct Wacom pairing on AVP and made
+the tablet discoverable. It reconnected to Linux using its existing bond;
+no relay-side bond deletion or new tablet enrollment was needed. The journal
+then confirmed an existing-headset approval request and authenticated input
+observation. User confirmation of displayed position/pressure/button updates
+remains pending; do not confuse connection evidence with input acceptance.
 
 ## TestFlight build 6
 
