@@ -125,6 +125,17 @@ its controller trace confirms a successful LE connection (public peer address,
 The probe exited and the capture is closed. Current matrix: Mac-to-Linux passes,
 AVP-to-Mac passes, AVP-to-Linux fails. This isolates the failing combination,
 without proving which controller or stack causes the incompatibility.
+
+Recommended next test: an independent client on the same AVP. LightBlue's
+[App Store listing](https://apps.apple.com/us/app/lightblue/id557428110)
+lists visionOS compatibility and service/characteristic discovery. Close Test
+Setup, connect LightBlue to PLANK Relay Lab, and check whether its services
+appear. This comparison has not been run. A pass calls for comparing the app's
+connection lifecycle; the same early failure strengthens a platform/controller
+interoperability diagnosis. Do not propose reversing the AVP into an advertising
+peripheral: Apple's current
+[CBPeripheralManager documentation](https://developer.apple.com/documentation/corebluetooth/cbperipheralmanager)
+explicitly excludes service advertising on visionOS.
 Preserve trust and distinguish advertising reception from connection success.
 Private screenshots, raw captures and machine details stay outside Git.
 
