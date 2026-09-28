@@ -13,6 +13,10 @@ BLE relay discovery/pairing and a live diagnostic readout. The working readings 
 [managed Debian package](docs/linux-ble-package.md); the production raw-HID
 workstation service is unchanged.
 
+The [upstream AVP Bluetooth handoff](docs/avp-bluetooth-upstream-handoff.md)
+describes the verified controller address-resolution and BlueZ battery-plugin
+fixes, reference code, recovery requirements and physical acceptance tests.
+
 **Current state:** the bounded `PLTR` frame and byte-stream parsers are tested,
 and the Client's raw Wacom worker is vendored and build-checked on Linux. The
 Noise IK handshake and transport module passes the published Noise-C vector

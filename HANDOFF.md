@@ -13,6 +13,12 @@ cleanup. The working BLE readings path now has a managed Linux service and a
 simpler TestFlight app. This remains a diagnostic setup component, separate
 from the legacy TCP/raw-HID workstation relay.
 
+The operator requested a shareable implementation brief for the upstream
+author's coding agent. See [AVP Bluetooth upstream handoff](docs/avp-bluetooth-upstream-handoff.md)
+for the verified address-resolution and battery-plugin fixes, fixed reference
+snapshot, implementation/recovery requirements and acceptance tests. Creating
+this document changes no runtime code or deployed host configuration.
+
 ## Linux package
 
 The target OS is **Ubuntu 26.04** for both **arm64 and amd64**, as requested by
