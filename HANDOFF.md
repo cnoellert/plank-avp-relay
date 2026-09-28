@@ -10,8 +10,8 @@ publicly released. Root PLANK and its unrelated work remain untouched.
 **Latest result:** The operator confirmed pen position, pressure and ExpressKeys
 all update on AVP through the relay in build4. Both Linux workarounds below
 were active. The user then paired the Wacom directly to AVP and requested a
-Local tab to investigate app access without a relay. The new probe is under
-validation; direct full-feature tablet support is not established.
+Local tab to investigate app access without a relay. Build5 is now available
+in internal TestFlight; direct full-feature tablet support is not established.
 
 AVP LightBlue and the unchanged Test Setup build4 both
 connect through Bumble on the existing Linux radio. The operator confirmed
@@ -236,6 +236,43 @@ paired the tablet directly to the headset for a separate Local input test.
 The runtime override disappears on reboot and the controller workaround is
 only reapplied at lab startup; unattended restart recovery is not implemented.
 Machine-specific paths, logs and recovery details are private.
+
+## Build5 Local direct-tablet probe
+
+Source `606d5bd9efd9b39deb127c7a46b7bed83f0873fc`, version0.1.0(5). The app now
+has **Relay** and **Local** tabs. Local tests public pointer/stylus device input,
+window pen/pointer/key events and explicit Bluetooth GATT inspection. It makes
+no tablet control writes and contains no Wacom report decoder yet. An embedded
+decoder still requires an app-accessible report stream. The Linux relay reads
+kernel-decoded evdev input; copying that capture layer into visionOS is not a
+working raw Bluetooth transport. No model/generation allowlist was added.
+
+Local shows device identities separately from window events (hand/mouse/tablet
+source may be unverified). A bounded scan also checks app-visible connected
+peripherals with standard HID, battery or device-information services; this is
+not an inventory of all OS-paired devices. Selected GATT inspection lists
+characteristics, with explicit notification listening on one channel for60sec.
+Notifications are counted, not decoded or logged; battery/status updates alone
+do not establish pen input. Tab changes/backgrounding stop tests and close
+app-owned connections while retaining relay trust. See the app README.
+
+- macOS and visionOS device/simulator SDK builds pass with SDK27/Swift6.4.
+- Apple10/10 CTest suites pass; metadata-helper offline8/8 tests pass.
+- Local layout inspected in the macOS offscreen preview. Neither this preview
+  nor simulator compilation qualifies direct hardware input on the headset.
+- Signed archive, bundle, signature and executable/dSYM UUID checks pass.
+  arm64 UUID `B07C4B00-B4A0-3126-8B5F-E7A1ACED3515`.
+- IPA SHA256 `c9219a8c626ae0937132a67c13f4316d9e83f9e32476927c7d14b249b1875277`.
+  Retained under ignored `artifacts/testflight/0.1.0/build-5/` with provenance.
+- Apple accepted upload at2026-09-28T02:09:20Z. API verification confirms VALID
+  processing and IN_BETA_TESTING internal availability. Exact build5 notes and
+  confirmed compliance were saved and read back. Archive/export/upload GUI jobs
+  all exited0 and are unloaded; next binary upload must use build6.
+
+The user has paired the Wacom directly to the headset. Install build5, open
+Local, start input, move the pen, vary pressure and press an ExpressKey.
+If no useful input arrives, inspect the tablet's visible Bluetooth services.
+Do not force the tablet back to the relay during this independent experiment.
 
 ## Build4 delivery and validation
 

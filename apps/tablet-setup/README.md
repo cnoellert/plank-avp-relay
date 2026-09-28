@@ -180,7 +180,7 @@ Complete these gates before promising an invitation:
 
 Prepare tester notes alongside each build's source revision. Keep them focused
 on changed behavior, testing steps and known limits. The notes for
-[0.1.0 (3)](TestFlight/0.1.0-3.txt) are ready to enter. App Store Connect supports
+[0.1.0 (5)](TestFlight/0.1.0-5.txt) describe the Local direct-tablet test. App Store Connect supports
 build-specific notes through beta-build localizations and compliance through
 build/encryption-declaration metadata. Automated API updates require separately
 configured, supported App Store Connect access; an Xcode GUI account that can
