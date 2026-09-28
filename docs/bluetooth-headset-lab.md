@@ -47,6 +47,24 @@ the last stage and exact error if it fails. A missing test channel means the
 relay must be updated. The regular lab also exposes the test, but rejects
 overlap with a pairing or authenticated input operation.
 
+For an independent Apple Silicon Mac comparison, build the standalone probe on
+the authorized macOS27/SDK27 builder from a clean source checkout:
+
+```sh
+scripts/build-macos-ble-echo.sh "$PLANK_PROBE_OUTPUT"
+```
+
+Copy `PLANK Bluetooth Probe.app` to a nearby macOS27 test Mac and launch it in
+the logged-in desktop. Allow its Bluetooth request if presented. It uses its
+own Core Bluetooth implementation, without RelaySetupKit or the app's pairing
+flow. The probe selects an advertising **PLANK Relay Lab**, performs the same
+three byte echoes, displays its current stage and writes a timestamped result
+to standard output. It exits after a pass, failure or bounded timeout; capture
+standard output to a private log when launching remotely. The probe requires
+no tablet, identity store, pairing approval or persistent service installation.
+Its ad hoc signature is for this local diagnostic, not product distribution.
+Close other relay tests while it runs. A discovery-only result is not a pass.
+
 ### Tablet pairing and readings
 
 Build the relay project with libsodium available. The target `plank_ble_lab`
