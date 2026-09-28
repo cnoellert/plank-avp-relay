@@ -32,6 +32,9 @@ cp "$archive" "$stage/source/debian/vendor/"
     cd "$stage/source"
     dpkg-buildpackage --build=binary --no-sign --jobs-force="$jobs"
 )
+mkdir "$stage/install-test"
+dpkg-deb --extract "$stage/"plank-tablet-relay-ble_*.deb "$stage/install-test"
+python3 "$stage/source/tests/installed_relay_smoke.py" "$stage/install-test"
 destination="$relay_root/artifacts/deb/$source_commit"
 mkdir -p "$destination"
 shopt -s nullglob
