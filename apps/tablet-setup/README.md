@@ -10,6 +10,16 @@ separate offscreen preview executable.
 
 ## Bluetooth pairing and readings
 
+For a tablet-free hardware check, select the discovered relay and choose
+**Test Bluetooth connection**. The relay can run
+`python3 tools/ble-tablet-lab.py --transport-only` with no crypto-library,
+identity-store or tablet arguments. The test sends three random payloads and
+verifies1600returned bytes across three round trips. The tablet may be off;
+there is no approval gesture. A passing byte test establishes communication,
+without creating or verifying saved pairing trust. Progress/timeout messages
+show which connection stage was reached and the last signal strength when
+available. See the lab guide for its dedicated, bounded echo channels.
+
 With the Linux [Bluetooth input lab](../../docs/bluetooth-headset-lab.md) running,
 choose **Scan for relays**, select the relay and tap **Pair**. The app reports
 actual tablet availability, a countdown and completed presses. Press and release

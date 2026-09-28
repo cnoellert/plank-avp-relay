@@ -15,6 +15,7 @@ public final class SetupCoordinator: ObservableObject {
     @Published public private(set) var readings: TabletReadings?
     @Published public private(set) var readingCount = 0
     @Published public private(set) var approval: ButtonApproval?
+    @Published public private(set) var bluetoothTestResult: String?
     public let scanner = RelayBLEScanner()
     private let keys = RelayKeyStore()
     private let client = RelayPairingClient()
@@ -47,6 +48,7 @@ public final class SetupCoordinator: ObservableObject {
     public func selectBluetoothRelay(_ relay: BluetoothRelay) {
         guard state.mode == .live, !state.busy else { return }
         scanner.stop()
+        bluetoothTestResult = nil
         let address = RelayAddress(bluetoothIdentifier: relay.id, name: relay.name)
         do {
             let trusted = try keys.relayKey(address) != nil
@@ -158,7 +160,7 @@ public final class SetupCoordinator: ObservableObject {
     private func startButtonApproval() {
         guard let address = state.address, let id = state.beginButtonApproval() else { return }
         approval = nil
-        message = "Connecting to the relay…"
+        message = "Preparing this headset’s pairing identity…"
         if state.mode == .simulation {
             approval = ButtonApproval(tabletReady: true, presses: 0, secondsRemaining: 60)
             message = "Preview data only."
@@ -168,7 +170,10 @@ public final class SetupCoordinator: ObservableObject {
             guard let self else { return }
             do {
                 let relayKey = try await self.client.pairByButton(address: address,
-                    privateKey: self.keys.clientKey()) { [weak self] status in
+                    privateKey: self.keys.clientKey(), onProgress: { [weak self] message in
+                        guard let self, self.state.operation == id else { return }
+                        self.message = message
+                    }) { [weak self] status in
                     guard let self, self.state.operation == id else { return }
                     self.approval = status
                     self.message = status.tabletReady ? "Press and release the same tablet button three times." :
@@ -253,6 +258,31 @@ public final class SetupCoordinator: ObservableObject {
         }
     }
 
+    public func testBluetooth() {
+        guard let address = state.address, let id = state.beginBluetoothTest() else { return }
+        bluetoothTestResult = nil
+        approval = nil
+        message = "Starting a Bluetooth byte test. No tablet is needed."
+        task = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let result = try await self.client.testBluetooth(address: address) { [weak self] message in
+                    guard let self, self.state.operation == id else { return }
+                    self.message = message
+                }
+                try Task.checkCancellation()
+                guard self.state.finishBluetoothTest(id) else { return }
+                self.bluetoothTestResult = result
+                self.message = "Bluetooth communication passed in both directions."
+            } catch {
+                guard self.state.operation == id else { return }
+                self.state.fail(id, message: error.localizedDescription)
+                self.message = error.localizedDescription
+            }
+            self.task = nil
+        }
+    }
+
     public func cancel() {
         scanner.stop()
         task?.cancel()
@@ -261,6 +291,7 @@ public final class SetupCoordinator: ObservableObject {
         simulatedKeys = []
         readings = nil
         approval = nil
+        bluetoothTestResult = nil
         message = "Operation canceled. Existing pairing was not removed."
     }
 
@@ -302,6 +333,7 @@ public final class SetupCoordinator: ObservableObject {
 
     public func back() {
         state.back()
+        bluetoothTestResult = nil
         simulatedKeys = []
         message = "Choose the next setup step."
     }

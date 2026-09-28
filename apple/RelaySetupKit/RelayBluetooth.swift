@@ -2,10 +2,13 @@
 import Combine
 @preconcurrency import CoreBluetooth
 import Foundation
+import OSLog
 
 private let relayService = CBUUID(string: "462F3A10-7A31-4AB3-9E7F-C36AF495ECF0")
 private let relayRX = CBUUID(string: "462F3A11-7A31-4AB3-9E7F-C36AF495ECF0")
 private let relayTX = CBUUID(string: "462F3A12-7A31-4AB3-9E7F-C36AF495ECF0")
+private let echoRX = CBUUID(string: "462F3A13-7A31-4AB3-9E7F-C36AF495ECF0")
+private let echoTX = CBUUID(string: "462F3A14-7A31-4AB3-9E7F-C36AF495ECF0")
 
 public struct BluetoothRelay: Identifiable, Equatable, Sendable {
     public let id: UUID
@@ -78,6 +81,13 @@ private func bluetoothStateMessage(_ state: CBManagerState) -> String {
 final class RelayBLEConnection: NSObject, RelayByteConnection,
     @preconcurrency CBCentralManagerDelegate, @preconcurrency CBPeripheralDelegate {
     private let identifier: UUID
+    private let diagnostic: Bool
+    private var rxUUID: CBUUID { diagnostic ? echoRX : relayRX }
+    private var txUUID: CBUUID { diagnostic ? echoTX : relayTX }
+    private let onProgress: ((String) -> Void)?
+    private let logger = Logger(subsystem: "la.instinctual.PLANK.TabletSetup", category: "Bluetooth")
+    private var phase = "waiting for Bluetooth"
+    private var signal: Int?
     private var central: CBCentralManager!
     private var peripheral: CBPeripheral?
     private var rx: CBCharacteristic?
@@ -112,8 +122,10 @@ final class RelayBLEConnection: NSObject, RelayByteConnection,
         waiter?.resume()
     }
 
-    init(identifier: UUID) {
+    init(identifier: UUID, diagnostic: Bool = false, onProgress: ((String) -> Void)? = nil) {
         self.identifier = identifier
+        self.diagnostic = diagnostic
+        self.onProgress = onProgress
         super.init()
         central = CBCentralManager(delegate: self, queue: .main)
     }
@@ -121,11 +133,14 @@ final class RelayBLEConnection: NSObject, RelayByteConnection,
     func connect() async throws {
         try Task.checkCancellation()
         if let failure { throw failure }
+        progress("waiting for Bluetooth", "Waiting for Bluetooth to become ready…")
         try await withCheckedThrowingContinuation { continuation in
             connectWaiter = continuation
             connectDeadline = Task { [weak self] in
                 do { try await Task.sleep(for: .seconds(20)) } catch { return }
-                self?.fail(RelaySetupError.timedOut)
+                guard let self else { return }
+                let strength = self.signal.map { " Last signal: \($0) dBm." } ?? ""
+                self.fail(RelaySetupError.network("Timed out while \(self.phase).\(strength) Tap Pair to retry."))
             }
             beginConnect()
         }
@@ -141,15 +156,25 @@ final class RelayBLEConnection: NSObject, RelayByteConnection,
         }
         guard !started else { return }
         started = true
-        if let known = central.retrievePeripherals(withIdentifiers: [identifier]).first {
-            attach(known)
-        } else { central.scanForPeripherals(withServices: [relayService]) }
+        // Discover with the same manager that will own the connection. This
+        // also confirms the selected relay is advertising now, instead of
+        // waiting on a peripheral returned from the system's saved cache.
+        progress("finding the selected relay", "Looking for the selected relay nearby…")
+        central.scanForPeripherals(withServices: [relayService])
+    }
+
+    private func progress(_ phase: String, _ message: String) {
+        self.phase = phase
+        logger.info("Connection stage: \(phase, privacy: .public)")
+        onProgress?(message)
     }
 
     private func attach(_ device: CBPeripheral) {
         central.stopScan()
         peripheral = device
         device.delegate = self
+        let strength = signal.map { " Signal: \($0) dBm." } ?? ""
+        progress("establishing the Bluetooth link", "Relay found. Connecting…\(strength)")
         central.connect(device)
     }
 
@@ -194,6 +219,8 @@ final class RelayBLEConnection: NSObject, RelayByteConnection,
 
     private func fail(_ error: any Error) {
         guard failure == nil else { return }
+        // Stage only: no device identifier, keys, records or tablet input.
+        logger.info("Connection ended during: \(self.phase, privacy: .public)")
         failure = error
         connectDeadline?.cancel(); connectDeadline = nil
         writeDeadline?.cancel(); writeDeadline = nil
@@ -215,11 +242,20 @@ final class RelayBLEConnection: NSObject, RelayByteConnection,
 
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral,
         advertisementData: [String: Any], rssi RSSI: NSNumber) {
-        if failure == nil && self.peripheral == nil && peripheral.identifier == identifier { attach(peripheral) }
+        guard failure == nil, connectWaiter != nil, self.peripheral == nil,
+              peripheral.identifier == identifier else { return }
+        if let connectable = advertisementData[CBAdvertisementDataIsConnectable] as? NSNumber,
+           !connectable.boolValue {
+            fail(RelaySetupError.network("The selected relay is advertising but is not accepting connections."))
+            return
+        }
+        signal = RSSI.intValue == 127 ? nil : RSSI.intValue
+        attach(peripheral)
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         guard failure == nil, peripheral.identifier == identifier else { return }
+        progress("opening the relay service", "Bluetooth connected. Opening the relay service…")
         peripheral.discoverServices([relayService])
     }
 
@@ -237,32 +273,38 @@ final class RelayBLEConnection: NSObject, RelayByteConnection,
         guard error == nil, let service = peripheral.services?.first(where: { $0.uuid == relayService }) else {
             fail(RelaySetupError.network("The selected relay does not expose the input test service.")); return
         }
-        peripheral.discoverCharacteristics([relayRX, relayTX], for: service)
+        progress("opening the relay data channels", "Relay service found. Opening its data channels…")
+        peripheral.discoverCharacteristics([rxUUID, txUUID], for: service)
     }
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
         guard failure == nil else { return }
-        rx = service.characteristics?.first { $0.uuid == relayRX }
-        tx = service.characteristics?.first { $0.uuid == relayTX }
+        rx = service.characteristics?.first { $0.uuid == rxUUID }
+        tx = service.characteristics?.first { $0.uuid == txUUID }
         guard error == nil, let rx, let tx, rx.properties.contains(.write), tx.properties.contains(.indicate) else {
-            fail(RelaySetupError.network("The relay's Bluetooth service is incomplete.")); return
+            fail(RelaySetupError.network(diagnostic
+                ? "This relay does not expose the Bluetooth test. Update the relay lab first."
+                : "The relay's pairing service is unavailable. It may be running the transport-only test.")); return
         }
+        progress("enabling relay replies", "Relay channels found. Enabling replies…")
         peripheral.setNotifyValue(true, for: tx)
     }
 
     func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
-        guard failure == nil, characteristic.uuid == relayTX else { return }
+        guard failure == nil, characteristic.uuid == txUUID else { return }
         guard error == nil, characteristic.isNotifying else {
             fail(RelaySetupError.network("Could not subscribe to the relay.")); return
         }
         let waiter = connectWaiter
         connectWaiter = nil
         connectDeadline?.cancel(); connectDeadline = nil
+        progress(diagnostic ? "starting the byte test" : "starting authorization",
+                 diagnostic ? "Relay connected. Starting the byte test…" : "Relay connected. Starting authorization…")
         waiter?.resume()
     }
 
     func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
-        guard failure == nil, characteristic.uuid == relayRX else { return }
+        guard failure == nil, characteristic.uuid == rxUUID else { return }
         if let error { fail(RelaySetupError.network(error.localizedDescription)); return }
         let waiter = writeWaiter
         writeWaiter = nil
@@ -271,7 +313,7 @@ final class RelayBLEConnection: NSObject, RelayByteConnection,
     }
 
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
-        guard failure == nil, characteristic.uuid == relayTX else { return }
+        guard failure == nil, characteristic.uuid == txUUID else { return }
         guard error == nil, let data = characteristic.value, !data.isEmpty, data.count <= 512 else {
             fail(RelaySetupError.protocolError); return
         }

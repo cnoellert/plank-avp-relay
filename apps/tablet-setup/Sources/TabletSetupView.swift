@@ -20,12 +20,32 @@ struct TabletSetupView: View {
             }
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    Text(setup.state.step.title).font(.largeTitle.bold())
-                    switch setup.state.step {
-                    case .relay: relayPage
-                    case .tablet: tabletPage
-                    case .authorize: authorizePage
-                    case .complete: completePage
+                    Text(setup.state.activity == .testingBluetooth ? "Test Bluetooth connection" :
+                         setup.state.step == .authorize && setup.state.usesButtonApproval &&
+                         setup.state.busy && setup.approval == nil ? "Connect to your relay" :
+                         setup.state.step.title).font(.largeTitle.bold())
+                    if setup.state.activity == .testingBluetooth {
+                        ProgressView("Testing communication in both directions…")
+                        Text("The tablet can be powered off. No button presses are needed.")
+                    } else {
+                        switch setup.state.step {
+                        case .relay: relayPage
+                        case .tablet: tabletPage
+                        case .authorize: authorizePage
+                        case .complete: completePage
+                        }
+                    }
+                    if setup.state.mode == .live && setup.state.address?.bluetoothIdentifier != nil {
+                        Divider()
+                        Text("Test the headset-to-relay Bluetooth link without a tablet or pairing.")
+                            .font(.callout).foregroundStyle(.secondary)
+                        Button("Test Bluetooth connection") { setup.testBluetooth() }
+                            .disabled(setup.state.busy)
+                        if let result = setup.bluetoothTestResult {
+                            Label("Bluetooth test passed", systemImage: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                            Text(result).font(.callout)
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -95,7 +115,8 @@ struct TabletSetupView: View {
                 if let approval = setup.approval {
                     ButtonApprovalView(approval: approval)
                 } else {
-                    ProgressView("Connecting to your relay…")
+                    ProgressView("Opening the relay connection…")
+                    Text("Wait for the three numbered circles before pressing the tablet button.")
                 }
             } else {
                 Text("Tap Pair to start a new approval request.")

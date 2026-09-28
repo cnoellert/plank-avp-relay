@@ -194,9 +194,47 @@ private final class RelaySocket: RelayByteConnection, @unchecked Sendable {
 public final class RelayPairingClient {
     public init() {}
 
-    private func connection(_ address: RelayAddress) -> any RelayByteConnection {
-        if let identifier = address.bluetoothIdentifier { return RelayBLEConnection(identifier: identifier) }
+    private func connection(_ address: RelayAddress, onProgress: ((String) -> Void)? = nil) -> any RelayByteConnection {
+        if let identifier = address.bluetoothIdentifier {
+            return RelayBLEConnection(identifier: identifier, onProgress: onProgress)
+        }
         return RelaySocket(address)
+    }
+
+    /// Tests only byte delivery over dedicated, unauthenticated echo channels.
+    /// No pairing codec, Keychain access or tablet input is used or authorized.
+    public func testBluetooth(address: RelayAddress, onProgress: @escaping (String) -> Void) async throws -> String {
+        guard let identifier = address.bluetoothIdentifier else { throw RelaySetupError.invalidState }
+        let socket = RelayBLEConnection(identifier: identifier, diagnostic: true, onProgress: onProgress)
+        let result = try await bounded(socket: socket, seconds: 40) {
+            try await socket.connect()
+            var total = 0
+            for (index, size) in [64, 512, 1024].enumerated() {
+                var bytes = [UInt8](repeating: 0, count: size)
+                guard SecRandomCopyBytes(kSecRandomDefault, size, &bytes) == errSecSuccess else {
+                    throw RelaySetupError.random
+                }
+                let sent = Data(bytes)
+                onProgress("Bluetooth test \(index + 1) of 3: sending \(size) bytes to the relay…")
+                try await socket.send(sent)
+                var received = Data()
+                while received.count < sent.count {
+                    let fragment = try await self.receiveWithDeadline(socket)
+                    guard received.count + fragment.count <= sent.count else {
+                        throw RelaySetupError.network("Bluetooth test returned more bytes than were sent.")
+                    }
+                    received.append(fragment)
+                }
+                guard received == sent else {
+                    throw RelaySetupError.network("Bluetooth test returned different bytes. The test did not pass.")
+                }
+                total += size
+                onProgress("Bluetooth test \(index + 1) of 3 verified in both directions.")
+            }
+            return "3 round trips verified; \(total) bytes sent and \(total) matching bytes returned."
+        }
+        await socket.finishDisconnect()
+        return result
     }
 
     /// Returns a verified key, but does not persist it. The caller checks its
@@ -209,12 +247,15 @@ public final class RelayPairingClient {
     }
 
     public func pairByButton(address: RelayAddress, privateKey: Data,
+                             onProgress: ((String) -> Void)? = nil,
                              onApproval: @escaping (ButtonApproval) -> Void) async throws -> Data {
         guard address.bluetoothIdentifier != nil else { throw RelaySetupError.invalidState }
-        return try await pairExchange(address: address, code: nil, privateKey: privateKey, onApproval: onApproval)
+        return try await pairExchange(address: address, code: nil, privateKey: privateKey,
+                                      onProgress: onProgress, onApproval: onApproval)
     }
 
     private func pairExchange(address: RelayAddress, code: [UInt8]?, privateKey: Data,
+                               onProgress: ((String) -> Void)? = nil,
                                onApproval: ((ButtonApproval) -> Void)?) async throws -> Data {
         guard privateKey.count == 32 else { throw RelaySetupError.invalidState }
         let digits = (code ?? []).map { $0 + 48 }
@@ -233,7 +274,7 @@ public final class RelayPairingClient {
         }
         guard let codec else { throw RelaySetupError.protocolError }
         defer { pltr_client_pair_destroy(codec) }
-        let socket = connection(address)
+        let socket = connection(address, onProgress: onProgress)
         let result = try await bounded(socket: socket, seconds: 85) {
             try await socket.connect()
             var output = [UInt8](repeating: 0, count: 512)
@@ -242,6 +283,7 @@ public final class RelayPairingClient {
                 throw RelaySetupError.protocolError
             }
             try await socket.send(Data(output.prefix(written)))
+            onProgress?("Authorization requested. Waiting for the relay’s tablet status…")
             while true {
                 let data = try await socket.receive()
                 var offset = 0

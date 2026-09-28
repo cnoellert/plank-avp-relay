@@ -25,7 +25,7 @@ public enum SetupStep: Int, CaseIterable, Sendable {
 }
 
 public enum SetupActivity: Equatable, Sendable {
-    case idle, pairing, checking, observing, failed(String), paired
+    case idle, pairing, checking, observing, testingBluetooth, failed(String), paired
 }
 
 public enum SimulationScenario: String, CaseIterable, Sendable {
@@ -163,6 +163,24 @@ public struct SetupState: Equatable, Sendable {
         return id
     }
 
+    public mutating func beginBluetoothTest() -> UUID? {
+        guard mode == .live, !busy, address?.bluetoothIdentifier != nil else { return nil }
+        let id = UUID()
+        operation = id
+        activity = .testingBluetooth
+        connectionVerified = false
+        return id
+    }
+
+    @discardableResult
+    public mutating func finishBluetoothTest(_ id: UUID) -> Bool {
+        guard operation == id, activity == .testingBluetooth else { return false }
+        operation = nil
+        activity = hasTrust ? .paired : .idle
+        // A byte echo is not verification of the relay's saved identity.
+        return true
+    }
+
     public mutating func beginObservation() -> UUID? {
         guard mode == .live, address?.bluetoothIdentifier != nil,
               let id = beginCheck() else { return nil }
@@ -177,7 +195,7 @@ public struct SetupState: Equatable, Sendable {
 
     @discardableResult
     public mutating func succeed(_ id: UUID) -> Bool {
-        guard operation == id else { return false }
+        guard operation == id, activity != .testingBluetooth else { return false }
         operation = nil
         code = []
         hasTrust = true

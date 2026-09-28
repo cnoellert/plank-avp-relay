@@ -88,8 +88,25 @@ enum SetupStateTests {
         state.cancel()
         state.verifyObservation(observation)
         expect(state.hasTrust && !state.connectionVerified, "Cancel retains trust and ignores late readings")
+        let trustedTest = state.beginBluetoothTest()!
+        expect(!state.succeed(trustedTest), "Byte echo cannot claim identity verification")
+        expect(state.finishBluetoothTest(trustedTest), "Saved relay can run a byte test")
+        expect(state.hasTrust && !state.connectionVerified, "Byte test preserves but does not verify saved trust")
+        state.forget()
+        let diagnostic = state.beginBluetoothTest()!
+        expect(state.beginButtonApproval() == nil, "No pairing while byte test is active")
+        expect(!state.succeed(diagnostic), "Byte test cannot create trust")
+        expect(state.finishBluetoothTest(diagnostic), "Unpaired relay can finish byte test")
+        expect(!state.hasTrust && !state.connectionVerified && state.step == .tablet, "No authorization from echo")
+        let canceledTest = state.beginBluetoothTest()!
+        state.cancel()
+        let retriedTest = state.beginBluetoothTest()!
+        expect(!state.finishBluetoothTest(canceledTest), "Ignore canceled echo completion")
+        expect(state.operation == retriedTest, "Stale echo result cannot stop retry")
+        state.cancel()
         state.changeMode(.simulation)
         expect(state.beginObservation() == nil, "Simulation cannot start live readings")
+        expect(state.beginBluetoothTest() == nil, "No simulated Bluetooth test")
         print("PASS: \(checks) setup-state assertions")
     }
 }

@@ -1,0 +1,11 @@
+This build adds a real, tablet-free Bluetooth communication test between the headset and relay. No Wacom connection or button approval is required. The app sends three fresh test payloads and verifies every returned byte, including data large enough to exercise Bluetooth fragmentation.
+
+What to test:
+1. In the app, scan for PLANK Relay Lab, select it, and tap Test Bluetooth connection. The tablet can be powered off.
+2. Watch the status below the main panel. A pass reports three verified round trips, with 1600 bytes sent and 1600 matching bytes returned.
+3. If it times out, report the last status and exact error. Note whether it reaches "Relay found. Connecting" or "Bluetooth connected" and the signal strength if shown.
+4. Repeat the test, and try Cancel during an attempt to verify that another test can start cleanly.
+
+The app now rediscovers the selected relay with the same Bluetooth manager that connects to it. Progress and timeout messages identify the connection stage instead of showing only a generic spinner.
+
+The relay is running transport-only mode for this test; tablet pairing/readings will resume after the Bluetooth link is qualified. A passing byte test does not authorize tablet access or change saved pairings. The build 3 connection failure has not yet been confirmed fixed on a physical headset.

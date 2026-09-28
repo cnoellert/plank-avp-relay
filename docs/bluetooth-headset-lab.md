@@ -21,6 +21,34 @@ QR-authenticated enrollment. Saved-key checks and encrypted observations remain.
 
 ## Operator procedure
 
+### Tablet-free Bluetooth test
+
+To isolate headset-to-relay communication, run the foreground lab with only
+its byte-echo service. This mode does not load the crypto library, open an
+identity store, or discover/open any tablet input nodes:
+
+```sh
+python3 tools/ble-tablet-lab.py --transport-only
+```
+
+In Test Setup, scan for **PLANK Relay Lab**, select it, then choose **Test
+Bluetooth connection**. The Wacom may be powered off; no tablet button press or
+pairing is needed. Three fresh random payloads of64,512 and1024bytes are sent
+and compared byte-for-byte with the relay's replies. Success reports three
+verified round trips and1600bytes in each direction. Larger payloads exercise
+ATT fragmentation and indication acknowledgement. This is a real radio test,
+not simulated input; its completion does not authenticate a relay or grant
+tablet access. Saved trust is neither created nor changed by the test.
+
+The app rediscovers the selected peripheral using its connection manager before
+connecting. Progress and timeout messages distinguish discovery, radio link,
+service, channels and reply subscription, with last RSSI when available. Record
+the last stage and exact error if it fails. A missing test channel means the
+relay must be updated. The regular lab also exposes the test, but rejects
+overlap with a pairing or authenticated input operation.
+
+### Tablet pairing and readings
+
 Build the relay project with libsodium available. The target `plank_ble_lab`
 produces the shared library used by the Python BlueZ adapter. On the relay,
 install BlueZ, Python's D-Bus bindings and PyGObject. Use a private, owned 0700
@@ -74,6 +102,13 @@ The lab is a foreground diagnostic process, not an installed boot service.
 Service UUID: `462f3a10-7a31-4ab3-9e7f-c36af495ecf0`.
 RX UUID: `462f3a11-7a31-4ab3-9e7f-c36af495ecf0`, write with response.
 TX UUID: `462f3a12-7a31-4ab3-9e7f-c36af495ecf0`, indications.
+The independent test uses RX `462f3a13-7a31-4ab3-9e7f-c36af495ecf0` and
+TX `462f3a14-7a31-4ab3-9e7f-c36af495ecf0` on the same service. It echoes only
+received bytes, binds writes to one LE peer, and closes at4096bytes or30seconds.
+Only those test characteristics are exposed in transport-only mode. They do
+not parse PLTR messages or expose identity, pairing or tablet data. The test is
+unencrypted and unauthenticated; send only generated diagnostic data through it.
+
 Records retain the existing length-prefixed PLTR framing and link type **1**
 in CPace/Noise. Arbitrary ATT fragments feed the existing bounded record reader.
 Only one indication fragment is outstanding at a time, paced by confirmation;
