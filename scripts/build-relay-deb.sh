@@ -22,6 +22,7 @@ build_platform="${ID}-${VERSION_ID}/${architecture}"
 jobs=${PLANK_BUILD_JOBS:-4}
 [[ $jobs =~ ^[1-9][0-9]*$ ]] || { echo 'Invalid PLANK_BUILD_JOBS' >&2; exit 2; }
 source_commit=$(git rev-parse HEAD)
+package_version=$(dpkg-parsechangelog -SVersion)
 build_root=${PLANK_DEB_BUILD_ROOT:-"$relay_root/build/deb"}
 mkdir -p "$build_root/dependencies" "$relay_root/artifacts/deb"
 build_root=$(cd "$build_root" && pwd)
@@ -45,27 +46,26 @@ cp "$archive" "$stage/source/debian/vendor/"
 mkdir "$stage/install-test"
 dpkg-deb --extract "$stage/"plank-tablet-relay-ble_*.deb "$stage/install-test"
 python3 "$stage/source/tests/installed_relay_smoke.py" "$stage/install-test"
-destination="$relay_root/artifacts/deb/$source_commit/$build_platform"
+destination="$relay_root/artifacts/deb/$package_version/$build_platform"
 mkdir -p "$destination"
 shopt -s nullglob
 cp "$stage/"*.{deb,ddeb,buildinfo,changes} "$destination/"
 printf '%s\n' "$source_commit" > "$destination/source-commit.txt"
-python3 - "$destination" "$source_commit" "$architecture" <<'PY'
+python3 - "$destination" "$source_commit" "$architecture" "$package_version" <<'PY'
 import json
 import platform
 import subprocess
 import sys
 from pathlib import Path
 
-destination, commit, architecture = sys.argv[1:]
+destination, commit, architecture, package_version = sys.argv[1:]
 metadata = {
     "source_commit": commit,
     "architecture": architecture,
     "machine": platform.machine(),
     "os_release": Path("/etc/os-release").read_text(),
     "compiler": subprocess.check_output(["cc", "--version"], text=True).splitlines()[0],
-    "package_version": subprocess.check_output(
-        ["dpkg-parsechangelog", "-SVersion"], text=True).strip(),
+    "package_version": package_version,
     "validation": ["libsodium make check", "relay ctest", "extracted package smoke"],
 }
 Path(destination, "provenance.json").write_text(json.dumps(metadata, indent=2) + "\n")

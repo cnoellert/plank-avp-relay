@@ -33,7 +33,7 @@ permissions:
 
 jobs:
   package:
-    name: Debian 12 / ${{ matrix.arch }}
+    name: Ubuntu 26.04 / ${{ matrix.arch }}
     strategy:
       fail-fast: false
       matrix:
@@ -45,7 +45,7 @@ jobs:
             machine: aarch64
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
-    container: debian:bookworm
+    container: ubuntu:26.04
     timeout-minutes: 30
     defaults:
       run:
@@ -80,8 +80,10 @@ jobs:
       - name: Validate installed package
         run: |
           set -o pipefail
-          package=(artifacts/deb/*/debian-12/${{ matrix.arch }}/plank-tablet-relay-ble_*.deb)
+          package_version=$(dpkg-parsechangelog -SVersion)
+          package=(artifacts/deb/"$package_version"/ubuntu-26.04/${{ matrix.arch }}/plank-tablet-relay-ble_*.deb)
           test "${#package[@]}" = 1
+          test "$(dpkg-deb -f "${package[0]}" Version)" = "$package_version"
           test "$(dpkg-deb -f "${package[0]}" Architecture)" = '${{ matrix.arch }}'
           dependencies=$(dpkg-deb -f "${package[0]}" Depends)
           # ctypes does not require the builder's CPython minor version.
@@ -99,26 +101,24 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: relay-debian12-${{ matrix.arch }}-${{ github.sha }}
+          name: relay-ubuntu26.04-${{ matrix.arch }}-${{ github.sha }}
           path: artifacts/
           if-no-files-found: error
           retention-days: 30
 
-  compatibility:
-    name: Install on ${{ matrix.image }} / ${{ matrix.arch }}
+  install:
+    name: Clean Ubuntu 26.04 install / ${{ matrix.arch }}
     needs: package
     strategy:
       fail-fast: false
       matrix:
-        arch: [amd64, arm64]
-        image: ['debian:trixie', 'ubuntu:24.04']
         include:
           - arch: amd64
             runner: ubuntu-24.04
           - arch: arm64
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
-    container: ${{ matrix.image }}
+    container: ubuntu:26.04
     timeout-minutes: 10
     defaults:
       run:
@@ -138,12 +138,14 @@ jobs:
           persist-credentials: false
       - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
         with:
-          name: relay-debian12-${{ matrix.arch }}-${{ github.sha }}
+          name: relay-ubuntu26.04-${{ matrix.arch }}-${{ github.sha }}
           path: artifacts
       - name: Install, exercise and remove package
         run: |
-          package=(artifacts/deb/*/debian-12/${{ matrix.arch }}/plank-tablet-relay-ble_*.deb)
+          package=(artifacts/deb/*/ubuntu-26.04/${{ matrix.arch }}/plank-tablet-relay-ble_*.deb)
           test "${#package[@]}" = 1
+          package_version=$(dpkg-deb -f "${package[0]}" Version)
+          test "$(dirname "${package[0]}")" = "artifacts/deb/$package_version/ubuntu-26.04/${{ matrix.arch }}"
           (cd "$(dirname "${package[0]}")" && sha256sum -c SHA256SUMS)
           apt-get install -y "./${package[0]}"
           plank-tablet-relay-ble --check-config

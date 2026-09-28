@@ -30,13 +30,13 @@ the running service retains that physical identity across sleep/wake.
 ## Install and configure
 
 Use the package matching `dpkg --print-architecture`: `arm64` for 64-bit ARM
-Linux, or `amd64` for x86-64. The automated builds use Debian 12 userspace on
-native ARM64 and x86-64 runners. Debian 12 or newer, 64-bit Raspberry Pi OS
-based on those releases, and Ubuntu 24.04 or newer are the intended targets.
-These are userspace compatibility targets; Bluetooth operation still requires
+Linux, or `amd64` for x86-64. **Ubuntu 26.04 is the target OS** for both
+architectures. Automated builds use Ubuntu 26.04 containers on native ARM64
+and x86-64 runners. Bluetooth operation still requires
 qualification on the board's kernel, radio and firmware. The existing physical
 qualification is Ubuntu 26.04 amd64 with Intel 7265. There is no 32-bit `armhf`
-build, and the Debian package does not install on OpenWrt/FriendlyWrt.
+build. The `.deb` format does not imply Debian or older Ubuntu compatibility;
+OpenWrt/FriendlyWrt cannot install this package.
 
 ```sh
 sudo apt install ./plank-tablet-relay-ble_*.deb
@@ -120,19 +120,22 @@ builder. From a clean committed checkout run `scripts/build-relay-deb.sh`.
 The script snapshots that commit, verifies the pinned libsodium 1.0.22 archive,
 builds it statically with PIC, runs its tests and the relay's assertions-enabled
 tests, and creates `.deb`, `.buildinfo`, `.changes` and SHA-256 artifacts in
-`artifacts/deb/<source-commit>/<distribution>-<version>/<architecture>/`, with
-compiler/OS provenance. Build natively on the target architecture; the script
+`artifacts/deb/<software-version>/<distribution>-<version>/<architecture>/`,
+for example `artifacts/deb/0.2.0~visionos-tablet-setup.8/ubuntu-26.04/arm64/`.
+The software version comes from `debian/changelog`; the exact Git commit is
+retained in `source-commit.txt` and `provenance.json` with compiler/OS metadata.
+Build natively on the target architecture; the script
 rejects cross-builds because the packaged library and its tests must execute.
 The prepared source remains under `build/deb`
 for inspection. The package includes the libsodium license.
 
 The `Linux relay packages` GitHub Actions workflow builds both architectures
-in Debian 12 containers, runs the tests, checks the binary with lintian, and
+in Ubuntu 26.04 containers, runs the tests, checks the binary with lintian, and
 installs it for a configuration/native-library smoke check.
-The same binaries are installed, smoke-tested and removed in Debian 13 and
-Ubuntu 24.04 containers on both architectures, including Python bytecode cleanup.
+The same binaries are installed, smoke-tested and removed in fresh Ubuntu 26.04
+containers on both architectures, including Python bytecode cleanup.
 Download the
-matching `relay-debian12-arm64-<commit>` or `relay-debian12-amd64-<commit>` artifact
+matching `relay-ubuntu26.04-arm64-<commit>` or `relay-ubuntu26.04-amd64-<commit>` artifact
 from the workflow run, then check `sha256sum -c SHA256SUMS` inside its package
 directory. CI does not exercise a physical Bluetooth controller or systemd
 reboot/recovery; those checks remain part of hardware qualification.
