@@ -1,0 +1,10 @@
+This build returns to the Linux relay workflow with a simpler interface.
+
+- Open the app and connect to your saved relay, or scan and select one.
+- For a new pairing, tap Pair, wait for the three circles, then press and release the same Home, center or tablet button three times.
+- Confirm pen position, pressure and tablet buttons update in live readings. The button display supports all input slots in the relay snapshot instead of assuming eight buttons.
+- Leave the tablet idle, then wake it. Pairing should remain saved and readings should resume while the app is active.
+- Stop readings and reconnect using the saved pairing. Returning from an inactive app may require starting readings again.
+- Connection diagnostics contains the tablet-free Bluetooth round-trip test. Manage pairing contains the saved-key check and local forget action.
+
+The Local experiment has been removed. The app still displays diagnostic readings; it does not drive a system-wide pointer or forward input to a workstation. The Linux relay can now be installed as a managed .deb service. Physical tablet and headset testing is still needed for this packaged-service update.

@@ -30,6 +30,11 @@ struct TabletReadingsView: View {
     let readings: TabletReadings
     let count: Int
 
+    private var pressedButtons: String {
+        let indices = (0..<16).filter { readings.buttons & (1 << $0) != 0 }
+        return indices.isEmpty ? "None" : indices.map { String($0 + 1) }.joined(separator: ", ")
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Label(readings.attached ? "Tablet connected" : "Tablet offline — wake it to resume",
@@ -51,23 +56,25 @@ struct TabletReadingsView: View {
                 ProgressView(value: readings.normalizedPressure) {
                     Text("Pressure: \(readings.pressure) / \(readings.pressureMaximum)")
                 }
-                HStack {
-                    Text("X \(readings.x)   Y \(readings.y)")
-                    Spacer()
-                    Text("Tilt \(readings.tiltX), \(readings.tiltY)")
-                }.font(.callout.monospacedDigit())
-                HStack(spacing: 12) {
-                    ForEach(0..<8) { index in
-                        Text(String(index + 1)).font(.callout.bold())
-                            .frame(width: 36, height: 36)
-                            .background((readings.buttons & (1 << index) != 0 ? Color.blue : Color.gray).opacity(0.3),
-                                        in: Circle())
-                    }
-                    Spacer()
-                    Text("Touch: \(readings.touches)").font(.callout)
+                LabeledContent("Tablet buttons pressed", value: pressedButtons)
+                    .monospacedDigit()
+                Text(readings.eraser ? "Eraser in range" : readings.tip ? "Pen touching tablet" :
+                     readings.proximity ? "Pen hovering" : "Pen out of range")
+                    .font(.callout).foregroundStyle(.secondary)
+                DisclosureGroup("Reading details") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        LabeledContent("Position", value: "X \(readings.x) · Y \(readings.y)")
+                        LabeledContent("Tilt", value: "\(readings.tiltX), \(readings.tiltY)")
+                        LabeledContent("Pen buttons", value: "\(readings.sideButton1 ? "1" : "–") \(readings.sideButton2 ? "2" : "–")")
+                        LabeledContent("Touch contacts", value: String(readings.touches))
+                        LabeledContent("Updates received", value: String(count))
+                        Text("Button numbers identify relay input slots; their physical layout varies by tablet.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }.font(.callout.monospacedDigit()).padding(.top, 10)
                 }
-                Text("\(readings.tip ? "Tip down" : "Tip up") · Side buttons: \(readings.sideButton1 ? "1" : "–") \(readings.sideButton2 ? "2" : "–") · \(count) updates")
-                    .font(.caption).foregroundStyle(.secondary)
+            } else {
+                Text("Press the tablet's wake button. Your headset's pairing is saved.")
+                    .font(.callout).foregroundStyle(.secondary)
             }
             if readings.dropped > 0 {
                 Text("The relay resynchronized input after \(readings.dropped) overflow notifications.")

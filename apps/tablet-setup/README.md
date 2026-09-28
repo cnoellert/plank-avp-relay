@@ -4,15 +4,16 @@ A standalone SwiftUI visionOS app for reviewing tablet-relay onboarding. Also
 builds as a macOS UI preview. No workstation, remote desktop, Qt, SDL, FFmpeg or
 Rust media transport is required. The app is **not** a full PLANK Client.
 
-The app opens to relay discovery in the **Relay** tab. The **Local** tab tests
-a tablet paired directly to the headset. There is no Simulation selector.
+The app opens directly to relay discovery, with a shortcut to connect to a
+saved relay. There are no Local or Simulation tabs. Connection tests and
+pairing management are in expandable sections.
 Synthetic state and input remain available only to developer tests and the
 separate offscreen preview executable.
 
 ## Bluetooth pairing and readings
 
 For a tablet-free hardware check, select the discovered relay and choose
-**Test Bluetooth connection**. The relay can run
+**Connection diagnostics → Test Bluetooth connection**. The relay can run
 `python3 tools/ble-tablet-lab.py --transport-only` with no crypto-library,
 identity-store or tablet arguments. The test sends three random payloads and
 verifies1600returned bytes across three round trips. The tablet may be off;
@@ -21,7 +22,8 @@ without creating or verifying saved pairing trust. Progress/timeout messages
 show which connection stage was reached and the last signal strength when
 available. See the lab guide for its dedicated, bounded echo channels.
 
-With the Linux [Bluetooth input lab](../../docs/bluetooth-headset-lab.md) running,
+With the Linux [packaged Bluetooth relay](../../docs/linux-ble-package.md) or
+[foreground input lab](../../docs/bluetooth-headset-lab.md) running,
 choose **Scan for relays**, select the relay and tap **Pair**. The app reports
 actual tablet availability, a countdown and completed presses. Press and release
 the tablet's Home/center button three times. If the tablet has no such button,
@@ -45,34 +47,15 @@ physical gate. The protocol and limits are documented in the lab guide.
 
 This is a coalesced diagnostic readout, not raw-HID forwarding to a workstation
 or a system-wide visionOS pointer. Legacy TCP pairing remains under
-**Connect by network address**.
+**Advanced: network relay**.
 
-## Local tablet test
+## Direct tablet experiment
 
-Pair the tablet in visionOS Settings, open **Local**, and choose **Start input
-test**. Move the pen, vary pressure and press tablet buttons. This uses public
-GameController pointer/stylus APIs and an in-window UIKit input surface. Device
-names and event counts distinguish OS-exposed devices from unclassified window
-events. Hand interactions and other mice can also produce window events; a
-moving pointer does not establish pressure or ExpressKey support. Position on
-the test surface is in window coordinates, not raw tablet coordinates. Stylus
-and button polling is a diagnostic snapshot, not lossless event capture.
-
-If no useful input arrives, expand **Inspect direct Bluetooth access**, scan,
-and choose **Inspect** on the tablet. The probe discovers visible GATT services
-and characteristics without reading values or writing tablet control commands.
-**Listen** explicitly subscribes to one notification/indication characteristic
-for up to60seconds and displays counts only. Reports are not decoded or logged.
-A notification may be battery/status data, not a tablet report. Discovery takes
-at most20seconds; an idle inspection closes after2minutes. Stop, leaving Local
-or backgrounding cancels the probe and closes its app-owned connection.
-
-The scan is not an inventory of all OS-paired devices. Classic HID reports may
-be consumed or hidden by visionOS; copying the Linux driver's decoder cannot
-make an unavailable transport accessible. The relay currently reads Linux evdev
-input after the kernel driver has decoded it. Direct access to useful reports
-must be established before porting driver decoding or initialization. No tablet
-model, generation, Bluetooth address or proprietary report layout is assumed.
+Build 5 explored a tablet paired directly to visionOS. The operator confirmed
+Settings showed the tablet connected, but no useful pen, pressure or button
+input reached the app, and the tablet was not found in its BLE scan. Build 6
+removes that unsuccessful experiment and focuses on the verified Linux relay
+path. Its source remains in Git history at `606d5bd`.
 
 ## Existing network/USB pairing
 
