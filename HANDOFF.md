@@ -11,7 +11,10 @@ publicly released. Root PLANK and its unrelated work remain untouched.
 all update on AVP through the relay in build4. Both Linux workarounds below
 were active. The user then paired the Wacom directly to AVP and requested a
 Local tab to investigate app access without a relay. Build5 is now available
-in internal TestFlight; direct full-feature tablet support is not established.
+in internal TestFlight. Its first direct test exposes no pointer/stylus and no
+input events, and the operator sees no Wacom in the app scan despite confirming
+that visionOS Settings says Connected. Full direct input remains unavailable
+through the paths tested; the relay is the verified working path.
 
 AVP LightBlue and the unchanged Test Setup build4 both
 connect through Bumble on the existing Linux radio. The operator confirmed
@@ -21,8 +24,8 @@ Controlled BlueZ comparison then passed with controller address resolution off,
 failed with it on, and passed again with it off. The lab now has an explicit
 `--disable-controller-address-resolution` startup workaround. The regular lab
 is running with its native library/state/tablet selection and this option.
-Authorization reaches the three circles, but the headset disconnects even when
-the operator presses nothing. A trace shows BlueZ reading the AVP battery,
+Initially authorization reached the three circles, but the headset disconnected
+even when the operator pressed nothing. A trace shows BlueZ reading the AVP battery,
 receiving Insufficient Authentication, requesting SMP security, rejecting the
 resulting pairing request, and disconnecting the headset locally. A temporary
 runtime BlueZ override disables the optional `battery` plugin. The retry reached
@@ -269,10 +272,23 @@ app-owned connections while retaining relay trust. See the app README.
   confirmed compliance were saved and read back. Archive/export/upload GUI jobs
   all exited0 and are unloaded; next binary upload must use build6.
 
-The user has paired the Wacom directly to the headset. Install build5, open
-Local, start input, move the pen, vary pressure and press an ExpressKey.
-If no useful input arrives, inspect the tablet's visible Bluetooth services.
-Do not force the tablet back to the relay during this independent experiment.
+**Physical Local result:** The user confirmed the awake tablet says Connected
+in visionOS Settings. Build5 shows no pointer/stylus, zero device updates and
+zero area events. The user reports many discovered devices but no Wacom in the
+app scan. The screenshot itself shows the scan stopped, so it is evidence for
+the input state only. These observations establish no usable direct input path
+in this probe, not universal incompatibility with every tablet or API.
+
+For this tested generation, [Wacom's specification](https://estore.wacom.com/media/sebwite/productdownloads/i/n/intuospro_factsheet_en_wtc.pdf)
+separates normal Classic Bluetooth tablet operation from LE mobile paper mode.
+The paper SDK is not documented as providing the full Pro Pen/ExpressKey stream.
+[Apple CoreHID](https://developer.apple.com/documentation/corehid) is macOS-only;
+the inspected visionOS27 SDK contains no CoreHID, IOBluetooth, DriverKit or
+HIDDriverKit framework. CoreBluetooth's Classic support provides GATT access,
+not arbitrary Classic HID report access. An embedded Linux decoder therefore
+has no established public raw-report transport to use on this headset. No
+further binary was built, and no pairing was removed or changed. Preserve the
+working relay baseline; do not silently force the tablet back to the relay.
 
 ## Build4 delivery and validation
 
