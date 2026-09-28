@@ -1,0 +1,101 @@
+name: Linux relay packages
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, visionos-tablet-setup]
+    paths:
+      - '.github/workflows/relay-deb.yml'
+      - 'CMakeLists.txt'
+      - 'src/**'
+      - 'include/**'
+      - 'tools/**'
+      - 'vendor/**'
+      - 'tests/**'
+      - 'packaging/ble/**'
+      - 'debian/**'
+      - 'scripts/build-relay-deb.sh'
+  pull_request:
+    paths:
+      - '.github/workflows/relay-deb.yml'
+      - 'CMakeLists.txt'
+      - 'src/**'
+      - 'include/**'
+      - 'tools/**'
+      - 'vendor/**'
+      - 'tests/**'
+      - 'packaging/ble/**'
+      - 'debian/**'
+      - 'scripts/build-relay-deb.sh'
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Debian 12 / ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            machine: x86_64
+            runner: ubuntu-24.04
+          - arch: arm64
+            machine: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    container: debian:bookworm
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    env:
+      DEBIAN_FRONTEND: noninteractive
+      PLANK_BUILD_JOBS: '4'
+    steps:
+      - name: Install build and validation tools
+        run: |
+          # Package installation in this disposable builder must not start daemons.
+          printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d
+          chmod 755 /usr/sbin/policy-rc.d
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build pkg-config libudev-dev \
+            python3 python3-dbus python3-gi debhelper dh-python \
+            curl ca-certificates git lintian bluez systemd
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - name: Verify native architecture
+        run: |
+          test "$(dpkg --print-architecture)" = '${{ matrix.arch }}'
+          test "$(uname -m)" = '${{ matrix.machine }}'
+      - name: Build and test package
+        run: |
+          mkdir -p artifacts/logs
+          set -o pipefail
+          scripts/build-relay-deb.sh 2>&1 | tee artifacts/logs/build.log
+      - name: Validate installed package
+        run: |
+          set -o pipefail
+          package=(artifacts/deb/*/debian-12/${{ matrix.arch }}/plank-tablet-relay-ble_*.deb)
+          test "${#package[@]}" = 1
+          test "$(dpkg-deb -f "${package[0]}" Architecture)" = '${{ matrix.arch }}'
+          lintian --fail-on error,warning "${package[0]}" 2>&1 | tee artifacts/logs/lintian.log
+          apt-get install -y "./${package[0]}"
+          plank-tablet-relay-ble --check-config
+          python3 tests/installed_relay_smoke.py /
+          dpkg --verify plank-tablet-relay-ble
+          readelf -h /usr/lib/plank-tablet-relay-ble/libplank_ble_lab.so | tee artifacts/logs/elf-header.log
+          systemd-analyze verify /lib/systemd/system/plank-tablet-relay-ble.service
+          cd "$(dirname "${package[0]}")"
+          sha256sum -c SHA256SUMS
+      - name: Save packages and build logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: relay-debian12-${{ matrix.arch }}-${{ github.sha }}
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 30

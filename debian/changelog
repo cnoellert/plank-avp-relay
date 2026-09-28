@@ -1,3 +1,11 @@
+plank-tablet-relay-ble (0.2.0~visionos-tablet-setup.7) experimental; urgency=medium
+
+  * Build and test native arm64 and amd64 packages against Debian 12.
+  * Separate artifacts by distribution and architecture, with provenance.
+  * Validate installed packages in disposable native build containers.
+
+ -- PLANK contributors <625982+alatteri@users.noreply.github.com>  Mon, 28 Sep 2026 06:20:00 +0000
+
 plank-tablet-relay-ble (0.2.0~visionos-tablet-setup.6) experimental; urgency=medium
 
   * Allow physically approved re-pairing with a retained Client identity,
