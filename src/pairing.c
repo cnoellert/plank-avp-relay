@@ -127,8 +127,7 @@ int pltr_pairing_start(PltrPairing *pairing, const uint8_t *payload,
     size_t written;
     if (pltr_encode_frame(PLTR_PAIR_START, 1, payload, payload_size,
                           PLTR_CLIENT_TO_RELAY, PLTR_PRE_AUTH,
-                          frame, sizeof(frame), &written) != 0 ||
-        pltr_identity_store_approve(pairing->store, payload + 48)) {
+                          frame, sizeof(frame), &written) != 0) {
         fail_attempt(pairing, now_ms);
         return -1;
     }
@@ -202,7 +201,10 @@ int pltr_pairing_confirm(PltrPairing *pairing, const uint8_t tag[32],
                                    pairing->relay_share,
                                    pairing->relay_ad, pairing->relay_ad_size,
                                    relay_tag) != 0 ||
-        pltr_identity_store_add(pairing->store, pairing->client_key) != 0) {
+        // Re-approval still requires the entire local approval and fresh
+        // confirmation exchange. Keep the existing allowlist entry intact.
+        (!pltr_identity_store_approve(pairing->store, pairing->client_key) &&
+         pltr_identity_store_add(pairing->store, pairing->client_key) != 0)) {
         sodium_memzero(relay_tag, sizeof(relay_tag));
         fail_attempt(pairing, now_ms);
         return -1;

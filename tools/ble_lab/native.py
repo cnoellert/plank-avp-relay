@@ -31,6 +31,7 @@ class Native:
             'tick': ([C.c_void_p, C.c_uint64, C.c_void_p,
                       C.c_size_t, C.POINTER(C.c_size_t)], C.c_int),
             'observing': ([C.c_void_p], C.c_int),
+            'approval_pending': ([C.c_void_p], C.c_int),
             'sample': ([C.c_void_p, C.c_void_p, C.c_size_t,
                         C.c_void_p, C.c_size_t, C.POINTER(C.c_size_t)], C.c_int),
         }
@@ -46,7 +47,7 @@ class Native:
         result = getattr(self.lib, 'pltr_ble_lab_' + name)(
             self.handle, *arguments, output, len(output), C.byref(written))
         if result < 0 or written.value > len(output):
-            raise ProtocolError('Protocol operation rejected or timed out.')
+            raise ProtocolError('Protocol operation %s rejected or timed out.' % name)
         return bytes(output[:written.value])
 
     def receive(self, data):
@@ -81,6 +82,10 @@ class Native:
     @property
     def observing(self):
         return bool(self.lib.pltr_ble_lab_observing(self.handle))
+
+    @property
+    def approval_pending(self):
+        return self.lib.pltr_ble_lab_approval_pending(self.handle)
 
     def sample(self, payload):
         return self.output('sample', C.create_string_buffer(payload), len(payload))

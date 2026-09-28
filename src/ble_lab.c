@@ -251,6 +251,11 @@ int pltr_ble_lab_observing(const PltrBleLab *lab) {
            lab->link.relay_session.stage == PLTR_RELAY_OBSERVING;
 }
 
+int pltr_ble_lab_approval_pending(const PltrBleLab *lab) {
+    if (!lab || lab->mode != 3 || lab->wire.stage != PLTR_PAIR_WIRE_KEYS) return 0;
+    return pltr_identity_store_approve((void *)&lab->store, lab->pairing.client_key) ? 2 : 1;
+}
+
 int pltr_ble_lab_sample(PltrBleLab *lab, const uint8_t *payload, size_t size,
     uint8_t *out, size_t capacity, size_t *written) {
     if (!pltr_ble_lab_observing(lab)) return -1;

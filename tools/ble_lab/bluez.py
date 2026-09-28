@@ -184,9 +184,16 @@ class Server(dbus.service.Object):
             if not self.peer:
                 self.peer = peer
                 print('Headset transport connected; authenticating.', flush=True)
+            was_pending = self.native.approval_pending
             for reply in self.native.receive(data):
                 self.queue.append(reply)
-        except (ProtocolError, BufferError, TimeoutError):
+            if not was_pending and self.native.approval_pending:
+                kind = 'Existing' if self.native.approval_pending == 2 else 'New'
+                print(kind + ' headset pairing request; awaiting three tablet-button presses.', flush=True)
+                if not self.capture.attached:
+                    print('Pairing is waiting for the selected tablet to connect.', flush=True)
+        except (ProtocolError, BufferError, TimeoutError) as error:
+            print('Relay write failed: ' + str(error), flush=True)
             self.disconnect()
             raise Rejected('Protocol rejected; existing trust retained.')
 

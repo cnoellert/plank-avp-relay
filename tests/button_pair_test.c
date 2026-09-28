@@ -3,6 +3,7 @@
 #include "ble_lab.h"
 #include "client_pair.h"
 #include "client_link.h"
+#include "identity.h"
 #include "protocol.h"
 #include <assert.h>
 #include <stdio.h>
@@ -58,6 +59,7 @@ static PltrClientPair *start(PltrBleLab *lab) {
     assert(pltr_client_pair_start(client, a, sizeof(a), &an) == 0);
     now += 100;
     feed(lab, a, an);
+    assert(pltr_ble_lab_approval_pending(lab) != 0);
     return client;
 }
 
@@ -143,6 +145,53 @@ int main(void) {
     feed(lab, a, an);
     assert(client_receive(client) == 2);
     pltr_client_pair_destroy(client); pltr_ble_lab_destroy(lab);
+    // The app keeps its client identity even if local relay trust is lost or
+    // discovery yields a new peripheral identifier. Re-approval must work
+    // without deleting either side's keys, including with a full allowlist.
+    uint8_t original_relay[32], original_clients[PLTR_MAX_PAIRED_CLIENTS][32];
+    memcpy(original_relay, relay, sizeof(relay));
+    PltrIdentityStore store;
+    assert(pltr_identity_store_open(&store, directory) == 0);
+    assert(store.client_count == 1);
+    for (unsigned i = 1; i < PLTR_MAX_PAIRED_CLIENTS; ++i) {
+        uint8_t other[32] = {0}; other[0] = i;
+        assert(pltr_identity_store_add(&store, other) == 0);
+    }
+    memcpy(original_clients, store.client_keys, sizeof(original_clients));
+    pltr_identity_store_close(&store);
+    lab = pltr_ble_lab_create(directory); assert(lab);
+    client = start(lab); status(client, 0, 0);
+    assert(pltr_ble_lab_approval_pending(lab) == 2);
+    pltr_client_pair_destroy(client); pltr_ble_lab_disconnect(lab, now);
+    pltr_ble_lab_tablet(lab, 1);
+    client = start(lab); status(client, 1, 0);
+    press(lab, 264); status(client, 1, 1);
+    press(lab, 264); status(client, 1, 2);
+    // A known key still needs a fresh gesture and cryptographic confirmation.
+    assert(pltr_encode_frame(PLTR_PAIR_CONFIRM, 3, forged, sizeof(forged),
+        PLTR_CLIENT_TO_RELAY, PLTR_PRE_AUTH, a+2, sizeof(a)-2, &encoded) == 0);
+    a[0] = encoded; a[1] = encoded >> 8;
+    assert(pltr_ble_lab_receive(lab, a, encoded+2, &consumed, now,
+        b, sizeof(b), &bn) < 0);
+    pltr_client_pair_destroy(client); pltr_ble_lab_disconnect(lab, now);
+    client = start(lab); status(client, 1, 0);
+    press(lab, 264); status(client, 1, 1);
+    press(lab, 264); status(client, 1, 2);
+    press(lab, 264); assert(client_receive(client) == 1 && an > 0);
+    a[an-1] ^= 1; // A bad final tag cannot report successful re-approval.
+    feed(lab, a, an); assert(client_receive(client) < 0);
+    pltr_client_pair_destroy(client); pltr_ble_lab_disconnect(lab, now);
+    client = start(lab); status(client, 1, 0);
+    press(lab, 264); status(client, 1, 1);
+    press(lab, 264); status(client, 1, 2);
+    press(lab, 264); assert(client_receive(client) == 1 && an > 0);
+    feed(lab, a, an); assert(client_receive(client) == 2);
+    assert(memcmp(original_relay, relay, sizeof(relay)) == 0);
+    pltr_client_pair_destroy(client); pltr_ble_lab_destroy(lab);
+    assert(pltr_identity_store_open(&store, directory) == 0);
+    assert(store.client_count == PLTR_MAX_PAIRED_CLIENTS);
+    assert(memcmp(original_clients, store.client_keys, sizeof(original_clients)) == 0);
+    pltr_identity_store_close(&store);
     // Successful approval persisted the client; restart alone does not clear it.
     lab = pltr_ble_lab_create(directory); assert(lab);
     const uint8_t private_key[32] = {73};
@@ -166,5 +215,5 @@ int main(void) {
         assert(unlink(path) == 0);
     }
     assert(rmdir(directory) == 0);
-    puts("PASS: button approval, status, short releases, cancellation, wake, expiry and confirmation");
+    puts("PASS: button approval, re-approval, full allowlist, cancellation, wake and confirmation");
 }

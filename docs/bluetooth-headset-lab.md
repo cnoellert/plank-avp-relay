@@ -219,6 +219,14 @@ consume the persistent physical-attempt budget; the three-attempt/ten-minute
 budget is reserved only after the third completed press. Successful confirmed
 enrollment resets it. Do not remove saved trust to work around a timeout.
 
+If the app needs to pair again using its retained Client key (for example after
+losing local relay trust or discovering a changed peripheral identifier), the
+relay permits the same full approval exchange. Three fresh releases and final
+confirmation are required. Existing trust remains intact on cancellation or
+failure, and successful re-approval does not add a duplicate allowlist entry.
+The journal distinguishes a new headset request from an existing headset
+request without logging keys or Bluetooth addresses.
+
 After successful pairing, live readings start automatically. The app waits for
 the pairing transport to close, reconnects, authenticates the saved relay and
 opts into observation. **Start live readings** can restart a stopped readout. Tablet sleep leaves the headset link

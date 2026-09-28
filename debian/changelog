@@ -1,3 +1,13 @@
+plank-tablet-relay-ble (0.2.0~visionos-tablet-setup.6) experimental; urgency=medium
+
+  * Allow physically approved re-pairing with a retained Client identity,
+    preserving the existing allowlist and requiring fresh confirmation.
+  * Report pending approval and protocol failures without logging keys.
+  * Cover re-approval, failed confirmation, full allowlists and the installed
+    native request path in regression tests.
+
+ -- PLANK contributors <625982+alatteri@users.noreply.github.com>  Mon, 28 Sep 2026 05:45:00 +0000
+
 plank-tablet-relay-ble (0.2.0~visionos-tablet-setup.5) experimental; urgency=medium
 
   * Preserve the ctypes library filename during Python packaging and smoke

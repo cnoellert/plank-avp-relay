@@ -77,9 +77,11 @@ and closes. It never sends SESSION_READY, claims a tablet or invents Host
 feature bits. The relay has one connection slot; do not check while a full
 Client uses it. **Forget local pairing** removes only this app's local trust,
 not the relay's approved Client key. Relay-side revocation is a future feature.
-The current daemon rejects re-enrollment of an already-approved Client key;
-after local forgetting or an interrupted final confirmation, relay-side removal
-of that approval may be needed before pairing again. Do not forget working live
+An already-approved Client can repeat the full pairing exchange after local
+forgetting, an interrupted final confirmation, or a changed Bluetooth discovery
+identifier. Fresh local approval and cryptographic confirmation are still
+required. The relay retains its identity and the existing Client approval;
+re-approval does not consume another allowlist slot. Do not forget working live
 trust merely to explore the UI; use the developer preview for that exercise.
 
 The app cancels an operation when it becomes inactive. Returning does not

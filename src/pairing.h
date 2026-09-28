@@ -41,6 +41,8 @@ int pltr_pairing_tick(PltrPairing *pairing, uint64_t now_ms);
 // A disconnected or malformed in-progress attempt counts as a failed guess.
 void pltr_pairing_abort(PltrPairing *pairing, uint64_t now_ms);
 // PAIR_START payload has already passed the common PLTR frame validator.
+// An approved Client may repeat the full exchange to recover lost local trust;
+// its existing approval is retained even if this attempt fails or is canceled.
 int pltr_pairing_start(PltrPairing *pairing, const uint8_t *payload,
                        size_t payload_size, uint8_t link_type,
                        uint64_t now_ms);
