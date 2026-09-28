@@ -1,153 +1,134 @@
 # Tablet setup workflow lab
 
-## Current work: Bluetooth headset input, 2026-09-27
+## Current work: tablet-free Bluetooth test, 2026-09-28 UTC
 
-Branch: `visionos-tablet-setup`. The operator requested real Bluetooth relay to
-headset pairing and Wacom readings in the standalone Test Setup app, following
-the tablet bond and wake checks below. This explicitly advances the earlier
-simulation-only Bluetooth scope. Parent `cnoellert/plank-tablet-relay` main is
-`465c11a9708bfce0c155502844ca8d53e4370390`; a pull with rebase/autostash found it
-already included and preserved the current work.
+Branch `visionos-tablet-setup`; parent main
+`465c11a9708bfce0c155502844ca8d53e4370390` is already included. The requested
+pull with rebase completed without replay. Work is pushed, not merged or
+publicly released. Root PLANK and its unrelated work remain untouched.
 
-The new foreground Linux BLE lab advertises a custom GATT service. It reuses
-the C CPace/Noise and persistent identity/attempt-budget implementation through
-an opaque shared-library API; Python owns BlueZ transport and readonly evdev
-observation. Discovery groups pen/Pad/touch by physical USB ancestry or Bluetooth
-identity and requires Wacom pen axes and at least one Pad button, without a model/PID
-allowlist. The selected tablet is retained across sleep and wake. This is a
-separate diagnostic process, not an installed boot service or a production
-raw-HID daemon replacement.
+Build0.1.0(4), source `6e71fa93b3fc8556802f91fdafd534839b1a82f1`, adds
+**Test Bluetooth connection** after selecting a discovered relay. It sends
+three fresh random payloads of64,512 and1024bytes, and requires byte-for-byte
+replies: three round trips and1600bytes in each direction. This test uses
+separate write/indication characteristics, with bounded queues and timeouts.
+It does not pair, grant trust or access tablet input. The larger payload tests
+fragmentation and indication acknowledgements. No Simulation tab was restored.
 
-The operator requested simpler authorization: three short Home/center-button
-presses, no manual readiness checkbox/SSH window step, and no Simulation tab.
-The app now opens directly to discovery. Select the relay and tap Pair; the
-relay reports availability, press count and a 60-second deadline. Three releases
-of the same supported Pad button approve that one pending request. Holds,
-duplicate input, mixed buttons, long gaps, detach and cancellation cannot carry
-partial approval into a new request. Devices without Home/center can use another
-supported tablet button; no model-specific selector is hardcoded.
+The foreground relay is now running `--transport-only`. This registers only
+the echo channels and does not instantiate tablet capture, the native pairing
+library or identity storage. Runtime checks confirmed no input-device file
+descriptors and no native pairing library mapped. The Wacom bond and persistent
+relay identities are retained. No boot service was installed. Normal Pair and
+readings require restarting the lab with its regular library/state/tablet
+arguments after transport qualification; do not use Pair in transport-only mode.
 
-This explicitly accepts weaker first-pairing authentication than the earlier
-random challenge: a nearby active attacker can race/intercept enrollment. Mode3
-reuses CPace with a public constant and a local physical gate, then confirms
-and saves the exchanged keys. It is not secret-code-authenticated enrollment.
-Saved-key Noise and encrypted observations remain unchanged. The persistent
-physical-attempt budget is reserved only after three completed presses, so
-unapproved remote cancellations do not consume it. Successful confirmation
-resets that budget. See `docs/bluetooth-headset-lab.md` for the full contract.
+The app now discovers the selected peripheral afresh using the central manager
+that owns its connection, retains it, rejects explicitly nonconnectable
+advertisements and reports connection stages and last RSSI. These are diagnostic
+improvements, not a proven fix for the original connection stall.
 
-After pairing, the app closes its enrollment transport, reconnects using the
-saved key and starts readings automatically. Optional authenticated HELLO
-capability0x02 gates observation; no workstation session is started. Display
-snapshots are coalesced at up to20Hz, so short button transitions can fall between
-updates. Full raw-HID workstation forwarding remains separate. Legacy TCP USB
-pairing is retained under Connect by network address. Simulated state/input
-remain only in developer tests and the offscreen preview.
+### Physical result and next investigation
 
-## Validation and remaining test
+The operator installed build4 and tested the Bluetooth-only path. Screenshots
+confirm discovery at -61dBm, followed by **Timed out while establishing the
+Bluetooth link**. It never reached service discovery or byte exchange. This
+failure occurs before tablet authorization. No successful physical headset
+connection, echo, pairing or tablet readings have been accepted yet.
 
-- Linux: all20 CTest suites passed, including fragmented CPace/Noise records,
-  persisted trust, unauthenticated-client rejection, mutual observer opt-in,
-  workstation-session rejection, graceful connection-check closure, indication
-  acknowledgement pacing/overflow, and cleared offline state. Button approval
-  tests cover two-press rejection, holds/repeats, mixed buttons, cancellation,
-  tablet detach, expiry and confirmation after the third release.
-- Apple: macOS preview/tests and actual visionOS device/simulator SDK builds
-  passed with Xcode27/SDK27, arm64, deployment target27.0. All10 Apple CTest
-  suites passed. The updated discovery and three-press approval screens were rendered through
-  a native offscreen hierarchy and visually inspected with synthetic state.
-- Relay hardware: BlueZ GATT/advertisement registration succeeded on the same
-  adapter holding the Wacom connection. This proves peripheral registration,
-  not a headset connection or physical radio throughput.
-- No new headset pairing or real readings in the app have been accepted yet.
-  Simulator compilation is not simulator execution. Physical visionOS UI,
-  Bluetooth permissions, GATT indication flow and reconnect remain to test.
-- Build0.1.0(2), source `84851e4948df3f7e0d07e6c929950cb585ee3ffc`, passed
-  Release archive, signature and bundle checks. Application/dSYM UUIDs match:
-  `9F6CCF6B-5A53-3D27-952A-B31A1F442159` (arm64). Symbols are generated and
-  copied from CMake's custom output directory into the archive; archive/export
-  scripts reject missing or mismatched symbols.
-- Apple accepted build2 at22:54:36UTC on2026-09-27; upload completed without
-  the previous symbol warning. Apple processing/tester availability is not yet
-  confirmed. Retained ignored IPA:
-  `artifacts/testflight/0.1.0/build-2/PLANK Tablet Setup.ipa`, SHA256
-  `784a2d24ad98f1db7141305b6e009caf14919117df7f012c9a6e19867dfa1ed1`.
-  Temporary GUI signing/export/upload jobs were unloaded.
+Build3 also discovered the relay and stalled before authorization; Cancel
+worked immediately. Turning off the headset's keyboard, mouse and AirPods made
+no difference. A readonly tablet probe recorded seven complete Home/center
+press/release pairs (code264), but no headset approval request was active.
+Earlier controller captures showed no completed headset LE connection and
+confirmed connectable undirected advertising with an unrestricted filter.
+A temporary tablet radio block was removed; its bond remains intact.
 
-Build0.1.0(3) contains the simplified flow. Apple accepted it at23:30:56UTC
-on2026-09-27; the operator has installed it. API verification on2026-09-28
-confirms VALID processing and IN_BETA_TESTING internal availability. Source:
-`5ae78c3b9dc4294cffd7f9fdc39231d9476ae52a`. Archive/signature/bundle checks
-passed, with matching arm64 application/dSYM UUID
-`F6B8301F-76E5-311A-97B1-1F4B0F3290B1`. The ignored retained IPA is
-`artifacts/testflight/0.1.0/build-3/PLANK Tablet Setup.ipa`, SHA256
-`032de3a67df1bf934955d9a09f5ce45dd209f404cc2cd574eaab18b671b8df5e`.
-GUI signing/export/upload jobs are unloaded. The matching foreground relay lab
-is advertising with the tablet connected; saved identity and Wacom bond remain.
-No boot service was installed.
-Next: resolve the initial headset Bluetooth connection stall described below.
-Then verify three-press approval, position/pressure/ExpressKeys on the automatic
-readout, saved-trust restart and tablet sleep/wake reporting. No physical
-headset pairing/readings have been accepted yet; compilation and previews do
-not prove it.
+A fresh build4 retry and a further retry with the Wacom powered off both failed.
+The bounded controller traces show no headset LE connection-complete event or
+ATT exchange. A lab restart captured accepted ADV_IND advertising on all three
+channels, unrestricted scan/connect filtering and a1280ms advertising interval.
+This verifies controller configuration, not over-the-air connection requests.
+The temporary tablet block is removed; the tablet remains powered off by the
+operator. Captures are closed.
 
-## TestFlight delivery context
+Next: use the operator's nearby laptop as an independent Bluetooth central. Its
+OS/access details are pending. The Mac builder is physically elsewhere and has
+no physical headset developer connection for console logs.
+Preserve trust and distinguish advertising reception from connection success.
+Private screenshots, raw captures and machine details stay outside Git.
 
-Future deliveries include build-specific What to Test notes and export
-compliance completion under the operator's standing authorization. The
-confirmed questionnaire baseline is recorded in private notes. Reuse it only
-while encryption/distribution are unchanged; do not convert "standard
-encryption" into an unsupported exemption assertion. Build3 tester notes are
-prepared in `apps/tablet-setup/TestFlight/0.1.0-3.txt`, including the observed
-connection timeout. Supported App Store Connect API access is configured and
-verified; the team key and issuer/configuration stay in private files with0600
-permissions. `scripts/update-tablet-testflight.py` performs exact-build lookup,
-bounded processing wait, idempotent notes/compliance updates and readback;
-eight offline tests pass. On2026-09-28 the helper posted build3 notes and verified
-the exact saved text. Apple's existing build3 compliance flag is false and the
-build is IN_BETA_TESTING; this observed result of the operator's questionnaire
-is now the private baseline for future unchanged encryption/distribution.
-Compliance was already complete on build3 and was retained. Run the helper
-with each future upload's exact version/build and new notes. Never extract
-cached account tokens or copy API credentials into Git.
+## Build4 delivery and validation
 
-The operator has installed build3 and reports that relay discovery succeeds
-but Home-button presses do not authorize. The relay's tablet connection is
-present; its log has not shown a headset protocol request. The app remains on
-Connecting to your relay, Cancel responds immediately, and the connection
-eventually times out back to Pair. Radio capture shows no completed headset LE
-connection. A relay-lab restart confirmed connectable undirected advertising,
-enabled with an unrestricted connection filter. A brief tablet disconnect was
-not a sustained isolation test: the bonded tablet reconnected automatically
-after about20seconds. No button-recognition defect or radio fix is established.
-The Mac builder has only a simulator listed, not a paired physical headset for
-logs. Preserve trust while investigating the pre-authorization connection.
-The operator's follow-up center-button test produced seven complete evdev
-press/release pairs (code264) in a separate readonly probe. Button delivery to
-the relay is working; no headset approval request was active to count them.
-The temporary radio-isolation block was removed and the tablet is again
-bonded/trusted/connected. Headset connection failure remains unresolved.
+Apple accepted build4 at2026-09-28T00:17:14Z. API verification confirms VALID
+processing and IN_BETA_TESTING internal availability. The exact What to Test
+notes in `apps/tablet-setup/TestFlight/0.1.0-4.txt` and the confirmed compliance
+flag were saved and read back successfully. The operator's screenshots confirm
+build4 installation. No tester invitations or external review were submitted.
 
-Version0.1.0/build1 was uploaded successfully and assigned to the owner's
-internal testing group. TestFlight access was confirmed; headset hardware
-acceptance was not. Do not upload build1 again. Its signed archive source was
-`9f31af8eae35b7e139d76344460f19c47045a2c5`; export/upload tooling was
-`a5d7ea15772aa0842835db3d833d1a85d82bbe01`. The retained ignored IPA is
-`artifacts/testflight/0.1.0/build-1/PLANK Tablet Setup.ipa`, SHA256
-`64733a1eb21e7f6da55d6c80c1030ce9ae5b560df2cd15d628dd57e4cf3fb101`.
-Build1 had a non-blocking missing-dSYM warning, addressed for the next archive.
+- Linux:20/20 CTest suites passed, including bounded echo transport and existing
+  pairing/Noise/button approval checks.
+- Apple:10/10 CTest suites passed, including no trust from an echo pass, saved
+  trust retention and cancellation/stale-result handling. Native macOS and
+  visionOS simulator/device SDK builds passed with Xcode27/SDK27. Simulator
+  compilation is not simulator execution.
+- Signed Release archive, signature, bundle and privacy/resource checks passed.
+  Matching arm64 application/dSYM UUID:
+  `C4411ED9-E4C1-379D-ACE2-03FC910CC8F0`. Upload had no symbol warning.
+- Retained ignored IPA: `artifacts/testflight/0.1.0/build-4/PLANK Tablet Setup.ipa`.
+  SHA256: `ae7ad26349a3af19e5ab3d8a5c41369c60206a9d1c453947cfec4ffcb31d9f0b`.
+  Provenance is retained beside the IPA. One-shot GUI signing/export/upload jobs
+  are unloaded. Next binary build must5; do not upload build4 again.
 
-The SSH security session cannot access the GUI-unlocked login keychain. Use a
-one-shot job in the existing authorized GUI session for signing/export/upload,
-then unload it. No Keychain reset, ACL weakening or password extraction is
-needed. Reuse the verified dependency caches with clean Git worktrees.
+## Tablet pairing/readings contract
 
-Live mode uses CPace/Noise/libsodium, not only OS cryptography; no export-exemption
-assertion is hardcoded. Distribution geography remains an owner decision.
-Do not extract/reuse notarization credentials or commit signing material.
-Machine addresses, private staging paths and account diagnostics belong in the
-operator's private notes, not Git. Root PLANK and its unrelated ongoing work
-remain untouched. No merge or public release has occurred.
+The regular foreground Linux BLE lab advertises a custom GATT service. Python
+owns BlueZ transport and readonly evdev observation; the native library reuses
+CPace/Noise and persistent identities/attempt budgets. Discovery groups Wacom
+pen/Pad/touch by physical ancestry or Bluetooth identity and capabilities,
+without a model/PID allowlist. Selected tablets survive sleep/wake in the lab.
+
+The operator requested three short Home/center-button presses, no readiness
+checkbox/manual SSH signal, and no Simulation tab. In regular mode, select the
+relay and tap Pair; three releases of the same supported Pad button approve one
+pending request within60seconds. Tablets without Home/center can use another
+supported button. Holds, duplicates, mixed buttons, long gaps, detach and
+cancellation cannot carry partial approval into another request.
+
+This explicitly accepts weaker initial authentication than a random challenge:
+a nearby active attacker can race/intercept enrollment. Mode3 uses CPace with a
+public constant and local physical gate. Saved-key Noise and encrypted readings
+remain authenticated. Attempt budget is reserved only after three presses;
+successful confirmation resets it. See `docs/bluetooth-headset-lab.md`.
+
+After pairing, the app reconnects with its saved key and begins readings.
+Authenticated HELLO capability0x02 gates observation; no workstation session
+starts. Snapshots are coalesced at up to20Hz and may miss short button transitions.
+Full raw-HID workstation forwarding remains separate. Legacy TCP USB pairing
+remains available through Connect by network address.
+
+## TestFlight workflow
+
+The operator authorized build-specific What to Test notes and export compliance
+completion for future uploads, with saved answers "Standard and No France".
+Supported App Store Connect API access is configured privately with0600 files.
+`scripts/update-tablet-testflight.py` performs exact version/build/platform
+selection, bounded processing wait, idempotent updates and readback; eight
+offline tests pass. Run it after each future upload with that build's notes.
+
+The baseline is Apple's observed `usesNonExemptEncryption=false` after the
+operator completed build3's questionnaire. Reuse only while encryption and
+distribution are unchanged. Live mode uses CPace/Noise/libsodium, not only OS
+cryptography; do not infer a blanket exemption or hardcode one into the app.
+Build3 and4 metadata are verified; build4 also has operator install evidence.
+Historical build1-3 IPAs and provenance remain in the ignored artifact catalog.
+
+The SSH security session cannot access the GUI-unlocked login keychain. Use
+one-shot jobs in the authorized GUI session for signing/export/upload, then
+unload them. Reuse verified dependencies from clean Git worktrees. Never reset
+Keychain permissions, extract cached tokens, reuse notarization credentials or
+commit private machine/account/signing information. Machine paths, addresses
+and API configuration belong only in the operator's private notes.
 
 ## Headless Bluetooth hardware check, 2026-09-27
 
