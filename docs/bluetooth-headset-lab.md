@@ -65,6 +65,15 @@ no tablet, identity store, pairing approval or persistent service installation.
 Its ad hoc signature is for this local diagnostic, not product distribution.
 Close other relay tests while it runs. A discovery-only result is not a pass.
 
+Launch the probe with `--peripheral` to make the Mac an alternate echo endpoint
+named **PLANK Mac Echo**. In the headset app, scan again, select that name and
+run **Test Bluetooth connection**. This compares the same headset/client with
+a different peripheral implementation and radio. Only the two unencrypted echo
+channels are exposed; there is no tablet, pairing or identity access. It accepts
+one subscriber, limits each subscription to4096bytes, bounds queued replies and
+automatically closes its advertising/service after ten minutes. The app's
+byte-for-byte comparison determines a pass; the Mac's write count alone does not.
+
 ### Tablet pairing and readings
 
 Build the relay project with libsodium available. The target `plank_ble_lab`

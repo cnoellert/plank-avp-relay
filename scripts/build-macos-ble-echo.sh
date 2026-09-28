@@ -19,13 +19,14 @@ cat > "$probe_bundle/Contents/Info.plist" <<'PLIST'
 <key>CFBundleName</key><string>PLANK Bluetooth Probe</string>
 <key>CFBundleExecutable</key><string>plank-ble-echo</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleVersion</key><string>1</string>
+<key>CFBundleVersion</key><string>2</string>
 <key>LSMinimumSystemVersion</key><string>27.0</string>
 <key>NSBluetoothAlwaysUsageDescription</key><string>Test a nearby PLANK relay by exchanging generated diagnostic bytes over Bluetooth.</string>
 </dict></plist>
 PLIST
 xcrun swiftc -swift-version 6 -target arm64-apple-macos27.0 \
     "$source_root/tools/macos-ble-echo/main.swift" \
+    "$source_root/tools/macos-ble-echo/Peripheral.swift" \
     -framework AppKit -framework CoreBluetooth \
     -o "$probe_bundle/Contents/MacOS/plank-ble-echo"
 codesign --force --sign - "$probe_bundle"

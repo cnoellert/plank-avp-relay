@@ -199,5 +199,10 @@ window.contentView?.addSubview(label)
 window.center()
 window.makeKeyAndOrderFront(nil)
 app.activate()
-let probe = EchoProbe(status: label)
+let probe: AnyObject
+if CommandLine.arguments.contains("--peripheral") {
+    probe = EchoPeripheral(status: label)
+} else {
+    probe = EchoProbe(status: label)
+}
 app.run()
