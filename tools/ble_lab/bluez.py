@@ -9,6 +9,7 @@ import signal
 import time
 
 from .capture import Capture
+from .controller import disable_address_resolution
 from .native import Native, ProtocolError
 from .transport import EchoChannel, Indications, write_peer
 
@@ -113,6 +114,7 @@ class Server(dbus.service.Object):
         super().__init__(self.bus, BASE)
         self.loop = GLib.MainLoop()
         self.adapter = '/org/bluez/' + args.adapter
+        self.controller_workaround = args.disable_controller_address_resolution
         self.native = None if args.transport_only else Native(args.library, args.state_dir)
         self.capture = None if args.transport_only else Capture(args.tablet, self.button)
         self.peer = None
@@ -133,6 +135,11 @@ class Server(dbus.service.Object):
             signal_name='PropertiesChanged', path_keyword='path', arg0='org.bluez.Device1')
         self.bus.add_signal_receiver(self.removed, dbus_interface=OBJECTS,
             signal_name='InterfacesRemoved')
+        if self.controller_workaround:
+            self.bus.add_signal_receiver(self.adapter_changed, dbus_interface=PROPERTIES,
+                signal_name='PropertiesChanged', path=self.adapter, arg0='org.bluez.Adapter1')
+            self.bus.add_signal_receiver(self.bluez_changed, dbus_interface='org.freedesktop.DBus',
+                signal_name='NameOwnerChanged', arg0='org.bluez')
 
     @dbus.service.method(OBJECTS, out_signature='a{oa{sa{sv}}}')
     def GetManagedObjects(self):
@@ -196,8 +203,11 @@ class Server(dbus.service.Object):
             self.close_peer(peer)
 
     def close_peer(self, peer):
-        dbus.Interface(self.bus.get_object('org.bluez', peer), 'org.bluez.Device1').Disconnect(
-            reply_handler=lambda: None, error_handler=lambda error: None)
+        try:
+            dbus.Interface(self.bus.get_object('org.bluez', peer), 'org.bluez.Device1').Disconnect(
+                reply_handler=lambda: None, error_handler=lambda error: None)
+        except dbus.exceptions.DBusException:
+            pass  # The adapter or BlueZ may already have disappeared.
 
     def device_changed(self, interface, changed, invalidated, path):
         if str(path) == self.peer and 'Connected' in changed and not changed['Connected']:
@@ -210,6 +220,16 @@ class Server(dbus.service.Object):
             self.disconnect()
         if str(path) == self.echo.peer and 'org.bluez.Device1' in interfaces:
             self.echo.disconnect()
+
+    def adapter_changed(self, interface, changed, invalidated):
+        if 'Powered' in changed and not changed['Powered']:
+            self.failure = 'Controller powered off; restart the lab to reapply its workaround.'
+            self.loop.quit()
+
+    def bluez_changed(self, name, previous, current):
+        if previous and previous != current:
+            self.failure = 'BlueZ restarted; restart the lab to reapply its workaround.'
+            self.loop.quit()
 
     def tick(self):
         try:
@@ -247,6 +267,14 @@ class Server(dbus.service.Object):
         adapter = self.bus.get_object('org.bluez', self.adapter)
         gatt = dbus.Interface(adapter, 'org.bluez.GattManager1')
         advertising = dbus.Interface(adapter, 'org.bluez.LEAdvertisingManager1')
+        if self.controller_workaround:
+            properties = dbus.Interface(adapter, PROPERTIES)
+            if (not properties.Get('org.bluez.Adapter1', 'Powered') or
+                    properties.Get('org.bluez.Adapter1', 'Discovering') or
+                    properties.Get('org.bluez.LEAdvertisingManager1', 'ActiveInstances')):
+                raise RuntimeError('Workaround requires a powered controller with no scan or advertisement active.')
+            disable_address_resolution(self.adapter.rsplit('/', 1)[1])
+            print('Controller address resolution disabled for this lab session.', flush=True)
 
         def failed(error):
             self.failure = 'BlueZ registration failed: ' + str(error)

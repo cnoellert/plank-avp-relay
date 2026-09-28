@@ -1,11 +1,26 @@
 # Tablet setup workflow lab
 
-## Current work: tablet-free Bluetooth test, 2026-09-28 UTC
+## Current work: Bluetooth authorization follow-up, 2026-09-28 UTC
 
 Branch `visionos-tablet-setup`; parent main
 `465c11a9708bfce0c155502844ca8d53e4370390` is already included. The requested
 pull with rebase completed without replay. Work is pushed, not merged or
 publicly released. Root PLANK and its unrelated work remain untouched.
+
+**Latest result:** AVP LightBlue and the unchanged Test Setup build4 both
+connect through Bumble on the existing Linux radio. The operator confirmed
+all three echo round trips. The same radio therefore has a working path;
+the earlier failure belongs to the original host/controller configuration.
+Controlled BlueZ comparison then passed with controller address resolution off,
+failed with it on, and passed again with it off. The lab now has an explicit
+`--disable-controller-address-resolution` startup workaround. The regular lab
+is running with its native library/state/tablet selection and this option.
+Authorization reaches the three circles, but the headset disconnects even when
+the operator presses nothing. A trace shows BlueZ reading the AVP battery,
+receiving Insufficient Authentication, requesting SMP security, rejecting the
+resulting pairing request, and disconnecting the headset locally. A temporary
+runtime BlueZ override now disables the optional `battery` plugin; the operator
+has been asked to retry. No tablet pairing/readings are accepted yet.
 
 Build0.1.0(4), source `6e71fa93b3fc8556802f91fdafd534839b1a82f1`, adds
 **Test Bluetooth connection** after selecting a discovered relay. It sends
@@ -15,13 +30,13 @@ separate write/indication characteristics, with bounded queues and timeouts.
 It does not pair, grant trust or access tablet input. The larger payload tests
 fragmentation and indication acknowledgements. No Simulation tab was restored.
 
-The normal foreground relay runs `--transport-only`. This registers only
+The earlier isolation tests ran `--transport-only`. This registers only
 the echo channels and does not instantiate tablet capture, the native pairing
 library or identity storage. Runtime checks confirmed no input-device file
 descriptors and no native pairing library mapped. The Wacom bond and persistent
-relay identities are retained. No boot service was installed. Normal Pair and
-readings require restarting the lab with its regular library/state/tablet
-arguments after transport qualification; do not use Pair in transport-only mode.
+relay identities are retained. No boot service was installed. The lab has now
+returned to regular mode for Pair and readings; do not use Pair when explicitly
+running transport-only mode.
 
 The app now discovers the selected peripheral afresh using the central manager
 that owns its connection, retains it, rejects explicitly nonconnectable
@@ -34,8 +49,9 @@ The operator installed build4 and tested the Bluetooth-only path. Screenshots
 confirm discovery at -61dBm, followed by **Timed out while establishing the
 Bluetooth link**. It never reached service discovery or byte exchange. This
 failure occurs before tablet authorization. No successful physical headset
-connection to the Linux relay, pairing or tablet readings have been accepted
-yet. The same headset app subsequently passed against the Mac echo endpoint.
+connection to the Linux relay had been accepted at that point. The same headset
+app subsequently passed against both the Mac echo endpoint and Linux with the
+controller workaround below. Tablet pairing/readings remain unqualified.
 
 Build3 also discovered the relay and stalled before authorization; Cancel
 worked immediately. Turning off the headset's keyboard, mouse and AirPods made
@@ -122,8 +138,8 @@ the unchanged live relay. It passed again at01:16:52UTC, RSSI-63dBm: three
 verified round trips and1600bytes each direction. The relay received1600bytes;
 its controller trace confirms a successful LE connection (public peer address,
 30ms interval,720ms supervision), ATT writes, indications and confirmations.
-The probe exited and the capture is closed. Current matrix: Mac-to-Linux passes,
-AVP-to-Mac passes, AVP-to-Linux fails. This isolates the failing combination,
+The probe exited and the capture is closed. The initial matrix was Mac-to-Linux
+passes, AVP-to-Mac passes, AVP-to-BlueZ fails. This isolates the failing combination,
 without proving which controller or stack causes the incompatibility.
 
 An independent client on the same AVP also failed. LightBlue's
@@ -145,9 +161,10 @@ The operator offered a Linux rewrite if useful. Instead, an isolated comparison
 now uses `tools/bumble-ble-echo.py` with Bumble0.0.235 through an HCI user socket,
 bypassing the BlueZ/kernel host while retaining the same controller/firmware.
 Only Python venv support was installed system-wide; Bumble dependencies are in
-a separate private cache venv. The original foreground lab is stopped. A
-transient unit has a15minute runtime bound and an exit hook that restarts BlueZ
-and restores its original dual-mode settings. No boot service or bond change.
+a separate private cache venv. A transient unit had a15minute runtime bound and
+an exit hook that restarted BlueZ and restored its original dual-mode settings.
+The unit and Bumble capture are now stopped. The tablet bond file's checksum
+matches its pre-test value. No boot service or bond change.
 The probe uses the existing public address,1280ms advertising, service and echo
 UUIDs; LE-only flags match the previous unsuccessful BlueZ LE-only experiment.
 It rejects pairing and has bounded bytes, connection lifetime and indications.
@@ -156,12 +173,53 @@ The independent Mac central passed against Bumble at01:29:49UTC: all three
 round trips and1600matchingbytes each direction, RSSI-57dBm. Linux confirms a
 successful LE link and1600receivedbytes. Its last indication-confirmation count
 was1088 when the Mac closed immediately after validating its final reply; do not
-claim1600server-confirmedbytes. The Mac probe has exited. The operator has been
-asked to retry LightBlue on the AVP against the replacement stack; that result
-is pending. The diagnostic window began01:29:27UTC and ends by01:44:27UTC.
-After the result, stop the unit/capture, verify bond retention and controller
-restoration, and restart the normal transport-only foreground lab. Exact unit,
-session, capture and restoration details are retained privately.
+claim1600server-confirmedbytes. The Mac probe has exited.
+
+AVP LightBlue then connected at01:32:13UTC. Its screenshot shows Connected and
+the expected service, write RX13 and indicate TX14. HCI confirms a successful
+link from a resolvable private peer address and service discovery. The probe's
+60second lifetime closed that idle link as designed. Unchanged Test Setup build4
+then connected at01:33:25UTC; the operator confirmed all three round trips.
+The relay received1600bytes, with the same final-ACK/disconnect race as the Mac.
+This is the first accepted physical AVP-to-Linux bidirectional echo pass.
+
+BlueZ enables LE address resolution; Bumble leaves it disabled after reset.
+AVP attempts use a private peer address, while the successful Mac comparisons
+used a public one. After restoring BlueZ and its original dual-mode settings,
+disabled only controller address resolution. The unchanged build4 echo passed
+twice. Re-enabling it restored the timeout with no completed link; disabling
+it again restored the pass. This controlled comparison at01:35–01:39UTC isolates
+the failing controller setting on this hardware. It does not yet identify a
+firmware defect versus kernel behavior. All comparison captures and fallback
+timers are closed; working resolution-off state is intentional.
+
+The lab's opt-in startup option sends a filtered HCI command and requires its
+successful completion before advertising. It rejects active scans/BlueZ
+advertisements, leaves saved bonds untouched, and stops on BlueZ restart or
+adapter power-off. Four controller tests and the transport/native/button suites
+pass. Hardware startup accepted the command. Power-off correctly stopped the
+lab; however, the kernel retained an orphan advertisement after BlueZ reported
+zero instances, and restart correctly failed with Command Disallowed. Cleared
+that known orphan administratively, then normal startup succeeded. Automatic
+recovery from that condition remains unimplemented. The native library and
+Apple build are unchanged; this is a lab workaround, not a persistent kernel fix.
+
+The operator woke the Wacom and tried Pair: three approval circles appeared,
+then the app returned to Pair after one press, and again after no presses.
+Tablet input attached/disconnected during some attempts, but a subsequent trace
+shows concurrent Classic Wacom traffic and a headset LE connection. Linux reads
+the headset's Battery Level characteristic, receives ATT Insufficient
+Authentication, sends a Security Request, then rejects SMP pairing because
+bonding is disabled. Authorization status indications continue briefly before
+Linux disconnects the headset. This points to an unrelated battery profile
+interrupting app authorization, not a proven ExpressKey bug.
+
+At01:48UTC, stopped the lab and restarted the existing Bluetooth service with
+a reversible `/run` drop-in adding `--noplugin=battery`; no persistent service
+configuration changed. Restarted the regular lab with the controller workaround.
+A bounded trace and an operator retry are pending. Headset battery polling is
+not required for relay authorization. Record the result before accepting this
+second workaround. Machine-specific paths, logs and recovery details are private.
 
 ## Build4 delivery and validation
 

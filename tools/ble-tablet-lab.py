@@ -10,6 +10,8 @@ parser.add_argument('--library', type=Path)
 parser.add_argument('--state-dir', type=Path)
 parser.add_argument('--transport-only', action='store_true', help='Only byte echo; no tablet, crypto library or identity store')
 parser.add_argument('--adapter', default='hci0')
+parser.add_argument('--disable-controller-address-resolution', action='store_true',
+                    help='Opt-in HCI workaround for qualified private-address connection failures')
 parser.add_argument('--tablet', help='Selected Bluetooth address or physical identity; required if ambiguous')
 args = parser.parse_args()
 if args.transport_only and (args.library or args.state_dir or args.tablet):

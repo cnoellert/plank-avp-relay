@@ -103,6 +103,44 @@ the independent Mac central; then use LightBlue or the existing headset echo
 test. A client byte-for-byte pass, rather than server write/ACK counts, determines
 echo success: a client can disconnect immediately after receiving its last reply.
 
+### Controller address-resolution workaround
+
+Physical comparison on the test relay isolated its AVP connection failure to
+controller LE address resolution: unchanged Test Setup build4 passes with
+resolution disabled, times out with it enabled, and passes again when disabled.
+Bumble helped identify this difference; replacing the whole host stack is not
+required for this radio. This does not establish that every controller has the
+same fault or that the firmware rather than kernel behavior is responsible.
+
+The normal BlueZ lab accepts an explicit opt-in:
+
+```sh
+python3 tools/ble-tablet-lab.py --transport-only --disable-controller-address-resolution
+```
+
+The same option works with the regular library/state/tablet arguments below.
+It sends a single LE Set Address Resolution Enable command with value0 before
+advertising, and requires a successful completion within three seconds. The
+adapter must be powered, with no scan or BlueZ advertisement active. The raw
+HCI socket requires the corresponding controller privileges. No tablet model
+is hardcoded, saved bonds are untouched, and application CPace/Noise protection
+is unchanged. Default behavior is unchanged without the option.
+
+This is a lab workaround, not a persistent kernel fix. The setting remains
+disabled after the lab exits, until another controller configuration change or
+power cycle restores it. A fresh lab invocation with the option reapplies it;
+no boot service is installed. If BlueZ restarts or the adapter powers off, the
+lab stops and requires a restart instead of silently retaining an invalid
+workaround assumption. The kernel can also re-enable resolution during other
+operations; concurrent Bluetooth operations need further qualification.
+
+During the power-cycle check, a stale controller advertisement survived after
+BlueZ reported zero active instances. The next command correctly failed with
+Command Disallowed, and the lab did not advertise a false ready state. After
+confirming no other advertiser was in use, clearing that orphan with
+`btmgmt -i hci0 clr-adv` allowed restart. Do not clear unrelated advertisements
+automatically. Automatic recovery from this condition remains unimplemented.
+
 ### Tablet pairing and readings
 
 Build the relay project with libsodium available. The target `plank_ble_lab`
