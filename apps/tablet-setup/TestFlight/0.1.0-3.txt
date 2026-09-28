@@ -9,4 +9,6 @@ What to test:
 
 For a new pairing, also try Cancel before the third press, then Pair again. The new request should start at zero presses.
 
-Known limits: this is a diagnostic tablet readout, not a system-wide visionOS pointer or desktop session. Short input transitions may fall between display updates. Physical headset pairing and readings are still being qualified. If authorization fails, report whether the app reaches the three numbered circles/countdown and the exact error text.
+Known issue: hardware testing currently discovers the relay but can time out on "Connecting to your relay" before the approval countdown appears. This connection failure is under investigation; tablet button delivery to the relay has been verified. Report whether the app reaches the three numbered circles/countdown and the exact error text.
+
+Other limits: this is a diagnostic tablet readout, not a system-wide visionOS pointer or desktop session. Short input transitions may fall between display updates. Physical headset pairing and readings are still being qualified.

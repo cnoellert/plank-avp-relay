@@ -75,7 +75,8 @@ remain only in developer tests and the offscreen preview.
   Temporary GUI signing/export/upload jobs were unloaded.
 
 Build0.1.0(3) contains the simplified flow. Apple accepted it at23:30:56UTC
-on2026-09-27; processing and tester availability remain unconfirmed. Source:
+on2026-09-27; the operator has installed it. API verification on2026-09-28
+confirms VALID processing and IN_BETA_TESTING internal availability. Source:
 `5ae78c3b9dc4294cffd7f9fdc39231d9476ae52a`. Archive/signature/bundle checks
 passed, with matching arm64 application/dSYM UUID
 `F6B8301F-76E5-311A-97B1-1F4B0F3290B1`. The ignored retained IPA is
@@ -84,11 +85,11 @@ passed, with matching arm64 application/dSYM UUID
 GUI signing/export/upload jobs are unloaded. The matching foreground relay lab
 is advertising with the tablet connected; saved identity and Wacom bond remain.
 No boot service was installed.
-Next: install TestFlight0.1.0(3) once available, scan for the advertising lab,
-select it and tap Pair. Press/release Home/center three times, then confirm
-position/pressure/ExpressKeys on the automatically started readout. Stop/restart
-using saved trust and check tablet sleep/wake reporting. No physical headset
-pairing/readings have been accepted yet; compilation and previews do not prove it.
+Next: resolve the initial headset Bluetooth connection stall described below.
+Then verify three-press approval, position/pressure/ExpressKeys on the automatic
+readout, saved-trust restart and tablet sleep/wake reporting. No physical
+headset pairing/readings have been accepted yet; compilation and previews do
+not prove it.
 
 ## TestFlight delivery context
 
@@ -97,15 +98,18 @@ compliance completion under the operator's standing authorization. The
 confirmed questionnaire baseline is recorded in private notes. Reuse it only
 while encryption/distribution are unchanged; do not convert "standard
 encryption" into an unsupported exemption assertion. Build3 tester notes are
-prepared in `apps/tablet-setup/TestFlight/0.1.0-3.txt`. Supported App Store Connect
-API access for metadata updates is partly configured: the operator provided a
-valid team key, now stored privately with0600 permissions. The Issuer ID is
-still needed. `scripts/update-tablet-testflight.py` performs exact-build lookup,
+prepared in `apps/tablet-setup/TestFlight/0.1.0-3.txt`, including the observed
+connection timeout. Supported App Store Connect API access is configured and
+verified; the team key and issuer/configuration stay in private files with0600
+permissions. `scripts/update-tablet-testflight.py` performs exact-build lookup,
 bounded processing wait, idempotent notes/compliance updates and readback;
-eight offline tests pass. Establish the private compliance baseline from the
-operator's confirmed answers and Apple's existing build3 metadata once access
-works. Metadata has not been posted or verified by this workflow. Never extract
-cached account tokens.
+eight offline tests pass. On2026-09-28 the helper posted build3 notes and verified
+the exact saved text. Apple's existing build3 compliance flag is false and the
+build is IN_BETA_TESTING; this observed result of the operator's questionnaire
+is now the private baseline for future unchanged encryption/distribution.
+Compliance was already complete on build3 and was retained. Run the helper
+with each future upload's exact version/build and new notes. Never extract
+cached account tokens or copy API credentials into Git.
 
 The operator has installed build3 and reports that relay discovery succeeds
 but Home-button presses do not authorize. The relay's tablet connection is
