@@ -105,8 +105,13 @@ intended local network. Pairing is run separately with the service stopped.
 
 Build and test:
 
+Linux build dependencies include a C/C++ toolchain, CMake, pkg-config and
+libudev development files. The BLE service tests use the system Python with
+its D-Bus and GLib bindings (`python3-dbus` and `python3-gi` on Debian/Ubuntu).
+Use a Debug build so the C test assertions remain enabled.
+
 ```sh
-cmake -S . -B build
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build
 ctest --test-dir build --output-on-failure
 ```
