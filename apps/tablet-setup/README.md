@@ -163,7 +163,7 @@ Complete these gates before promising an invitation:
 
 Prepare tester notes alongside each build's source revision. Keep them focused
 on changed behavior, testing steps and known limits. The notes for
-[0.1.0 (5)](TestFlight/0.1.0-5.txt) describe the Local direct-tablet test. App Store Connect supports
+[0.1.0 (6)](TestFlight/0.1.0-6.txt) cover the simplified relay workflow. App Store Connect supports
 build-specific notes through beta-build localizations and compliance through
 build/encryption-declaration metadata. Automated API updates require separately
 configured, supported App Store Connect access; an Xcode GUI account that can
@@ -182,10 +182,10 @@ they need not be copied to the Apple signing builder.
 
 ```sh
 # Read only: verify access and inspect the exact build's existing classification.
-python3 scripts/update-tablet-testflight.py --version 0.1.0 --build 3 --inspect
+python3 scripts/update-tablet-testflight.py --version 0.1.0 --build 6 --inspect
 # After establishing the confirmed private compliance baseline:
-python3 scripts/update-tablet-testflight.py --version 0.1.0 --build 3 \
-  --notes apps/tablet-setup/TestFlight/0.1.0-3.txt
+python3 scripts/update-tablet-testflight.py --version 0.1.0 --build 6 \
+  --notes apps/tablet-setup/TestFlight/0.1.0-6.txt
 ```
 
 The private `compliance` object contains the confirmed boolean
@@ -206,15 +206,15 @@ verification is `python3 tests/testflight_metadata_test.py`.
 
 ```sh
 # Team is provided privately; choose a new number for each uploaded build.
-export PLANK_SETUP_BUILD_NUMBER=1
+export PLANK_SETUP_BUILD_NUMBER=7
 bash scripts/archive-tablet-setup.sh
 bash scripts/export-tablet-setup.sh \
-  build/tablet-setup/archives/PLANK-Tablet-Setup-1.xcarchive \
-  build/tablet-setup/exports/build-1
+  build/tablet-setup/archives/PLANK-Tablet-Setup-7.xcarchive \
+  build/tablet-setup/exports/build-7
 # Explicit upload, after creating the App Store Connect visionOS app record:
 bash scripts/export-tablet-setup.sh --upload \
-  build/tablet-setup/archives/PLANK-Tablet-Setup-1.xcarchive \
-  build/tablet-setup/uploads/build-1
+  build/tablet-setup/archives/PLANK-Tablet-Setup-7.xcarchive \
+  build/tablet-setup/uploads/build-7
 ```
 
 The archive script requires `PLANK_DEVELOPMENT_TEAM` from the private build

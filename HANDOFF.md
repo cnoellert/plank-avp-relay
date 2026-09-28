@@ -1,400 +1,136 @@
-# Tablet setup workflow lab
+# Tablet relay and setup app
 
-## Current work: direct tablet input probe, 2026-09-28 UTC
+## Current state — 2026-09-28 UTC
 
-Branch `visionos-tablet-setup`; parent main
-`465c11a9708bfce0c155502844ca8d53e4370390` is already included. The requested
-pull with rebase completed without replay. Work is pushed, not merged or
-publicly released. Root PLANK and its unrelated work remain untouched.
+Work is on `visionos-tablet-setup`; parent main
+`465c11a9708bfce0c155502844ca8d53e4370390` is already included. The earlier
+requested pull/rebase completed without replay. No merge or public release.
+Root PLANK and its unrelated work remain untouched. Machine access, signing
+jobs and deployment details belong in the operator's private notes.
 
-**Latest result:** The operator confirmed pen position, pressure and ExpressKeys
-all update on AVP through the relay in build4. Both Linux workarounds below
-were active. The user then paired the Wacom directly to AVP and requested a
-Local tab to investigate app access without a relay. Build5 is now available
-in internal TestFlight. Its first direct test exposes no pointer/stylus and no
-input events, and the operator sees no Wacom in the app scan despite confirming
-that visionOS Settings says Connected. Full direct input remains unavailable
-through the paths tested; the relay is the verified working path.
+The operator authorized autonomous relay refinement, Debian packaging and app
+cleanup. The working BLE readings path now has a managed Linux service and a
+simpler TestFlight app. This remains a diagnostic setup component, separate
+from the legacy TCP/raw-HID workstation relay.
 
-AVP LightBlue and the unchanged Test Setup build4 both
-connect through Bumble on the existing Linux radio. The operator confirmed
-all three echo round trips. The same radio therefore has a working path;
-the earlier failure belongs to the original host/controller configuration.
-Controlled BlueZ comparison then passed with controller address resolution off,
-failed with it on, and passed again with it off. The lab now has an explicit
-`--disable-controller-address-resolution` startup workaround. The regular lab
-is running with its native library/state/tablet selection and this option.
-Initially authorization reached the three circles, but the headset disconnected
-even when the operator pressed nothing. A trace shows BlueZ reading the AVP battery,
-receiving Insufficient Authentication, requesting SMP security, rejecting the
-resulting pairing request, and disconnecting the headset locally. A temporary
-runtime BlueZ override disables the optional `battery` plugin. The retry reached
-`Authenticated input observer started`, confirming authorization and saved-key
-reconnection. The operator confirmed changing pen position, pressure and
-ExpressKey values on the readings screen.
+## Linux package
 
-Build0.1.0(4), source `6e71fa93b3fc8556802f91fdafd534839b1a82f1`, adds
-**Test Bluetooth connection** after selecting a discovered relay. It sends
-three fresh random payloads of64,512 and1024bytes, and requires byte-for-byte
-replies: three round trips and1600bytes in each direction. This test uses
-separate write/indication characteristics, with bounded queues and timeouts.
-It does not pair, grant trust or access tablet input. The larger payload tests
-fragmentation and indication acknowledgements. No Simulation tab was restored.
+`plank-tablet-relay-ble` version `0.2.0~visionos-tablet-setup.5`, source
+`ce62527`, targets Ubuntu 26.04 amd64. See
+[installation, configuration and hardware guidance](docs/linux-ble-package.md).
+Build from a clean committed checkout with `scripts/build-relay-deb.sh` in a
+Debian/Ubuntu builder. It verifies pinned libsodium 1.0.22, runs its tests and
+all assertion-enabled relay tests, and collects the package, debug symbols,
+build metadata, source commit and SHA-256 manifest.
 
-The earlier isolation tests ran `--transport-only`. This registers only
-the echo channels and does not instantiate tablet capture, the native pairing
-library or identity storage. Runtime checks confirmed no input-device file
-descriptors and no native pairing library mapped. The Wacom bond and persistent
-relay identities are retained. No boot service was installed. The lab has now
-returned to regular mode for Pair and readings; do not use Pair when explicitly
-running transport-only mode.
+The service preserves root-owned pairing state, announces readiness only after
+GATT/advertising registration, and retries startup failures. A dedicated
+adapter policy can power on the controller and clear orphan kernel advertising
+instances. That opt-in uses bounded management requests, not the interactive
+`btmgmt` shell, which hung with service stdin. A fresh controller has no instance
+to remove; attempting unconditional removal was also rejected by the kernel.
 
-The app now discovers the selected peripheral afresh using the central manager
-that owns its connection, retains it, rejects explicitly nonconnectable
-advertisements and reports connection stages and last RSSI. These are diagnostic
-improvements, not a proven fix for the original connection stall.
+The tested host needs both an opt-in controller address-resolution workaround
+and a persistent BlueZ override disabling its optional battery plugin. The
+package does not silently install that global override on other machines.
+Original foreground state has been copied and compared, with the original
+retained for rollback. Tablet bonds are unchanged. The controller workaround
+is reapplied whenever the managed relay starts.
 
-### Physical result and next investigation
+Hardware checks cover managed startup, BlueZ restart, controller power
+off/recovery, process crash/recovery, a deliberate orphan advertisement and a
+full host reboot. The final package was installed and its files compared to
+the package manifest. It advertised automatically five seconds after the new
+boot, with no service restarts. The exact relay state and BlueZ tablet bond
+file remained unchanged; the tablet is currently offline. Persistent BlueZ
+policy, limited process capabilities and configuration also survived. Package lifecycle checks preserve identity through upgrade,
+remove/reinstall and purge; configuration survives upgrades and is removed
+only on purge. Debian Python helpers clean installed bytecode on removal, without renaming
+the ctypes library. The build smoke-tests extracted package contents before
+collecting artifacts. All 22 relay suites and 101 libsodium tests pass; the
+final package has no lintian findings.
 
-The operator installed build4 and tested the Bluetooth-only path. Screenshots
-confirm discovery at -61dBm, followed by **Timed out while establishing the
-Bluetooth link**. It never reached service discovery or byte exchange. This
-failure occurs before tablet authorization. No successful physical headset
-connection to the Linux relay had been accepted at that point. The same headset
-app subsequently passed against both the Mac echo endpoint and Linux with the
-controller workaround below, then completed tablet authorization and readings
-with the battery-plugin workaround described below.
+Package SHA-256:
+`92a8e6dd13b18003ce5e97918671719ca1f116833dd2a765ff4de7c3577bd3d0`.
+The deliverable and matching symbols/build metadata are retained under ignored
+`artifacts/deb/ce6252721d6dbe5a39d4a02fc3ef246b9cb5fa30/`.
+Earlier package candidates are superseded; use revision 5.
 
-Build3 also discovered the relay and stalled before authorization; Cancel
-worked immediately. Turning off the headset's keyboard, mouse and AirPods made
-no difference. A readonly tablet probe recorded seven complete Home/center
-press/release pairs (code264), but no headset approval request was active.
-Earlier controller captures showed no completed headset LE connection and
-confirmed connectable undirected advertising with an unrestricted filter.
-A temporary tablet radio block was removed; its bond remains intact.
+No physical tablet input or AVP round-trip acceptance has been repeated with
+the packaged service while the operator is away. The tablet was last paired
+directly to AVP; do not remove bonds or force reconnection unattended.
 
-A fresh build4 retry and a further retry with the Wacom powered off both failed.
-The bounded controller traces show no headset LE connection-complete event or
-ATT exchange. A lab restart captured accepted ADV_IND advertising on all three
-channels, unrestricted scan/connect filtering and a1280ms advertising interval.
-This verifies controller configuration, not over-the-air connection requests.
-The temporary tablet block is removed; the tablet remains powered off by the
-operator. Captures are closed.
+## TestFlight build 6
 
-A nearby Apple Silicon laptop running macOS27 passed two physical tests:
-- Independent Core Bluetooth probe, source `7f2cfd2`: all three round trips,
-  1600 matching bytes each direction, at00:32:41UTC. Relay controller trace
-  confirms LE connection, ATT writes, indications and confirmations.
-- The Mac build of Test Setup from the same source as TestFlight4 (`6e71fa9`):
-  operator confirmed a pass at about00:34:39UTC. The relay received1600bytes;
-  app stage logs confirm service/channel discovery and reply subscription.
+Version `0.1.0 (6)`, app source `d476aa7`, is **VALID / IN_BETA_TESTING**.
+Apple accepted upload at 2026-09-28T02:46:30Z. Build-specific notes and the
+operator's confirmed compliance baseline were saved and read back. One-shot
+GUI archive/export/upload jobs are unloaded; the next upload must use build 7.
 
-This establishes working relay-to-Mac communication and the shared app path on
-macOS. It does not establish AVP compatibility or identify the AVP failure's
-cause. The operator power-cycled the Vision Pro and the same test still timed out.
-Its Settings > Privacy & Security > Bluetooth entry is listed and enabled.
-A temporary20ms advertising experiment was accepted by the relay controller,
-but the AVP still timed out without a completed LE link or ATT exchange. The
-relay was restored to its original1280ms advertising, still in transport-only
-mode. Wacom remains off; Mac central comparison apps are closed.
+The app opens directly to relay discovery, with a saved-relay connection
+shortcut. Connection diagnostics and pairing management are expandable.
+The unsuccessful Local experiment is removed; no Simulation tab is exposed.
+Live readings display active input slots across the 16-bit snapshot mask rather
+than assuming eight tablet buttons. The protocol and Keychain identities are
+unchanged. Once live readings arrive, the footer no longer shows a connection
+spinner. Stop readings before running a diagnostic; backgrounding cancels the
+active operation and returning requires starting it again.
 
-The independent probe's `--peripheral` role (source `d0b27ac`) advertised
-**PLANK Mac Echo** on the nearby laptop. Compilation and signature checks
-passed. The operator confirmed the existing AVP build4 passed; the Mac log
-records two subscriptions with1600bytes each at00:46:27 and00:47:06UTC.
-The Mac peripheral app is now closed. This confirms the headset app's Bluetooth
-data path against another peripheral, but does not identify the Linux link
-failure's cause.
+- Apple 10/10 CTest suites and metadata-helper 8/8 offline tests pass.
+- Native macOS and visionOS simulator/device SDK builds pass with SDK27.
+  Simulator compilation is not simulator execution.
+- Signed archive/export, bundle/privacy resources and executable/dSYM matching
+  pass. Relay, authorization, readings and offline layouts were inspected in
+  the macOS offscreen preview.
+- IPA SHA-256: `7b873b806611ef67aadb80f485b26672f05fc4d90ae584a583cc26f3e6e69a40`.
+- arm64 dSYM UUID: `98143214-499F-3FE8-AE0A-026239BCA3DF`.
+- IPA and provenance are retained under ignored
+  `artifacts/testflight/0.1.0/build-6/`.
 
-A temporary LE-only relay experiment also timed out. The controller accepted
-advertising with BR/EDR Not Supported, but recorded no completed headset LE
-link or ATT exchange. Dual-mode operation, SSP, secure connections and the
-original advertising interval were restored; the fallback timer and captures
-are stopped. Tablet bond/trust remain intact. Transport-only advertising stays
-active. No replacement Bluetooth adapter is available for comparison.
+## Established hardware findings
 
-AVP-side diagnostics were retrieved through the nearby laptop with Xcode27.
-Developer pairing initially failed
-before the PIN exchange: the IPv4 control connection timed out and the
-advertised IPv6 address had no route. The operator changed the headset's Wi-Fi;
-pairing then succeeded and developer tools confirm it is available/paired,
-running visionOS27.0. This resolves developer pairing, not the BLE relay issue.
-The operator enabled Developer Mode and restarted; remote sysdiagnose then
-completed. Its archive and filtered logs are retained privately outside Git.
+The operator confirmed pen position, pressure and ExpressKeys all update on
+AVP through the foreground relay in build 4. The same Intel 7265 radio passed
+Bumble and BlueZ echo tests. A controlled BlueZ comparison passed with controller
+LE address resolution off, failed with it on, and passed again with it off.
+A second disconnect during authorization was caused by BlueZ's battery GATT
+client: its authenticated battery read provoked SMP and local disconnection.
+Disabling that optional plugin allowed three-press enrollment and saved-key
+Noise reconnect. See [Bluetooth protocol and investigation](docs/bluetooth-headset-lab.md).
 
-The fresh failed test's headset logs show the app's connection request accepted,
-with zero existing app connections and a limit of two. Five controller-level
-connection-complete reports are followed within0.36–0.39seconds by a failed
-remote-version read (internal status762) and disconnect before link readiness.
-visionOS retries internally and suppresses app disconnect notifications while
-the link is unready; the app cancels after its20second timeout. A simultaneous
-relay capture overlaps the final three attempts and has no LE completion/ATT.
-The same archive includes earlier successful Mac echo tests: remote-version
-reads succeed and GATT discovery follows. Encryption-status4803 appears in
-both passing and failing cases, so it does not establish an authentication
-problem. Do not assign a standard HCI meaning to internal status762 without
-evidence, or infer that a controller-level completion means a usable link.
+The tested radio is Bluetooth 4.2. New hardware guidance is Bluetooth 5.0 or
+newer, BR/EDR plus BLE, Linux firmware support, peripheral advertising and
+verified concurrent tablet/headset operation. Bluetooth 4.0 is not qualified;
+a version label alone does not establish the required roles or reliability.
 
-A retry within about one metre with a clear radio path also timed out. Its
-bounded relay capture has no LE completion/ATT and is now closed. This makes
-a simple range explanation less likely, but does not identify which controller
-or stack is responsible. After refreshing package indexes, installed BlueZ and
-firmware versions match the configured repositories' candidates; no packages
-were installed. Next qualification needs another meaningful controller/role
-comparison or detailed radio capture, rather than another identical retry.
-No adapter configuration changes or new TestFlight binary were made during
-diagnostic collection. No fix for AVP-to-Linux interoperability is established.
+The Linux tablet bond previously survived a full host reboot, and physical
+input plus tablet-initiated sleep/wake reconnection were observed without new
+pairing. The apparent short disconnect was not timed from the final input;
+do not claim a measured 15-minute idle cutoff. See
+[headless tablet pairing](docs/bluetooth-tablet-pairing.md).
 
-At the operator's request, repeated the independent Mac-central test against
-the unchanged live relay. It passed again at01:16:52UTC, RSSI-63dBm: three
-verified round trips and1600bytes each direction. The relay received1600bytes;
-its controller trace confirms a successful LE connection (public peer address,
-30ms interval,720ms supervision), ATT writes, indications and confirmations.
-The probe exited and the capture is closed. The initial matrix was Mac-to-Linux
-passes, AVP-to-Mac passes, AVP-to-BlueZ fails. This isolates the failing combination,
-without proving which controller or stack causes the incompatibility.
+Build 5's direct-tablet experiment found no usable app input despite the
+operator confirming the tablet awake and Connected in visionOS Settings.
+No Wacom appeared in its BLE scan, and the input readout had no pointer/stylus
+or events. This does not disprove every possible direct API; it establishes no
+public raw-report path for the tested approach. A Linux decoder alone cannot
+supply a missing transport. Build 5 source remains at `606d5bd` in Git history.
 
-An independent client on the same AVP also failed. LightBlue's
-[App Store listing](https://apps.apple.com/us/app/lightblue/id557428110)
-lists visionOS compatibility and service/characteristic discovery. The operator
-reports Connecting followed by a return to the device list. Screenshots show
-the correct relay/service advertisement, marked connectable, and the Connecting
-dialog; they do not show discovered GATT services. The relay capture from
-01:20:58 to01:25:24UTC contains no completed LE link or ATT exchange and is closed.
-This strengthens a platform/controller interoperability diagnosis independent
-of Test Setup. Do not propose reversing the AVP into an advertising
-peripheral: Apple's current
-[CBPeripheralManager documentation](https://developer.apple.com/documentation/corebluetooth/cbperipheralmanager)
-explicitly excludes service advertising on visionOS.
-Preserve trust and distinguish advertising reception from connection success.
-Private screenshots, raw captures and machine details stay outside Git.
+## Pairing and delivery contracts
 
-The operator offered a Linux rewrite if useful. Instead, an isolated comparison
-now uses `tools/bumble-ble-echo.py` with Bumble0.0.235 through an HCI user socket,
-bypassing the BlueZ/kernel host while retaining the same controller/firmware.
-Only Python venv support was installed system-wide; Bumble dependencies are in
-a separate private cache venv. A transient unit had a15minute runtime bound and
-an exit hook that restarted BlueZ and restored its original dual-mode settings.
-The unit and Bumble capture are now stopped. The tablet bond file's checksum
-matches its pre-test value. No boot service or bond change.
-The probe uses the existing public address,1280ms advertising, service and echo
-UUIDs; LE-only flags match the previous unsuccessful BlueZ LE-only experiment.
-It rejects pairing and has bounded bytes, connection lifetime and indications.
+Three short releases of the same supported tablet button approve one pending
+request within 60 seconds. No model/PID allowlist, readiness checkbox or manual
+SSH signal is used on the BLE path. Holds, mixed buttons, detach and cancellation
+cannot carry partial approval into another request. This convenience scheme
+retains the documented nearby-attacker risk during initial enrollment; it is
+not equivalent to a random authentication challenge. Subsequent sessions use
+the saved-key Noise connection and encrypted, coalesced readings (up to 20Hz).
+The 80-byte snapshot wire format and reserved bytes remain unchanged.
 
-The independent Mac central passed against Bumble at01:29:49UTC: all three
-round trips and1600matchingbytes each direction, RSSI-57dBm. Linux confirms a
-successful LE link and1600receivedbytes. Its last indication-confirmation count
-was1088 when the Mac closed immediately after validating its final reply; do not
-claim1600server-confirmedbytes. The Mac probe has exited.
-
-AVP LightBlue then connected at01:32:13UTC. Its screenshot shows Connected and
-the expected service, write RX13 and indicate TX14. HCI confirms a successful
-link from a resolvable private peer address and service discovery. The probe's
-60second lifetime closed that idle link as designed. Unchanged Test Setup build4
-then connected at01:33:25UTC; the operator confirmed all three round trips.
-The relay received1600bytes, with the same final-ACK/disconnect race as the Mac.
-This is the first accepted physical AVP-to-Linux bidirectional echo pass.
-
-BlueZ enables LE address resolution; Bumble leaves it disabled after reset.
-AVP attempts use a private peer address, while the successful Mac comparisons
-used a public one. After restoring BlueZ and its original dual-mode settings,
-disabled only controller address resolution. The unchanged build4 echo passed
-twice. Re-enabling it restored the timeout with no completed link; disabling
-it again restored the pass. This controlled comparison at01:35–01:39UTC isolates
-the failing controller setting on this hardware. It does not yet identify a
-firmware defect versus kernel behavior. All comparison captures and fallback
-timers are closed; working resolution-off state is intentional.
-
-The lab's opt-in startup option sends a filtered HCI command and requires its
-successful completion before advertising. It rejects active scans/BlueZ
-advertisements, leaves saved bonds untouched, and stops on BlueZ restart or
-adapter power-off. Four controller tests and the transport/native/button suites
-pass. Hardware startup accepted the command. Power-off correctly stopped the
-lab; however, the kernel retained an orphan advertisement after BlueZ reported
-zero instances, and restart correctly failed with Command Disallowed. Cleared
-that known orphan administratively, then normal startup succeeded. Automatic
-recovery from that condition remains unimplemented. The native library and
-Apple build are unchanged; this is a lab workaround, not a persistent kernel fix.
-
-The operator woke the Wacom and tried Pair: three approval circles appeared,
-then the app returned to Pair after one press, and again after no presses.
-Tablet input attached/disconnected during some attempts, but a subsequent trace
-shows concurrent Classic Wacom traffic and a headset LE connection. Linux reads
-the headset's Battery Level characteristic, receives ATT Insufficient
-Authentication, sends a Security Request, then rejects SMP pairing because
-bonding is disabled. Authorization status indications continue briefly before
-Linux disconnects the headset. This points to an unrelated battery profile
-interrupting app authorization, not a proven ExpressKey bug.
-
-At01:48UTC, stopped the lab and restarted the existing Bluetooth service with
-a reversible `/run` drop-in adding `--noplugin=battery`; no persistent service
-configuration changed. Restarted the regular lab with the controller workaround.
-The retry completed app authorization, disconnected, reconnected and started
-an authenticated input observer. The bounded capture has no SMP exchange or
-Battery Level read; its only battery reference is characteristic discovery.
-The original Wacom bond file remains byte-identical. The capture is closed.
-The operator confirmed position, pressure and ExpressKeys all update in the
-headset readings screen. The regular lab remains available; the user has since
-paired the tablet directly to the headset for a separate Local input test.
-The runtime override disappears on reboot and the controller workaround is
-only reapplied at lab startup; unattended restart recovery is not implemented.
-Machine-specific paths, logs and recovery details are private.
-
-## Build5 Local direct-tablet probe
-
-Source `606d5bd9efd9b39deb127c7a46b7bed83f0873fc`, version0.1.0(5). The app now
-has **Relay** and **Local** tabs. Local tests public pointer/stylus device input,
-window pen/pointer/key events and explicit Bluetooth GATT inspection. It makes
-no tablet control writes and contains no Wacom report decoder yet. An embedded
-decoder still requires an app-accessible report stream. The Linux relay reads
-kernel-decoded evdev input; copying that capture layer into visionOS is not a
-working raw Bluetooth transport. No model/generation allowlist was added.
-
-Local shows device identities separately from window events (hand/mouse/tablet
-source may be unverified). A bounded scan also checks app-visible connected
-peripherals with standard HID, battery or device-information services; this is
-not an inventory of all OS-paired devices. Selected GATT inspection lists
-characteristics, with explicit notification listening on one channel for60sec.
-Notifications are counted, not decoded or logged; battery/status updates alone
-do not establish pen input. Tab changes/backgrounding stop tests and close
-app-owned connections while retaining relay trust. See the app README.
-
-- macOS and visionOS device/simulator SDK builds pass with SDK27/Swift6.4.
-- Apple10/10 CTest suites pass; metadata-helper offline8/8 tests pass.
-- Local layout inspected in the macOS offscreen preview. Neither this preview
-  nor simulator compilation qualifies direct hardware input on the headset.
-- Signed archive, bundle, signature and executable/dSYM UUID checks pass.
-  arm64 UUID `B07C4B00-B4A0-3126-8B5F-E7A1ACED3515`.
-- IPA SHA256 `c9219a8c626ae0937132a67c13f4316d9e83f9e32476927c7d14b249b1875277`.
-  Retained under ignored `artifacts/testflight/0.1.0/build-5/` with provenance.
-- Apple accepted upload at2026-09-28T02:09:20Z. API verification confirms VALID
-  processing and IN_BETA_TESTING internal availability. Exact build5 notes and
-  confirmed compliance were saved and read back. Archive/export/upload GUI jobs
-  all exited0 and are unloaded; next binary upload must use build6.
-
-**Physical Local result:** The user confirmed the awake tablet says Connected
-in visionOS Settings. Build5 shows no pointer/stylus, zero device updates and
-zero area events. The user reports many discovered devices but no Wacom in the
-app scan. The screenshot itself shows the scan stopped, so it is evidence for
-the input state only. These observations establish no usable direct input path
-in this probe, not universal incompatibility with every tablet or API.
-
-For this tested generation, [Wacom's specification](https://estore.wacom.com/media/sebwite/productdownloads/i/n/intuospro_factsheet_en_wtc.pdf)
-separates normal Classic Bluetooth tablet operation from LE mobile paper mode.
-The paper SDK is not documented as providing the full Pro Pen/ExpressKey stream.
-[Apple CoreHID](https://developer.apple.com/documentation/corehid) is macOS-only;
-the inspected visionOS27 SDK contains no CoreHID, IOBluetooth, DriverKit or
-HIDDriverKit framework. CoreBluetooth's Classic support provides GATT access,
-not arbitrary Classic HID report access. An embedded Linux decoder therefore
-has no established public raw-report transport to use on this headset. No
-further binary was built, and no pairing was removed or changed. Preserve the
-working relay baseline; do not silently force the tablet back to the relay.
-
-## Build4 delivery and validation
-
-Apple accepted build4 at2026-09-28T00:17:14Z. API verification confirms VALID
-processing and IN_BETA_TESTING internal availability. The exact What to Test
-notes in `apps/tablet-setup/TestFlight/0.1.0-4.txt` and the confirmed compliance
-flag were saved and read back successfully. The operator's screenshots confirm
-build4 installation. No tester invitations or external review were submitted.
-
-- Linux:20/20 CTest suites passed, including bounded echo transport and existing
-  pairing/Noise/button approval checks.
-- Apple:10/10 CTest suites passed, including no trust from an echo pass, saved
-  trust retention and cancellation/stale-result handling. Native macOS and
-  visionOS simulator/device SDK builds passed with Xcode27/SDK27. Simulator
-  compilation is not simulator execution.
-- Signed Release archive, signature, bundle and privacy/resource checks passed.
-  Matching arm64 application/dSYM UUID:
-  `C4411ED9-E4C1-379D-ACE2-03FC910CC8F0`. Upload had no symbol warning.
-- Retained ignored IPA: `artifacts/testflight/0.1.0/build-4/PLANK Tablet Setup.ipa`.
-  SHA256: `ae7ad26349a3af19e5ab3d8a5c41369c60206a9d1c453947cfec4ffcb31d9f0b`.
-  Provenance is retained beside the IPA. One-shot GUI signing/export/upload jobs
-  are unloaded. Next binary build must5; do not upload build4 again.
-
-## Tablet pairing/readings contract
-
-The regular foreground Linux BLE lab advertises a custom GATT service. Python
-owns BlueZ transport and readonly evdev observation; the native library reuses
-CPace/Noise and persistent identities/attempt budgets. Discovery groups Wacom
-pen/Pad/touch by physical ancestry or Bluetooth identity and capabilities,
-without a model/PID allowlist. Selected tablets survive sleep/wake in the lab.
-
-The operator requested three short Home/center-button presses, no readiness
-checkbox/manual SSH signal, and no Simulation tab. In regular mode, select the
-relay and tap Pair; three releases of the same supported Pad button approve one
-pending request within60seconds. Tablets without Home/center can use another
-supported button. Holds, duplicates, mixed buttons, long gaps, detach and
-cancellation cannot carry partial approval into another request.
-
-This explicitly accepts weaker initial authentication than a random challenge:
-a nearby active attacker can race/intercept enrollment. Mode3 uses CPace with a
-public constant and local physical gate. Saved-key Noise and encrypted readings
-remain authenticated. Attempt budget is reserved only after three presses;
-successful confirmation resets it. See `docs/bluetooth-headset-lab.md`.
-
-After pairing, the app reconnects with its saved key and begins readings.
-Authenticated HELLO capability0x02 gates observation; no workstation session
-starts. Snapshots are coalesced at up to20Hz and may miss short button transitions.
-Full raw-HID workstation forwarding remains separate. Legacy TCP USB pairing
-remains available through Connect by network address.
-
-## TestFlight workflow
-
-The operator authorized build-specific What to Test notes and export compliance
-completion for future uploads, with saved answers "Standard and No France".
-Supported App Store Connect API access is configured privately with0600 files.
-`scripts/update-tablet-testflight.py` performs exact version/build/platform
-selection, bounded processing wait, idempotent updates and readback; eight
-offline tests pass. Run it after each future upload with that build's notes.
-
-The baseline is Apple's observed `usesNonExemptEncryption=false` after the
-operator completed build3's questionnaire. Reuse only while encryption and
-distribution are unchanged. Live mode uses CPace/Noise/libsodium, not only OS
-cryptography; do not infer a blanket exemption or hardcode one into the app.
-Build3 and4 metadata are verified; build4 also has operator install evidence.
-Historical build1-3 IPAs and provenance remain in the ignored artifact catalog.
-
-The SSH security session cannot access the GUI-unlocked login keychain. Use
-one-shot jobs in the authorized GUI session for signing/export/upload, then
-unload them. Reuse verified dependencies from clean Git worktrees. Never reset
-Keychain permissions, extract cached tokens, reuse notarization credentials or
-commit private machine/account/signing information. Machine paths, addresses
-and API configuration belong only in the operator's private notes.
-
-## Headless Bluetooth hardware check, 2026-09-27
-
-The operator requested tablet-to-relay Bluetooth pairing as the next step,
-using a PTH-660 for testing while retaining capability-based support across
-Wacom generations. BlueZ pairing over SSH now has hardware evidence: a
-persistent bond, pen/pressure/touch input, all eight physical ExpressKeys and
-reconnection using saved trust. A full relay reboot also retained the bond and
-trust, and the tablet reconnected without pairing again. A subsequent 90-second
-capture verified pressure from 0 to 8191, motion, tilt, touch and all eight
-ExpressKey press/releases, without evdev `SYN_DROPPED` notifications. This does
-not constitute acceptance of the headset workflow or Bluetooth support in the
-PLANK daemon.
-
-See `docs/bluetooth-tablet-pairing.md` for the repeatable procedure, observed
-bondable-state requirement, Bluetooth HID grouping and remaining qualification.
-No product-ID allowlist or production daemon/capture change was added. The pairing agent
-and scan were closed after the check; the tablet bond and trust were retained.
-
-The operator subsequently reported apparent short-idle disconnects. A six-minute
-passive observation found the Bluetooth link and HID node continuously present,
-with no HCI/ACL traffic. Battery was 100%, BlueZ input idle timeout was disabled,
-and the adapter remained runtime-active. A subsequent longer observation caught
-a real disconnect at 22:01:55 UTC: the tablet initiated L2CAP disconnection and
-the controller reported reason `0x13` (remote termination). The adapter suspended
-only afterward; bond and trust persisted. This is consistent with tablet-side
-sleep, and the operator confirmed the tablet was untouched when it happened.
-No power settings were changed. The tested model's blue Bluetooth
-indicator normally lights for only five seconds, so LED state alone cannot
-confirm a dropped link. See the pairing document for diagnostic guidance.
-
-A brief Touch Ring center-button press then restored the connection using the
-existing bond, without a host-side connect or pairing command. Post-wake pen
-motion, tilt, pressure from 0 through 7709 and touch input were captured, with
-no `SYN_DROPPED` notifications. The disconnect/wake cycle supports automatic
-tablet sleep followed by normal reconnection. Its exact idle threshold was not
-timed from the last pen event; do not report a measured 15-minute cutoff.
+The operator authorized future build-specific TestFlight notes and compliance
+completion with saved answers "Standard and No France". The verified API
+baseline is `usesNonExemptEncryption=false`; reuse it only while encryption
+and distribution are unchanged. Crypto still includes CPace/Noise/libsodium.
+Use `scripts/update-tablet-testflight.py` for exact version/build selection,
+bounded processing waits and readback. Signing uses the authorized GUI session;
+never reset Keychain permissions or copy credentials into Git.

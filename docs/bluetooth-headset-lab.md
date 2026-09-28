@@ -19,6 +19,10 @@ man-in-the-middle can win initial enrollment despite a short window and one
 pending request. Do not describe the gesture as equivalent to secret-code or
 QR-authenticated enrollment. Saved-key checks and encrypted observations remain.
 
+The same input adapter is also available as a [managed Debian service](linux-ble-package.md).
+Use that package for unattended startup/recovery. The foreground commands below
+remain useful for diagnosis; stop the installed service before running them.
+
 ## Operator procedure
 
 ### Tablet-free Bluetooth test
@@ -139,7 +143,9 @@ BlueZ reported zero active instances. The next command correctly failed with
 Command Disallowed, and the lab did not advertise a false ready state. After
 confirming no other advertiser was in use, clearing that orphan with
 `btmgmt -i hci0 clr-adv` allowed restart. Do not clear unrelated advertisements
-automatically. Automatic recovery from this condition remains unimplemented.
+automatically on a shared adapter. The managed package's explicit
+`exclusive_adapter` policy checks BlueZ ownership and queries kernel instances
+before clearing orphans; the foreground lab still requires manual recovery.
 
 ### Unrelated BlueZ battery polling during authorization
 
@@ -165,9 +171,11 @@ the application protocol.
 With that override, the regular lab completed physical authorization and logged
 an authenticated input observer after the app reconnected with its saved key.
 The corresponding capture has no SMP exchange or Battery Level read. The
-operator confirmed pen position, pressure and ExpressKeys all update on AVP. The runtime override disappears on reboot;
-the opt-in controller command is reapplied only when the lab starts. These are
-qualification workarounds, not a completed unattended service installation.
+operator confirmed pen position, pressure and ExpressKeys all update on AVP.
+That initial runtime override disappeared on reboot. The managed installation
+now documents an explicit persistent override and reapplies the controller
+workaround on service startup; see the package guide. Other hardware must be
+qualified before enabling either workaround.
 
 ### Tablet pairing and readings
 
