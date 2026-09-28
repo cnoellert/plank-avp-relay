@@ -3,7 +3,47 @@
 import socket
 import struct
 import time
-import subprocess
+
+
+def adapter_index(adapter):
+    if not adapter.startswith('hci') or not adapter[3:].isascii() or not adapter[3:].isdigit():
+        raise ValueError('Expected a Linux HCI adapter name')
+    index = int(adapter[3:])
+    if index >= 0xffff:
+        raise ValueError('HCI adapter index is out of range')
+    return index
+
+
+def management_command(channel, index, opcode, parameters=b''):
+    """Bounded request on Linux's documented HCI_CHANNEL_CONTROL interface."""
+    deadline = time.monotonic() + 3
+    channel.settimeout(3)
+    channel.sendall(struct.pack('<HHH', opcode, index, len(parameters)) + parameters)
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError('Controller management command timed out')
+        channel.settimeout(remaining)
+        try:
+            packet = channel.recv(65541)
+        except socket.timeout as error:
+            raise TimeoutError('Controller management command timed out') from error
+        if len(packet) < 6:
+            raise RuntimeError('Malformed controller management event')
+        event, controller, length = struct.unpack_from('<HHH', packet)
+        if len(packet) != 6 + length:
+            raise RuntimeError('Malformed controller management event')
+        if controller != index or event not in (1, 2):
+            continue
+        if length < 3:
+            raise RuntimeError('Malformed controller management response')
+        response_opcode, status = struct.unpack_from('<HB', packet, 6)
+        if response_opcode != opcode:
+            continue
+        if status:
+            raise RuntimeError(f'Controller management command rejected (0x{status:02x})')
+        if event == 1:
+            return packet[9:]
 
 
 def clear_advertisements(adapter):
@@ -12,12 +52,19 @@ def clear_advertisements(adapter):
     The caller must first verify BlueZ reports zero active advertisements and no
     discovery. This must never be used on a shared adapter without that policy.
     """
-    if not adapter.startswith('hci') or not adapter[3:].isascii() or not adapter[3:].isdigit():
-        raise ValueError('Expected a Linux HCI adapter name')
-    result = subprocess.run(['/usr/bin/btmgmt', '--index', adapter, 'clr-adv'],
-                            capture_output=True, timeout=5, check=False)
-    if result.returncode != 0:
-        raise RuntimeError('Could not clear stale advertisements on the dedicated adapter')
+    index = adapter_index(adapter)
+    # Avoid btmgmt's interactive shell: it can wait forever with stdin=/dev/null.
+    # https://github.com/bluez/bluez/wiki/MGMT#read-advertising-features
+    with socket.socket(socket.AF_BLUETOOTH, socket.SOCK_RAW, socket.BTPROTO_HCI) as channel:
+        channel.bind((0xffff, 3))  # HCI_DEV_NONE, HCI_CHANNEL_CONTROL.
+        features = management_command(channel, index, 0x003d)
+        if len(features) < 8 or len(features) != 8 + features[7] or features[7] > features[6]:
+            raise RuntimeError('Malformed advertising feature response')
+        if features[7] == 0:
+            return  # Removing all instances when none exist can be rejected.
+        result = management_command(channel, index, 0x003f, b'\x00')
+        if result != b'\x00':
+            raise RuntimeError('Malformed advertising removal response')
 
 
 def disable_address_resolution(adapter):
@@ -28,13 +75,12 @@ def disable_address_resolution(adapter):
     The kernel may re-enable resolution later; a controller restart requires
     restarting the lab so the command is applied again.
     """
-    if not adapter.startswith('hci') or not adapter[3:].isascii() or not adapter[3:].isdigit():
-        raise ValueError('Expected a Linux HCI adapter name')
+    index = adapter_index(adapter)
     opcode = 0x202d  # LE Set Address Resolution Enable.
     # struct hci_filter: event packets; Command Complete/Status; this opcode.
     packet_filter = struct.pack('<IIIH2x', 1 << 4, (1 << 14) | (1 << 15), 0, opcode)
     with socket.socket(socket.AF_BLUETOOTH, socket.SOCK_RAW, socket.BTPROTO_HCI) as channel:
-        channel.bind((int(adapter[3:]),))
+        channel.bind((index,))
         channel.setsockopt(0, 2, packet_filter)  # SOL_HCI, HCI_FILTER.
         deadline = time.monotonic() + 3
         channel.settimeout(3)

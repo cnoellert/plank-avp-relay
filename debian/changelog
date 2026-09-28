@@ -1,3 +1,10 @@
+plank-tablet-relay-ble (0.2.0~visionos-tablet-setup.4) experimental; urgency=medium
+
+  * Use bounded kernel management requests for advertisement recovery instead
+    of an interactive utility; skip removal when no instance exists.
+
+ -- PLANK contributors <625982+alatteri@users.noreply.github.com>  Mon, 28 Sep 2026 02:56:00 +0000
+
 plank-tablet-relay-ble (0.2.0~visionos-tablet-setup.3) experimental; urgency=medium
 
   * Manage private Python bytecode through Debian's Python helpers so removal

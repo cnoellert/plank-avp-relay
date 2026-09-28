@@ -57,14 +57,6 @@ class ServiceTests(unittest.TestCase):
                     ready()
                 self.assertIn(b'READY=1\n', receiver.recv(256))
 
-    def test_advertisement_cleanup_rejection_aborts_startup(self):
-        with patch('ble_lab.controller.subprocess.run') as run:
-            run.return_value.returncode = 1
-            with self.assertRaises(RuntimeError):
-                clear_advertisements('hci0')
-            run.assert_called_once()
-            self.assertNotIn('shell', run.call_args.kwargs)
-
     def test_ambiguous_tablets_stay_offline_without_opening_either(self):
         capture = Capture()
         candidates = {('bluetooth:a', '', 5): [], ('bluetooth:b', '', 5): []}
