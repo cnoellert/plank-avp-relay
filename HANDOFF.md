@@ -34,7 +34,8 @@ The operator installed build4 and tested the Bluetooth-only path. Screenshots
 confirm discovery at -61dBm, followed by **Timed out while establishing the
 Bluetooth link**. It never reached service discovery or byte exchange. This
 failure occurs before tablet authorization. No successful physical headset
-connection, echo, pairing or tablet readings have been accepted yet.
+connection to the Linux relay, pairing or tablet readings have been accepted
+yet. The same headset app subsequently passed against the Mac echo endpoint.
 
 Build3 also discovered the relay and stalled before authorization; Cancel
 worked immediately. Turning off the headset's keyboard, mouse and AirPods made
@@ -62,10 +63,34 @@ A nearby Apple Silicon laptop running macOS27 passed two physical tests:
 
 This establishes working relay-to-Mac communication and the shared app path on
 macOS. It does not establish AVP compatibility or identify the AVP failure's
-cause. The operator is now testing after a normal Vision Pro restart, with the
-Wacom powered off and the Mac comparison app closed. The relay remains in
-transport-only mode. The Mac builder is physically elsewhere and has no
-physical headset developer connection for console logs.
+cause. The operator power-cycled the Vision Pro and the same test still timed out.
+Its Settings > Privacy & Security > Bluetooth entry is listed and enabled.
+A temporary20ms advertising experiment was accepted by the relay controller,
+but the AVP still timed out without a completed LE link or ATT exchange. The
+relay was restored to its original1280ms advertising, still in transport-only
+mode. Wacom remains off; Mac central comparison apps are closed.
+
+The independent probe's `--peripheral` role (source `d0b27ac`) advertised
+**PLANK Mac Echo** on the nearby laptop. Compilation and signature checks
+passed. The operator confirmed the existing AVP build4 passed; the Mac log
+records two subscriptions with1600bytes each at00:46:27 and00:47:06UTC.
+The Mac peripheral app is now closed. This confirms the headset app's Bluetooth
+data path against another peripheral, but does not identify the Linux link
+failure's cause.
+
+A temporary LE-only relay experiment also timed out. The controller accepted
+advertising with BR/EDR Not Supported, but recorded no completed headset LE
+link or ATT exchange. Dual-mode operation, SSP, secure connections and the
+original advertising interval were restored; the fallback timer and captures
+are stopped. Tablet bond/trust remain intact. Transport-only advertising stays
+active. No replacement Bluetooth adapter is available for comparison.
+
+Next: retrieve AVP-side diagnostics through the nearby laptop. It has Xcode27
+and supports device sysdiagnose collection, but the headset is not yet visible
+to its developer tools. The operator was asked to open the headset's Remote
+Devices screen for wireless pairing. No headset logs have been collected yet.
+Apple's detailed Bluetooth logging profile/instructions require authenticated
+Developer downloads. No new TestFlight binary has been built.
 Preserve trust and distinguish advertising reception from connection success.
 Private screenshots, raw captures and machine details stay outside Git.
 
