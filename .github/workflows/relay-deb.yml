@@ -73,6 +73,7 @@ jobs:
           test "$(uname -m)" = '${{ matrix.machine }}'
       - name: Build and test package
         run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           mkdir -p artifacts/logs
           set -o pipefail
           scripts/build-relay-deb.sh 2>&1 | tee artifacts/logs/build.log

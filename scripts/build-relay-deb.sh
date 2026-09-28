@@ -4,7 +4,8 @@
 set -euo pipefail
 relay_root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$relay_root"
-if [[ -n $(git status --porcelain) ]]; then
+source_status=$(git status --porcelain)
+if [[ -n $source_status ]]; then
     echo 'Commit the source changes before building a package.' >&2
     exit 1
 fi
