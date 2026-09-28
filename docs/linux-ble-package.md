@@ -115,7 +115,7 @@ control and can be removed separately.
 ## Build and validation
 
 Install `build-essential cmake ninja-build pkg-config libudev-dev python3
-python3-dbus python3-gi debhelper dh-python curl ca-certificates git` in a Debian/Ubuntu
+python3-dbus python3-gi debhelper dh-python curl ca-certificates git` in an Ubuntu 26.04
 builder. From a clean committed checkout run `scripts/build-relay-deb.sh`.
 The script snapshots that commit, verifies the pinned libsodium 1.0.22 archive,
 builds it statically with PIC, runs its tests and the relay's assertions-enabled

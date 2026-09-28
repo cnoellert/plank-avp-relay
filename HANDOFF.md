@@ -15,24 +15,32 @@ from the legacy TCP/raw-HID workstation relay.
 
 ## Linux package
 
-New-install packages are version `0.2.0~visionos-tablet-setup.7`, source
-`33cd5f8a9507f5e978a5c16d54031aa2be72991e`, built natively for **arm64 and amd64**
-against Debian 12. Both pass 22 relay suites, 101 libsodium tests, binary lintian,
+The target OS is **Ubuntu 26.04** for both **arm64 and amd64**, as requested by
+the operator. New-install packages are version `0.2.0~visionos-tablet-setup.8`,
+source `4f572e1fc8ef3c0addbc265171f9ad8353f3bc7f`, built natively in Ubuntu 26.04
+containers. Both pass 22 relay suites, 101 libsodium tests, binary lintian,
 extracted/installed native-library smoke checks, configuration and systemd unit
-validation. The same packages also pass install/smoke/remove checks on Debian 13
-and Ubuntu 24.04 on both architectures, including Python bytecode cleanup.
+validation. Both also pass install/smoke/remove checks in fresh Ubuntu 26.04
+containers, including Python bytecode cleanup.
 The ctypes library is excluded from CPython extension inference, so dependencies
 use generic Python 3 instead of requiring the builder's Python minor version.
 
-[Successful build and artifacts](https://github.com/instinctual/plank-tablet-relay/actions/runs/36386356313).
+[Successful build and artifacts](https://github.com/instinctual/plank-tablet-relay/actions/runs/36387217564).
 Downloaded packages, symbols, metadata, provenance and checksums are retained in
-`artifacts/deb/33cd5f8a9507f5e978a5c16d54031aa2be72991e/debian-12/{arm64,amd64}/`.
+`artifacts/deb/0.2.0~visionos-tablet-setup.8/ubuntu-26.04/{arm64,amd64}/`.
+The folder uses the version from `debian/changelog`; the source commit remains
+in `source-commit.txt` and `provenance.json`. Existing artifact folders were also
+renamed to software versions, with file contents verified unchanged.
 Package SHA-256:
 
-- arm64: `3098a1abfc7928bbe5ffee116df7d3aa6b0bf3cbf0a680a7af086235e6bfb9b4`
-- amd64: `8860639b27d0b279d5217402f34632de122bd82c16a47223617f29e0d0052c3f`
+- arm64: `46f7536ca1c070c16731ab9d1d7a1ff5df5d2b72de30994de47816c350c814ac`
+- amd64: `d0ffd7032d67e8b9bb72848fe7098e0313147f4089ded08d2c222004068643ac`
 
-There is no physical ARM board qualification yet. Use a 64-bit Debian/Ubuntu
+Earlier revision 7 Debian 12 packages remain under the version 7 directory for
+history. Its superseded Python 3.11-dependent candidate is under
+`superseded/python311-dependency/`. Use revision 8 for new installations.
+
+There is no physical ARM board qualification yet. Use a 64-bit Ubuntu 26.04
 image with the board's Bluetooth firmware and Linux input support, then qualify
 concurrent Wacom/AVP operation, pairing, reconnect, sleep/wake and reboot.
 The operator canceled the proposed AP and web UI work; neither was implemented.
@@ -45,7 +53,7 @@ The live Intel host and TestFlight build remain at the versions below.
 `f23e36b`, targets Ubuntu 26.04 amd64. See
 [installation, configuration and hardware guidance](docs/linux-ble-package.md).
 Build from a clean committed checkout with `scripts/build-relay-deb.sh` in a
-Debian/Ubuntu builder. It verifies pinned libsodium 1.0.22, runs its tests and
+Ubuntu 26.04 builder. It verifies pinned libsodium 1.0.22, runs its tests and
 all assertion-enabled relay tests, and collects the package, debug symbols,
 build metadata, source commit and SHA-256 manifest.
 
@@ -81,9 +89,9 @@ installed directly and is not an Ubuntu archive upload.
 Package SHA-256:
 `83fb4e202224375eef39052cbd96aaecf345e1b306b7594e299070b88d534d82`.
 The deliverable and matching symbols/build metadata are retained under ignored
-`artifacts/deb/f23e36b1cccdb34714de41f87845f60a2556f63a/`.
-This is the package retained on the qualified physical host; revision 7 above
-adds native ARM packaging and broader distribution compatibility.
+`artifacts/deb/0.2.0~visionos-tablet-setup.6/`.
+This is the package retained on the qualified physical host; later revisions
+add native ARM packaging and update the build/delivery workflow.
 
 On return, the operator reported “Writing is not permitted.” Echo passed, but
 pairing rejected the app's already-approved Client key. This was reproduced
