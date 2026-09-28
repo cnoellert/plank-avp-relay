@@ -116,6 +116,15 @@ were installed. Next qualification needs another meaningful controller/role
 comparison or detailed radio capture, rather than another identical retry.
 No adapter configuration changes or new TestFlight binary were made during
 diagnostic collection. No fix for AVP-to-Linux interoperability is established.
+
+At the operator's request, repeated the independent Mac-central test against
+the unchanged live relay. It passed again at01:16:52UTC, RSSI-63dBm: three
+verified round trips and1600bytes each direction. The relay received1600bytes;
+its controller trace confirms a successful LE connection (public peer address,
+30ms interval,720ms supervision), ATT writes, indications and confirmations.
+The probe exited and the capture is closed. Current matrix: Mac-to-Linux passes,
+AVP-to-Mac passes, AVP-to-Linux fails. This isolates the failing combination,
+without proving which controller or stack causes the incompatibility.
 Preserve trust and distinguish advertising reception from connection success.
 Private screenshots, raw captures and machine details stay outside Git.
 
