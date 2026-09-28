@@ -9,7 +9,8 @@ import signal
 import time
 
 from .capture import Capture
-from .controller import disable_address_resolution
+from .controller import clear_advertisements, disable_address_resolution
+from .notify import ready
 from .native import Native, ProtocolError
 from .transport import EchoChannel, Indications, write_peer
 
@@ -53,10 +54,10 @@ class Object(dbus.service.Object):
 
 
 class Advertisement(Object):
-    def __init__(self, bus):
+    def __init__(self, bus, name):
         super().__init__(bus, BASE + '/advertisement', ADVERTISEMENT, {
             'Type': 'peripheral', 'ServiceUUIDs': dbus.Array([SERVICE_UUID], signature='s'),
-            'LocalName': 'PLANK Relay Lab', 'Discoverable': dbus.Boolean(True)})
+            'LocalName': name, 'Discoverable': dbus.Boolean(True)})
 
     @dbus.service.method(ADVERTISEMENT)
     def Release(self):
@@ -115,6 +116,8 @@ class Server(dbus.service.Object):
         self.loop = GLib.MainLoop()
         self.adapter = '/org/bluez/' + args.adapter
         self.controller_workaround = args.disable_controller_address_resolution
+        self.exclusive_adapter = getattr(args, 'exclusive_adapter', False)
+        self.notify_systemd = getattr(args, 'notify_systemd', False)
         self.native = None if args.transport_only else Native(args.library, args.state_dir)
         self.capture = None if args.transport_only else Capture(args.tablet, self.button)
         self.peer = None
@@ -129,17 +132,16 @@ class Server(dbus.service.Object):
         self.rx = Characteristic(self, False) if self.native else None
         self.tx = Characteristic(self, True) if self.native else None
         self.echo_rx, self.echo_tx = Characteristic(self, False, True), Characteristic(self, True, True)
-        self.advertisement = Advertisement(self.bus)
+        self.advertisement = Advertisement(self.bus, getattr(args, 'name', 'PLANK Relay Lab'))
         self.gatt_registered = self.advertising = False
         self.bus.add_signal_receiver(self.device_changed, dbus_interface=PROPERTIES,
             signal_name='PropertiesChanged', path_keyword='path', arg0='org.bluez.Device1')
         self.bus.add_signal_receiver(self.removed, dbus_interface=OBJECTS,
             signal_name='InterfacesRemoved')
-        if self.controller_workaround:
-            self.bus.add_signal_receiver(self.adapter_changed, dbus_interface=PROPERTIES,
-                signal_name='PropertiesChanged', path=self.adapter, arg0='org.bluez.Adapter1')
-            self.bus.add_signal_receiver(self.bluez_changed, dbus_interface='org.freedesktop.DBus',
-                signal_name='NameOwnerChanged', arg0='org.bluez')
+        self.bus.add_signal_receiver(self.adapter_changed, dbus_interface=PROPERTIES,
+            signal_name='PropertiesChanged', path=self.adapter, arg0='org.bluez.Adapter1')
+        self.bus.add_signal_receiver(self.bluez_changed, dbus_interface='org.freedesktop.DBus',
+            signal_name='NameOwnerChanged', arg0='org.bluez')
 
     @dbus.service.method(OBJECTS, out_signature='a{oa{sa{sv}}}')
     def GetManagedObjects(self):
@@ -216,6 +218,9 @@ class Server(dbus.service.Object):
             self.echo.disconnect()
 
     def removed(self, path, interfaces):
+        if str(path) == self.adapter and 'org.bluez.Adapter1' in interfaces:
+            self.failure = 'Bluetooth adapter removed; service will retry.'
+            self.loop.quit()
         if str(path) == self.peer and 'org.bluez.Device1' in interfaces:
             self.disconnect()
         if str(path) == self.echo.peer and 'org.bluez.Device1' in interfaces:
@@ -223,12 +228,12 @@ class Server(dbus.service.Object):
 
     def adapter_changed(self, interface, changed, invalidated):
         if 'Powered' in changed and not changed['Powered']:
-            self.failure = 'Controller powered off; restart the lab to reapply its workaround.'
+            self.failure = 'Bluetooth controller powered off; service will retry.'
             self.loop.quit()
 
     def bluez_changed(self, name, previous, current):
         if previous and previous != current:
-            self.failure = 'BlueZ restarted; restart the lab to reapply its workaround.'
+            self.failure = 'BlueZ restarted; service will register again.'
             self.loop.quit()
 
     def tick(self):
@@ -267,14 +272,21 @@ class Server(dbus.service.Object):
         adapter = self.bus.get_object('org.bluez', self.adapter)
         gatt = dbus.Interface(adapter, 'org.bluez.GattManager1')
         advertising = dbus.Interface(adapter, 'org.bluez.LEAdvertisingManager1')
-        if self.controller_workaround:
-            properties = dbus.Interface(adapter, PROPERTIES)
-            if (not properties.Get('org.bluez.Adapter1', 'Powered') or
-                    properties.Get('org.bluez.Adapter1', 'Discovering') or
+        properties = dbus.Interface(adapter, PROPERTIES)
+        if self.controller_workaround or self.exclusive_adapter:
+            if (properties.Get('org.bluez.Adapter1', 'Discovering') or
                     properties.Get('org.bluez.LEAdvertisingManager1', 'ActiveInstances')):
-                raise RuntimeError('Workaround requires a powered controller with no scan or advertisement active.')
+                raise RuntimeError('Adapter setup requires no scan or advertisement active.')
+        if self.exclusive_adapter:
+            properties.Set('org.bluez.Adapter1', 'Powered', dbus.Boolean(True))
+            properties.Set('org.bluez.Adapter1', 'Pairable', dbus.Boolean(False))
+        if not properties.Get('org.bluez.Adapter1', 'Powered'):
+            raise RuntimeError('Bluetooth adapter is powered off.')
+        if self.exclusive_adapter:
+            clear_advertisements(self.adapter.rsplit('/', 1)[1])
+        if self.controller_workaround:
             disable_address_resolution(self.adapter.rsplit('/', 1)[1])
-            print('Controller address resolution disabled for this lab session.', flush=True)
+            print('Controller address-resolution workaround applied.', flush=True)
 
         def failed(error):
             self.failure = 'BlueZ registration failed: ' + str(error)
@@ -282,7 +294,12 @@ class Server(dbus.service.Object):
 
         def advertised():
             self.advertising = True
-            print('PLANK Relay Lab is advertising. Use the app to discover it.', flush=True)
+            print('Bluetooth relay is advertising. Use the app to discover it.', flush=True)
+            if self.notify_systemd:
+                try:
+                    ready()
+                except OSError as error:
+                    failed(error)
 
         def registered():
             self.gatt_registered = True

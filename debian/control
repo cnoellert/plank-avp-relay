@@ -1,0 +1,17 @@
+Source: plank-tablet-relay-ble
+Section: misc
+Priority: optional
+Maintainer: PLANK contributors <625982+alatteri@users.noreply.github.com>
+Build-Depends: debhelper-compat (= 13), cmake, ninja-build, pkg-config, libudev-dev, python3, python3-dbus, python3-gi
+Standards-Version: 4.7.3
+Rules-Requires-Root: no
+Homepage: https://github.com/instinctual/plank-tablet-relay
+
+Package: plank-tablet-relay-ble
+Architecture: linux-any
+Depends: ${shlibs:Depends}, ${misc:Depends}, python3, python3-dbus, python3-gi, bluez, systemd
+Description: Bluetooth tablet readings relay for PLANK Tablet Setup
+ Receives Wacom tablet input through Linux input devices and provides
+ physically approved pairing and authenticated readings over Bluetooth LE.
+ Includes a managed system service and persistent headset trust. This setup
+ component is separate from the raw-HID workstation forwarding service.

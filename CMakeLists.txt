@@ -136,6 +136,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/ble_transport_test.py")
         add_test(NAME ble_controller_test COMMAND "${Python3_EXECUTABLE}"
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/ble_controller_test.py")
+        add_test(NAME ble_service_test COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/ble_service_test.py")
 
         add_executable(link_test tests/link_test.c)
         target_link_libraries(link_test PRIVATE plank_relay_link)

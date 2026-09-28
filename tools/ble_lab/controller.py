@@ -3,6 +3,21 @@
 import socket
 import struct
 import time
+import subprocess
+
+
+def clear_advertisements(adapter):
+    """Recover kernel-retained advertisements on an explicitly dedicated adapter.
+
+    The caller must first verify BlueZ reports zero active advertisements and no
+    discovery. This must never be used on a shared adapter without that policy.
+    """
+    if not adapter.startswith('hci') or not adapter[3:].isascii() or not adapter[3:].isdigit():
+        raise ValueError('Expected a Linux HCI adapter name')
+    result = subprocess.run(['/usr/bin/btmgmt', '--index', adapter, 'clr-adv'],
+                            capture_output=True, timeout=5, check=False)
+    if result.returncode != 0:
+        raise RuntimeError('Could not clear stale advertisements on the dedicated adapter')
 
 
 def disable_address_resolution(adapter):

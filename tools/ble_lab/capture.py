@@ -92,8 +92,10 @@ class Capture:
             os.close(fd)
         self.nodes.clear()
         self.axes.clear()
+        self.ranges.clear()
         self.keys.clear()
         self.contacts.clear()
+        self.slot = 0
         self.pad_mask = 0
         self.dirty = True
 
@@ -109,7 +111,13 @@ class Capture:
                      if key[0].lower() == self.selected or
                         key[0].lower() == 'bluetooth:' + self.selected}
         if len(found) > 1:
-            raise RuntimeError('Multiple qualifying tablets; select one with --tablet.')
+            # Remain available so an administrator can select a tablet without
+            # losing the headset's saved trust or restarting on every scan.
+            if not getattr(self, 'ambiguous', False):
+                print('Multiple qualifying tablets; configure tablet selection. Input remains offline.', flush=True)
+            self.ambiguous = True
+            return
+        self.ambiguous = False
         if not found:
             return
         identity, nodes = next(iter(found.items()))

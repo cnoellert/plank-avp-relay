@@ -1,0 +1,6 @@
+plank-tablet-relay-ble (0.2.0~visionos-tablet-setup.1) experimental; urgency=medium
+
+  * Package the authenticated Bluetooth input relay with managed recovery,
+    persistent pairing, and opt-in controller compatibility settings.
+
+ -- PLANK contributors <625982+alatteri@users.noreply.github.com>  Mon, 28 Sep 2026 00:00:00 +0000
