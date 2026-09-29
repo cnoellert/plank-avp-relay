@@ -23,6 +23,9 @@ public struct TabletSetupStatus: Decodable, Equatable, Sendable {
     public let secondsRemaining: Int
     public let tablets: [ManagedTablet]
     public let candidates: [ManagedTablet]
+    public let enrollmentVersion: Int?
+    public let headsetAuthorized: Bool?
+    public let relayKey: String?
 
     public static func decode(_ data: Data, request: Int) throws -> Self {
         struct Envelope: Decodable { let version: Int; let id: Int; let ok: Bool; let error: String? }
@@ -39,6 +42,19 @@ public struct TabletSetupStatus: Decodable, Equatable, Sendable {
     }
 
     public var operating: Bool { ["pairing", "connecting", "verifying"].contains(phase) }
+    public var needsHeadsetRecovery: Bool { !canManage && !initialSetup && headsetAuthorized != true }
+
+    public var enrollmentIdentity: Data? {
+        guard enrollmentVersion == 1, let relayKey, relayKey.utf8.count == 64 else { return nil }
+        let characters = Array(relayKey.utf8)
+        var bytes = [UInt8]()
+        for offset in stride(from: 0, to: 64, by: 2) {
+            guard let byte = UInt8(String(decoding: characters[offset..<offset+2], as: UTF8.self), radix: 16)
+            else { return nil }
+            bytes.append(byte)
+        }
+        return Data(bytes)
+    }
 }
 
 struct TabletSetupCommand: Encodable, Sendable {
@@ -49,94 +65,127 @@ struct TabletSetupCommand: Encodable, Sendable {
 }
 
 extension RelayPairingClient {
-    /// One connection owns the setup window. Existing approvals use Noise;
-    /// an unapproved headset gets only the relay's restricted bootstrap API.
-    public func manageTablets(address: RelayAddress, privateKey: Data?, relayKey: Data?,
+    /// The plaintext endpoint supplies only status and the public relay identity.
+    /// All changes use Noise; a first-use session is restricted to tablet setup
+    /// until the relay saves the initiating headset after tablet verification.
+    public func manageTablets(address: RelayAddress, privateKey: Data, relayKey: Data?,
+        onIdentity: (Data) throws -> Void, expectedIdentity: Data?,
+        onAuthorized: (Data) throws -> Void,
         nextCommand: () -> (String, String?)?, onStatus: (TabletSetupStatus) -> Void,
-        onProgress: @escaping (String) -> Void) async throws {
-        let authenticated = privateKey != nil && relayKey != nil
-        let socket = RelayBLEConnection(identifier: address.bluetoothIdentifier,
-            channel: authenticated ? .relay : .setup, requireTabletSetup: true, onProgress: onProgress)
-        var codec: OpaquePointer?
-        if let privateKey, let relayKey {
-            guard privateKey.count == 32, relayKey.count == 32 else { throw RelaySetupError.invalidStoredKey }
-            codec = privateKey.withUnsafeBytes { key in
-                relayKey.withUnsafeBytes { relay in
-                    pltr_client_link_create(key.bindMemory(to: UInt8.self).baseAddress,
-                        relay.bindMemory(to: UInt8.self).baseAddress, 1)
-                }
+        onProgress: @escaping (String) -> Void) async throws -> Bool {
+        let wasAuthorized = relayKey != nil
+        let identity: Data
+        if let relayKey {
+            identity = relayKey
+        } else {
+            let bootstrap = try await setupStatus(address, onProgress: onProgress)
+            guard let discovered = bootstrap.enrollmentIdentity else {
+                throw RelaySetupError.network("Update the relay package to use combined tablet and headset setup.")
             }
-            guard let codec, pltr_client_link_enable_tablet_management(codec) == 0 else {
-                if let codec { pltr_client_link_destroy(codec) }
-                throw RelaySetupError.protocolError
+            if let expectedIdentity, expectedIdentity != discovered { throw RelaySetupError.identityChanged }
+            try onIdentity(discovered)
+            identity = discovered
+            onProgress(bootstrap.initialSetup ? "Opening secure tablet setup…" : "Restoring this headset’s saved authorization…")
+        }
+        guard privateKey.count == 32, identity.count == 32 else { throw RelaySetupError.invalidStoredKey }
+        let socket = RelayBLEConnection(identifier: address.bluetoothIdentifier,
+            channel: .relay, requireTabletSetup: true, onProgress: onProgress)
+        let codec = privateKey.withUnsafeBytes { key in
+            identity.withUnsafeBytes { relay in
+                pltr_client_link_create(key.bindMemory(to: UInt8.self).baseAddress,
+                    relay.bindMemory(to: UInt8.self).baseAddress, 1)
             }
         }
-        defer { if let codec { pltr_client_link_destroy(codec) } }
+        guard let codec else { throw RelaySetupError.protocolError }
+        defer { pltr_client_link_destroy(codec) }
+        guard pltr_client_link_enable_tablet_management(codec) == 0 else { throw RelaySetupError.protocolError }
+        var handshakeComplete = false
         do {
-            try await bounded(socket: socket, seconds: 300) {
+            let completed = try await bounded(socket: socket, seconds: 300) {
                 try await socket.connect()
-                var plainBuffer = Data()
                 var output = [UInt8](repeating: 0, count: 8448)
                 var written = 0
-                if let codec {
-                    guard pltr_client_link_start(codec, &output, output.count, &written) == 0 else {
-                        throw RelaySetupError.protocolError
-                    }
-                    try await socket.send(Data(output.prefix(written)))
-                    while pltr_client_link_peer_version(codec) == nil {
-                        let frames = try await self.managementFrames(socket, codec: codec)
-                        guard frames.isEmpty else { throw RelaySetupError.unexpectedMessage }
-                    }
+                guard pltr_client_link_start(codec, &output, output.count, &written) == 0 else {
+                    throw RelaySetupError.protocolError
                 }
+                try await socket.send(Data(output.prefix(written)))
+                while pltr_client_link_peer_version(codec) == nil {
+                    let frames = try await self.managementFrames(socket, codec: codec)
+                    guard frames.isEmpty else { throw RelaySetupError.unexpectedMessage }
+                }
+                handshakeComplete = true
+                var reportedAuthorization = false
                 for request in 1...300 {
                     try Task.checkCancellation()
                     let command = nextCommand() ?? ("status", nil)
                     let payload = try JSONEncoder().encode(TabletSetupCommand(id: request, op: command.0, tablet: command.1))
-                    if let codec {
-                        let result = payload.withUnsafeBytes { bytes in
-                            pltr_client_link_send(codec, UInt16(PLTR_TABLET_REQUEST.rawValue),
-                                bytes.bindMemory(to: UInt8.self).baseAddress, payload.count,
-                                &output, output.count, &written)
-                        }
-                        guard result == 0 else { throw RelaySetupError.protocolError }
-                        try await socket.send(Data(output.prefix(written)))
-                    } else {
-                        guard payload.count <= 512 else { throw RelaySetupError.protocolError }
-                        var record = Data([UInt8(truncatingIfNeeded: payload.count), UInt8(payload.count >> 8)])
-                        record.append(payload)
-                        try await socket.send(record)
+                    let result = payload.withUnsafeBytes { bytes in
+                        pltr_client_link_send(codec, UInt16(PLTR_TABLET_REQUEST.rawValue),
+                            bytes.bindMemory(to: UInt8.self).baseAddress, payload.count,
+                            &output, output.count, &written)
                     }
+                    guard result == 0 else { throw RelaySetupError.protocolError }
+                    try await socket.send(Data(output.prefix(written)))
                     var response: Data?
                     while response == nil {
-                        if let codec {
-                            let frames = try await self.managementFrames(socket, codec: codec)
-                            guard frames.count <= 1 else { throw RelaySetupError.protocolError }
-                            response = frames.first
-                        } else {
-                            plainBuffer.append(try await self.receiveWithDeadline(socket))
-                            guard plainBuffer.count <= 4098 else { throw RelaySetupError.protocolError }
-                            if plainBuffer.count >= 2 {
-                                let size = Int(plainBuffer[0]) | Int(plainBuffer[1]) << 8
-                                guard (2...4096).contains(size), plainBuffer.count <= size + 2 else {
-                                    throw RelaySetupError.protocolError
-                                }
-                                if plainBuffer.count == size + 2 {
-                                    response = Data(plainBuffer.dropFirst(2))
-                                    plainBuffer.removeAll(keepingCapacity: true)
-                                }
-                            }
-                        }
+                        let frames = try await self.managementFrames(socket, codec: codec)
+                        guard frames.count <= 1 else { throw RelaySetupError.protocolError }
+                        response = frames.first
                     }
-                    onStatus(try TabletSetupStatus.decode(response!, request: request))
+                    let status = try TabletSetupStatus.decode(response!, request: request)
+                    try Task.checkCancellation()
+                    if status.headsetAuthorized == true && !reportedAuthorization {
+                        try onAuthorized(identity)
+                        reportedAuthorization = true
+                    }
+                    onStatus(status)
+                    if !wasAuthorized && reportedAuthorization && status.phase == "ready" {
+                        return true
+                    }
                     try await Task.sleep(for: .seconds(1))
                 }
                 throw RelaySetupError.timedOut
             }
+            await socket.finishDisconnect()
+            return completed
+        } catch {
+            await socket.finishDisconnect()
+            if !wasAuthorized && !handshakeComplete && !(error is CancellationError) {
+                throw RelaySetupError.network("Could not verify this headset with the relay. Retry the connection. If this is a replacement headset, reset ownership through SSH on the relay first.")
+            }
+            throw error
+        }
+    }
+
+    private func setupStatus(_ address: RelayAddress, onProgress: @escaping (String) -> Void) async throws -> TabletSetupStatus {
+        let socket = RelayBLEConnection(identifier: address.bluetoothIdentifier,
+            channel: .setup, requireTabletSetup: true, onProgress: onProgress)
+        do {
+            let status = try await bounded(socket: socket, seconds: 40) {
+                try await socket.connect()
+                let payload = try JSONEncoder().encode(TabletSetupCommand(id: 1, op: "status", tablet: nil))
+                var record = Data([UInt8(truncatingIfNeeded: payload.count), UInt8(payload.count >> 8)])
+                record.append(payload)
+                try await socket.send(record)
+                var buffer = Data()
+                while true {
+                    buffer.append(try await self.receiveWithDeadline(socket))
+                    guard buffer.count <= 4098 else { throw RelaySetupError.protocolError }
+                    if buffer.count >= 2 {
+                        let size = Int(buffer[0]) | Int(buffer[1]) << 8
+                        guard (2...4096).contains(size), buffer.count <= size + 2 else { throw RelaySetupError.protocolError }
+                        if buffer.count == size + 2 {
+                            return try TabletSetupStatus.decode(Data(buffer.dropFirst(2)), request: 1)
+                        }
+                    }
+                }
+            }
+            await socket.finishDisconnect()
+            return status
         } catch {
             await socket.finishDisconnect()
             throw error
         }
-        await socket.finishDisconnect()
     }
 
     private func managementFrames(_ socket: RelayBLEConnection, codec: OpaquePointer) async throws -> [Data] {

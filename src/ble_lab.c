@@ -25,7 +25,17 @@ struct PltrBleLab {
     uint8_t management[4096];
     size_t management_size;
     int management_session;
+    int enrollment_allowed, enrollment_session;
+    uint8_t management_client[32];
 };
+
+static int approve_management(void *context, const uint8_t key[32]) {
+    PltrBleLab *lab = context;
+    if (!pltr_identity_store_approve(&lab->store, key) &&
+        !(lab->enrollment_session && lab->store.client_count == 0)) return 0;
+    memcpy(lab->management_client, key, 32);
+    return 1;
+}
 
 static void clear_presses(PltrBleLab *lab) {
     lab->button = lab->held = 0;
@@ -96,6 +106,8 @@ void pltr_ble_lab_disconnect(PltrBleLab *lab, uint64_t now_ms) {
     lab->mode = 0;
     lab->management_size = 0;
     lab->management_session = 0;
+    lab->enrollment_allowed = lab->enrollment_session = 0;
+    sodium_memzero(lab->management_client, sizeof(lab->management_client));
     lab->started_ms = lab->received_ms = lab->ping_ms = 0;
     lab->physically_approved = 0;
     lab->status_ms = 0;
@@ -131,11 +143,13 @@ int pltr_ble_lab_receive(PltrBleLab *lab, const uint8_t *data, size_t size,
             if (pltr_pair_wire_init(&lab->wire, &lab->pairing, 1) != 0) return -1;
             if (lab->mode == 3 && pltr_pair_wire_button_approval(&lab->wire) != 0) return -1;
         } else {
+            lab->enrollment_session = lab->enrollment_allowed && !lab->store.client_count;
             if (pltr_link_init(&lab->link, PLTR_NOISE_RESPONDER,
-                lab->store.private_key, NULL, pltr_identity_store_approve,
-                &lab->store, 1) != 0 ||
+                lab->store.private_key, NULL, approve_management,
+                lab, 1) != 0 ||
                 pltr_link_enable_input_observer(&lab->link) != 0 ||
                 pltr_link_enable_tablet_management(&lab->link) != 0) return -1;
+            if (lab->enrollment_session && pltr_link_restrict_tablet_setup(&lab->link) != 0) return -1;
         }
         // Replay the already validated OPEN into the selected stream parser.
         size_t replayed = 0;
@@ -278,6 +292,32 @@ int pltr_ble_lab_sample(PltrBleLab *lab, const uint8_t *payload, size_t size,
 
 int pltr_ble_lab_has_clients(const PltrBleLab *lab) {
     return lab && lab->store.client_count != 0;
+}
+
+int pltr_ble_lab_public_key(const PltrBleLab *lab, uint8_t out[32]) {
+    if (!lab || !out) return -1;
+    memcpy(out, lab->store.public_key, 32);
+    return 0;
+}
+
+void pltr_ble_lab_allow_enrollment(PltrBleLab *lab, int allowed) {
+    if (lab && !lab->mode && !lab->probe.filled)
+        lab->enrollment_allowed = !!allowed && lab->store.client_count == 0;
+}
+
+int pltr_ble_lab_management_authorized(const PltrBleLab *lab) {
+    return lab && lab->mode == 1 && lab->link.stage == PLTR_LINK_READY &&
+        pltr_identity_store_approve((void *)&lab->store, lab->management_client);
+}
+
+int pltr_ble_lab_enrolling(const PltrBleLab *lab) {
+    return lab && lab->enrollment_session && lab->mode == 1 &&
+        lab->link.stage == PLTR_LINK_READY && !lab->store.client_count;
+}
+
+int pltr_ble_lab_finish_enrollment(PltrBleLab *lab) {
+    if (!pltr_ble_lab_enrolling(lab) || !lab->management_session) return -1;
+    return pltr_identity_store_add(&lab->store, lab->management_client);
 }
 
 int pltr_ble_lab_reset_clients(PltrBleLab *lab) {

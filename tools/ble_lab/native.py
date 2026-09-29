@@ -32,6 +32,11 @@ class Native:
                       C.c_size_t, C.POINTER(C.c_size_t)], C.c_int),
             'observing': ([C.c_void_p], C.c_int),
             'has_clients': ([C.c_void_p], C.c_int),
+            'public_key': ([C.c_void_p, C.c_void_p], C.c_int),
+            'allow_enrollment': ([C.c_void_p, C.c_int], None),
+            'enrolling': ([C.c_void_p], C.c_int),
+            'management_authorized': ([C.c_void_p], C.c_int),
+            'finish_enrollment': ([C.c_void_p], C.c_int),
             'reset_clients': ([C.c_void_p], C.c_int),
             'take_management': ([C.c_void_p, C.c_void_p, C.c_size_t], C.c_int),
             'management_reply': ([C.c_void_p, C.c_void_p, C.c_size_t, C.c_void_p,
@@ -101,6 +106,28 @@ class Native:
     def reset_clients(self):
         if self.lib.pltr_ble_lab_reset_clients(self.handle):
             raise ProtocolError('Could not revoke headset approvals.')
+
+    @property
+    def public_key(self):
+        key = (C.c_uint8 * 32)()
+        if self.lib.pltr_ble_lab_public_key(self.handle, key):
+            raise ProtocolError('Relay identity unavailable.')
+        return bytes(key).hex()
+
+    def allow_enrollment(self, allowed):
+        self.lib.pltr_ble_lab_allow_enrollment(self.handle, bool(allowed))
+
+    @property
+    def enrolling(self):
+        return bool(self.lib.pltr_ble_lab_enrolling(self.handle))
+
+    @property
+    def management_authorized(self):
+        return bool(self.lib.pltr_ble_lab_management_authorized(self.handle))
+
+    def finish_enrollment(self):
+        if self.lib.pltr_ble_lab_finish_enrollment(self.handle):
+            raise ProtocolError('Could not save this headset’s approval.')
 
     @property
     def observing(self):

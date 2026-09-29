@@ -117,6 +117,17 @@ int pltr_link_enable_tablet_management(PltrLink *link) {
     return 0;
 }
 
+int pltr_link_restrict_tablet_setup(PltrLink *link) {
+    if (pltr_link_enable_tablet_management(link) != 0) return -1;
+    link->setup_only = 1;
+    return 0;
+}
+
+static int setup_message(uint16_t type) {
+    return type == PLTR_TABLET_REQUEST || type == PLTR_TABLET_RESPONSE ||
+           type == PLTR_PING || type == PLTR_PONG || type == PLTR_GOODBYE;
+}
+
 static int observer_enabled(const PltrLink *link) {
     return (link->local_features & link->peer_features &
             PLTR_FEATURE_INPUT_OBSERVER) != 0;
@@ -228,6 +239,7 @@ int pltr_link_receive(PltrLink *link, const uint8_t *bytes, size_t size,
         link->peer_version[version_size] = '\0';
         link->stage = PLTR_LINK_READY;
     } else if (link->stage == PLTR_LINK_READY) {
+        if (link->setup_only && !setup_message(frame->type)) return fail(link);
         if ((frame->type == PLTR_TABLET_REQUEST || frame->type == PLTR_TABLET_RESPONSE) &&
             !link->tablet_management) return fail(link);
         if ((frame->type == PLTR_INPUT_OBSERVE ||
@@ -253,6 +265,7 @@ int pltr_link_send(PltrLink *link, uint16_t type,
                    const uint8_t *payload, size_t payload_size,
                    uint8_t *out, size_t capacity, size_t *written) {
     if (link == NULL || link->stage != PLTR_LINK_READY ||
+        (link->setup_only && !setup_message(type)) ||
         ((type == PLTR_TABLET_REQUEST || type == PLTR_TABLET_RESPONSE) &&
          !link->tablet_management) ||
         (link->role == PLTR_NOISE_RESPONDER && type == PLTR_TABLET_RESPONSE &&

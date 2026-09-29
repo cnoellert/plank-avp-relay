@@ -1,64 +1,76 @@
 # Headless Bluetooth tablet pairing
 
-PLANK Tablet Setup can enroll a Bluetooth tablet through the relay without an
-active SSH session. The Linux relay owns the tablet's Bluetooth bond; the app
-then obtains its separate headset approval through three tablet-button presses.
+Starting with app build 12 and relay package revision 14, setup is one flow:
+**discover the relay → pair or reconnect the tablet → automatic headset
+ownership → live readings**. No separate tablet-button confirmation is needed.
 
 ## Pair using the headset app
 
-1. Scan for relays and select the relay hostname.
-2. With no saved headset or tablet, choose **Add tablet**. Discovery lasts at
-   most 60 seconds. Put the intended tablet into its own Bluetooth pairing mode.
-3. Select the intended candidate. Names and addresses distinguish candidates;
-   names are not verification. The relay requires a persistent bond, Wacom
-   vendor identity, HID service, and matching local pen/pad input capabilities.
-4. Once the tablet connects, choose **Continue to headset approval**. Wait for
-   the three circles and press/release the same tablet button three times.
-5. The app saves the relay identity and starts authenticated readings.
+1. Select the relay hostname in the app.
+2. Choose **Find tablets to pair**, put the tablet into Bluetooth pairing mode,
+   and select it. Discovery is bounded to 60 seconds.
+3. The relay verifies a persistent Bluetooth bond, Wacom vendor identity, HID
+   service and matching pen/pad input capabilities. Names are selection hints,
+   not verification. A retained saved tablet can instead be selected with
+   **Connect** or **Use this tablet**.
+4. Successful verification saves the headset that initiated this encrypted
+   setup session. The app saves the relay identity and starts live readings.
 
-Saved headsets use **Manage pairing → Manage tablets** to add, connect, select
-or remove tablets. Stop live readings first. Removal requires an explicit app
-confirmation and removes only the selected tablet bond; headset approvals remain.
-An offline saved tablet remains enrolled. Wake it or choose **Connect**; do not
-remove its bond to recover from ordinary sleep. A new headset can be approved
-using the already-paired tablet, without an existing approved headset.
+On an owned relay, **Manage tablets** adds, connects, selects or removes tablets.
+Stop live readings first. Removing a tablet requires confirmation and removes
+only that tablet's bond. The headset remains authorized and can immediately add
+another tablet. Sleep or radio failure does not remove either relationship.
 
-Only an unconfigured relay (no approved headsets, saved tablet or attached USB
-tablet) allows initial tablet enrollment without headset authentication. Once
-configured, management commands use the approved headset's existing Noise
-session. Bluetooth names, diagnostic echo, tablet enrollment and public status
-never grant headset trust. The initial selection remains a nearby setup window,
-not a cryptographic proof of which human owns the device.
+Public setup status and the public relay identity are read-only. All tablet
+mutations use Noise. An unowned relay allows one provisional Noise session,
+bound to the initiating headset's proven static key, but restricts it to tablet
+management, keepalives and disconnect. It cannot start readings or raw HID.
+Only successful tablet verification commits that headset key to the allowlist.
+The setup connection remains restricted after commit; readings open a fresh
+normal authenticated connection. No public status flag alone grants app trust.
 
-The agent accepts only the selected device and its HID service. It does not
-become the system default agent. PIN/passkey entry and numeric comparison are
-not supported; such tablets fail enrollment instead of being silently accepted.
-The workflow has no model/generation allowlist. Pair/connect attempts time out,
-return the controller's prior bondable state, unregister the temporary agent,
-and remove only a provisional bond created by that attempt. A durable journal
-cleans up interrupted provisional enrollment on restart. Pre-existing bonds and
-headset approvals are retained on failure or cancellation.
+The first relay identity is learned from the device selected by the operator
+and pinned before changing tablet state. This is trust on first use, not
+out-of-band authentication against an active nearby impersonator. Existing
+pins must match. Encrypted setup prevents passive disclosure and binds the
+completed operation to the initiating headset; it is not a claim that a
+Bluetooth name proves human ownership. Normal reconnections use the saved
+relay key and the persisted headset allowlist.
 
-If both the tablet and an approved headset are unavailable, recover over SSH:
+If the app loses only its saved relay key, its retained private headset identity
+can authenticate again to the relay's existing approval. The app restores the
+relay key only after authenticated status confirms that approval. A different
+headset key cannot take over an owned relay. A pending relay-identity pin also
+allows recovery if setup committed on Linux just before the app was interrupted.
+
+The temporary BlueZ agent accepts only the selected device's HID service and
+never becomes the system default. PIN/passkey entry and numeric comparison are
+not supported. Pair/connect attempts time out, restore the previous bondable
+state, and clean up only newly created provisional bonds. A durable journal
+cleans interrupted attempts on restart. Existing bonds and approvals survive
+cancellation or failure. A crash after ownership is committed may require
+reconnecting or adding the tablet again, but the same headset can authenticate.
+
+## Ownership recovery through SSH
+
+A lost/replaced headset requires an explicit ownership reset:
 
 ```sh
-# Revoke headset approvals; retain the relay identity and all tablet bonds.
+# Revoke headset approvals; retain relay identity and tablet bonds.
 sudo plank-tablet-relay-admin reset-headsets --yes
-# Remove one saved tablet bond, using its address from bluetoothctl devices.
+# Optional: remove only a chosen obsolete tablet bond.
 sudo plank-tablet-relay-admin remove-tablet AA:BB:CC:DD:EE:FF --yes
 ```
 
-These commands stop the relay, hold its state lock, save previous enrollment
-metadata privately, perform the selected operation, and restart a previously
-running relay. No hardware button is required. A web UI is deferred.
-After resetting headset approvals, forget local relay trust in the app before
-approving it again. To reopen initial tablet setup, remove the obsolete tablet
-bond as well as resetting unavailable headset approvals. Do not delete the
-relay's identity directory or unrelated Bluetooth devices.
+The replacement headset can then select the retained tablet or pair a new one;
+successful verification saves its ownership. No bond deletion is needed merely
+to reset headset ownership. The confusing app-side local-forget control is
+removed. These commands stop the relay, hold its state lock, privately back up
+enrollment metadata, perform the operation, and restart the service. No hardware
+button or web UI is required. Never delete the identity directory to recover.
 
-A manually pinned `tablet` in `relay.conf` takes precedence and disables app
-management until cleared through SSH. The old SSH procedure below remains
-useful for diagnosis, and is distinct from unattended app enrollment.
+An explicit `tablet` selection in `relay.conf` disables app management until
+cleared through SSH. The procedure below remains useful for diagnosis.
 
 ## Device policy
 

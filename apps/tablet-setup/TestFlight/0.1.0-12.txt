@@ -1,0 +1,8 @@
+One setup flow: find the relay, pair your tablet, and start live readings.
+
+- Pairing and verifying the tablet automatically authorizes the headset that started setup. The separate three-circle confirmation is removed.
+- Removing a tablet preserves headset authorization. Manage tablets offers a clear path to pair a replacement.
+- An already-approved headset can restore access after losing its saved relay key, using its retained headset identity.
+- The confusing local-forget control is removed. Transferring ownership to a replacement headset uses the relay's explicit SSH reset command.
+
+Requires relay package 0.2.0~visionos-tablet-setup.14 or newer. Select your relay, put the tablet into Bluetooth pairing mode, choose Find tablets to pair, and select it. Verify setup completes without button presses and live pen position and pressure change. Remove the tablet, add it again, and confirm the headset remains authorized.

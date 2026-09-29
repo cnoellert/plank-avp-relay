@@ -19,6 +19,19 @@ for the verified address-resolution and battery-plugin fixes, fixed reference
 snapshot, implementation/recovery requirements and acceptance tests. Creating
 this document changes no runtime code or deployed host configuration.
 
+## Combined setup update (delivery in progress)
+
+The operator approved combining initial tablet pairing and headset ownership.
+Build 12 and package revision 14 implement a restricted encrypted Noise setup
+session, successful tablet verification commits its initiating headset, and the
+app goes directly to readings. Tablet removal retains ownership. A retained
+headset private key can restore a lost local relay pin through the existing
+allowlist; unknown keys cannot take over an owned relay. App-side local forget
+and the three-circle UI are removed. SSH ownership reset retains tablet bonds.
+See [current enrollment design](docs/bluetooth-tablet-pairing.md). Earlier
+three-press descriptions below document prior builds, not the new normal flow.
+No live ownership reset has been run; the user's current approved key is retained.
+
 ## Linux package
 
 The x86-64 host OS is **Ubuntu Server 26.04**. Packages use Ubuntu 26.04 as

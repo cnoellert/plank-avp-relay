@@ -46,6 +46,7 @@ class EnrollmentTests(unittest.TestCase):
         self.directory = Path(self.temp.name)
         self.backend = Backend()
         self.clients = False
+        self.enrolled = []
         self.selected = []
         self.now = 100
         self.manager = self.create()
@@ -53,13 +54,19 @@ class EnrollmentTests(unittest.TestCase):
 
     def create(self):
         return Tablets(self.backend, self.directory, lambda: self.clients,
-                       self.selected.append, lambda: False, clock=lambda: self.now)
+                       self.selected.append, lambda: False, clock=lambda: self.now,
+                       enroll_headset=self.enroll)
 
-    def call(self, op='status', target=None, authenticated=False, owner='headset'):
+    def enroll(self, owner):
+        self.assertFalse(self.clients)
+        self.enrolled.append(owner)
+        self.clients = True
+
+    def call(self, op='status', target=None, authenticated=False, owner='headset', enrolling=True):
         self.request += 1
         payload = {'version': 1, 'id': self.request, 'op': op}
         if target: payload['tablet'] = target
-        return json.loads(self.manager.handle(json.dumps(payload).encode(), owner, authenticated))
+        return json.loads(self.manager.handle(json.dumps(payload).encode(), owner, authenticated, enrolling))
 
     def start(self, authenticated=False):
         self.assertTrue(self.call('scan', authenticated=authenticated)['ok'])
@@ -70,16 +77,18 @@ class EnrollmentTests(unittest.TestCase):
             Paired=True, Bonded=True, Connected=True, ServicesResolved=True)
         self.backend.pair_done()
         self.backend.connect_done()
+        self.now += 1
         self.manager.tick()
 
-    def test_first_tablet_setup_verifies_input_and_persists_without_approving_headset(self):
+    def test_first_tablet_setup_verifies_input_and_approves_initiating_headset(self):
         self.assertTrue(self.call()['initialSetup'])
         self.start()
         self.assertTrue(self.backend.bondable)
         self.finish()
         self.assertEqual(self.manager.phase, 'ready')
         self.assertEqual(self.selected, [FIRST])
-        self.assertFalse(self.clients)
+        self.assertTrue(self.clients)
+        self.assertEqual(self.enrolled, ['headset'])
         self.assertFalse(self.backend.bondable)
         self.assertIn(('trust', FIRST), self.backend.calls)
         self.assertFalse(self.call()['canManage'])
@@ -95,7 +104,7 @@ class EnrollmentTests(unittest.TestCase):
         self.assertTrue(self.call()['ok'])
         self.clients = False
         self.backend.items[FIRST].update(Modalias='usb:v056Ap1234', UUIDs=[UUID], Paired=True)
-        self.assertFalse(self.call('scan')['ok'])
+        self.assertFalse(self.call('scan', enrolling=False)['ok'])
         self.assertFalse(self.call('remove', FIRST)['ok'])
         self.assertNotIn(('remove', FIRST), self.backend.calls)
 
@@ -107,6 +116,46 @@ class EnrollmentTests(unittest.TestCase):
         self.assertEqual(status['tablets'][0]['id'], FIRST)
         self.assertFalse(status['tablets'][0]['connected'])
         self.assertFalse(self.call('scan')['ok'])
+
+    def test_plaintext_bootstrap_is_read_only_even_when_unowned(self):
+        self.assertTrue(self.call(enrolling=False)['ok'])
+        self.assertFalse(self.call(enrolling=False)['canManage'])
+        for operation in ('scan', 'pair', 'connect', 'select', 'remove'):
+            self.assertFalse(self.call(operation, FIRST, enrolling=False)['ok'])
+        self.assertEqual(self.backend.calls, [])
+        self.assertFalse(self.clients)
+
+    def test_remove_last_tablet_retains_owner_and_allows_replacement(self):
+        self.start(); self.finish()
+        self.assertTrue(self.call('remove', FIRST, True)['ok'])
+        status = self.call(authenticated=True)
+        self.assertEqual(status['tablets'], [])
+        self.assertTrue(status['canManage'] and status['headsetAuthorized'])
+        self.assertFalse(status['initialSetup'])
+        self.assertFalse(self.call('scan', owner='stranger')['ok'])
+        self.backend.items[FIRST] = {'Name': 'Replacement tablet', 'Class': 0x0500}
+        self.start(authenticated=True); self.finish()
+        self.assertEqual(self.enrolled, ['headset'])
+        self.assertEqual(self.manager.phase, 'ready')
+
+    def test_ownership_reset_can_reuse_retained_bond(self):
+        self.start(); self.finish(); self.manager.cancel('headset')
+        self.clients = False  # Explicit administrator reset, never automatic.
+        self.assertTrue(self.call()['initialSetup'])
+        self.assertTrue(self.call('connect', FIRST, owner='replacement')['ok'])
+        self.backend.connect_done(); self.now += 1; self.manager.tick()
+        self.assertEqual(self.enrolled, ['headset', 'replacement'])
+        self.assertEqual(self.manager.phase, 'ready')
+        self.assertEqual(self.backend.calls.count(('pair', FIRST)), 1)
+
+    def test_ownership_write_failure_does_not_strand_new_bond(self):
+        def fail(owner): raise RuntimeError('disk unavailable')
+        self.manager.enroll_headset = fail
+        self.start(); self.finish()
+        self.assertEqual(self.manager.phase, 'failed')
+        self.assertFalse(self.clients)
+        self.assertNotIn(FIRST, self.backend.items)
+        self.assertIsNone(self.manager.state['pending'])
 
     def test_failed_new_device_removed_but_existing_bonds_preserved(self):
         self.backend.items[SECOND] = {'Modalias': 'usb:v056Ap1111', 'UUIDs': [UUID], 'Paired': True}
@@ -126,6 +175,8 @@ class EnrollmentTests(unittest.TestCase):
         self.backend.pair_done(); self.backend.connect_done(); self.manager.tick()
         self.assertEqual(self.manager.phase, 'failed')
         self.assertNotIn(('trust', FIRST), self.backend.calls)
+        self.assertFalse(self.clients)
+        self.assertEqual(self.enrolled, [])
 
     def test_real_vendor_still_requires_persistent_bond_and_pen_pad_input(self):
         self.start()
@@ -135,6 +186,8 @@ class EnrollmentTests(unittest.TestCase):
         self.now += 16; self.manager.tick()
         self.assertEqual(self.manager.phase, 'failed')
         self.assertNotIn(('trust', FIRST), self.backend.calls)
+        self.assertFalse(self.clients)
+        self.assertEqual(self.enrolled, [])
 
     def test_cancel_timeout_and_stale_callback_cannot_commit_enrollment(self):
         self.start()
@@ -143,6 +196,7 @@ class EnrollmentTests(unittest.TestCase):
         callback()
         self.assertEqual(self.manager.phase, 'idle')
         self.assertEqual(self.selected, [])
+        self.assertEqual(self.enrolled, [])
         self.assertIsNone(self.manager.state['pending'])
         self.backend.items[FIRST] = {'Name': 'Tablet', 'Class': 0x0500}
         self.start()

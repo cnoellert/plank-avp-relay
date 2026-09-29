@@ -9,7 +9,6 @@ public final class SetupCoordinator: ObservableObject {
     @Published public private(set) var peerVersion: String?
     @Published public private(set) var readings: TabletReadings?
     @Published public private(set) var readingCount = 0
-    @Published public private(set) var approval: ButtonApproval?
     @Published public private(set) var bluetoothTestResult: String?
     @Published public private(set) var tabletStatus: TabletSetupStatus?
     @Published public private(set) var tabletCommandPending = false
@@ -18,7 +17,6 @@ public final class SetupCoordinator: ObservableObject {
     private let client = RelayPairingClient()
     private var task: Task<Void, Never>?
     private var tabletCommand: (String, String?)?
-    private var approveAfterTabletSetup = false
 
     public init() {}
 
@@ -31,7 +29,7 @@ public final class SetupCoordinator: ObservableObject {
             let trusted = try keys.relayKey(address) != nil
             guard state.selectRelay(address, trusted: trusted) else { return }
             message = trusted ? "Saved pairing found. Start live readings to verify the relay and tablet." :
-                "Tap Pair, then press your tablet's Home or center button three times."
+                "Pair a tablet to finish setting up this headset and relay."
             tabletStatus = nil
             if !trusted { manageTablets() }
         } catch { message = error.localizedDescription }
@@ -42,15 +40,20 @@ public final class SetupCoordinator: ObservableObject {
         tabletStatus = nil
         tabletCommand = nil
         tabletCommandPending = false
-        approveAfterTabletSetup = false
         message = "Checking the relay’s saved tablets…"
         task = Task { [weak self] in
             guard let self else { return }
             do {
                 let relayKey = self.state.hasTrust ? try self.keys.relayKey(address) : nil
-                let privateKey = relayKey == nil ? nil : try self.keys.clientKey()
-                try await self.client.manageTablets(address: address, privateKey: privateKey, relayKey: relayKey,
-                    nextCommand: { [weak self] in
+                let privateKey = try self.keys.clientKey()
+                let completedEnrollment = try await self.client.manageTablets(address: address, privateKey: privateKey, relayKey: relayKey,
+                    onIdentity: { key in try self.keys.rememberSetupRelay(key, address: address) },
+                    expectedIdentity: try self.keys.setupRelayKey(address),
+                    onAuthorized: { [weak self] key in
+                        guard let self, self.state.operation == id, !Task.isCancelled else { throw CancellationError() }
+                        try self.keys.saveRelay(key, address: address)
+                        _ = self.state.authorizeTabletSetup(id)
+                    }, nextCommand: { [weak self] in
                         guard let self, self.state.operation == id else { return nil }
                         let command = self.tabletCommand
                         self.tabletCommand = nil
@@ -58,12 +61,19 @@ public final class SetupCoordinator: ObservableObject {
                     }, onStatus: { [weak self] status in
                         guard let self, self.state.operation == id else { return }
                         self.tabletStatus = status
-                        self.tabletCommandPending = false
+                        // An earlier status poll must not acknowledge a command
+                        // queued while that poll was in flight.
+                        if self.tabletCommand == nil { self.tabletCommandPending = false }
                         self.message = status.message
                     }, onProgress: { [weak self] message in
                         guard let self, self.state.operation == id else { return }
                         self.message = message
                     })
+                guard self.state.finishTabletSetup(id) else { return }
+                self.task = nil
+                self.tabletCommandPending = false
+                if completedEnrollment { self.startReadings() }
+                return
             } catch is CancellationError {
                 guard self.state.operation == id else { return }
                 _ = self.state.finishTabletSetup(id)
@@ -72,15 +82,11 @@ public final class SetupCoordinator: ObservableObject {
                 guard self.state.operation == id else { return }
                 self.state.fail(id, message: error.localizedDescription)
                 self.message = error.localizedDescription
-                self.approveAfterTabletSetup = false
             }
             guard self.state.operation == nil else { return }
             self.task = nil
             self.tabletCommandPending = false
-            if self.approveAfterTabletSetup {
-                self.approveAfterTabletSetup = false
-                self.pairSelectedRelay()
-            }
+
         }
     }
 
@@ -91,50 +97,10 @@ public final class SetupCoordinator: ObservableObject {
         tabletCommandPending = true
     }
 
-    public func finishTabletSetup(approveHeadset: Bool = false) {
+    public func finishTabletSetup() {
         guard state.activity == .managingTablets else { return }
-        approveAfterTabletSetup = approveHeadset && !state.hasTrust
         message = "Closing tablet setup…"
         task?.cancel()
-    }
-
-    public func pairSelectedRelay() {
-        guard state.prepareAuthorization() else { return }
-        startButtonApproval()
-    }
-
-    public func startButtonApproval() {
-        guard let address = state.address, let id = state.beginButtonApproval() else { return }
-        approval = nil
-        message = "Preparing this headset’s pairing identity…"
-        task = Task { [weak self] in
-            guard let self else { return }
-            do {
-                let relayKey = try await self.client.pairByButton(address: address,
-                    privateKey: self.keys.clientKey(), onProgress: { [weak self] message in
-                        guard let self, self.state.operation == id else { return }
-                        self.message = message
-                    }) { [weak self] status in
-                    guard let self, self.state.operation == id else { return }
-                    self.approval = status
-                    self.message = status.tabletReady ? "Press and release the same tablet button three times." :
-                        "Wake the tablet. Approval presses will count when it reconnects."
-                }
-                try Task.checkCancellation()
-                guard self.state.operation == id else { return }
-                try self.keys.saveRelay(relayKey, address: address)
-                guard self.state.succeed(id) else { return }
-                self.approval = nil
-                self.task = nil
-                self.startReadings()
-            } catch {
-                guard self.state.operation == id else { return }
-                self.approval = nil
-                self.state.fail(id, message: error.localizedDescription)
-                self.message = error.localizedDescription
-                self.task = nil
-            }
-        }
     }
 
     public func checkConnection() {
@@ -166,7 +132,6 @@ public final class SetupCoordinator: ObservableObject {
     public func testBluetooth() {
         guard let address = state.address, let id = state.beginBluetoothTest() else { return }
         bluetoothTestResult = nil
-        approval = nil
         message = "Starting a Bluetooth byte test. No tablet is needed."
         task = Task { [weak self] in
             guard let self else { return }
@@ -198,7 +163,6 @@ public final class SetupCoordinator: ObservableObject {
         task = nil
         state.cancel()
         readings = nil
-        approval = nil
         bluetoothTestResult = nil
         message = "Operation canceled. Existing pairing was not removed."
     }
@@ -249,13 +213,4 @@ public final class SetupCoordinator: ObservableObject {
         message = "Choose the next setup step."
     }
 
-    public func forget() {
-        guard !state.busy, let address = state.address else { return }
-        do {
-            try keys.forgetRelay(address)
-            state.forget()
-            peerVersion = nil
-            message = "Local trust removed. The relay still retains its approved Client key; relay-side revocation is not implemented here."
-        } catch { message = error.localizedDescription }
-    }
 }

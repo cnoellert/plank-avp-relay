@@ -1,8 +1,8 @@
 # Linux Bluetooth relay package
 
 `plank-tablet-relay-ble` installs the relay used by PLANK Tablet Setup: discover
-the relay, approve the headset with three tablet-button presses, and view
-authenticated position, pressure and button readings. It is separate from the
+the relay, pair a tablet to authorize the initiating headset automatically, and
+view authenticated position, pressure and button readings. It is separate from the
 legacy `plank-tablet-relay` TCP/raw-HID workstation daemon. The two services
 should not capture the same tablet at the same time.
 
@@ -100,7 +100,7 @@ advertisements only when BlueZ reports no active advertisements or discovery.
 It retains existing tablet bonds. Do not run another advertising service on
 an adapter configured as exclusive.
 
-To pair a tablet, use **Add tablet** in the headset app. See
+To pair a tablet, use **Find tablets to pair** in the headset app. See
 [headless tablet pairing and SSH recovery](bluetooth-tablet-pairing.md).
 Headset approval happens inside the app; it does not need OS-level Bluetooth
 pairing to the relay. The tablet can sleep without forgetting its bond or the

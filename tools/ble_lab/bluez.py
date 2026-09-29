@@ -4,6 +4,7 @@ import dbus
 import dbus.exceptions
 import dbus.mainloop.glib
 import dbus.service
+import json
 from gi.repository import GLib
 import signal
 import time
@@ -143,10 +144,12 @@ class Server(dbus.service.Object):
                 self.capture.selected = value.lower() if value else None
                 self.capture.last_scan = 0
             self.tablets = Tablets(backend, args.state_dir, lambda: self.native.has_clients,
-                select_tablet, lambda: self.capture.attached, args.tablet)
-            self.native.on_management = lambda data: self.tablets.handle(data, self.peer, authenticated=True)
+                select_tablet, lambda: self.capture.attached, args.tablet,
+                enroll_headset=self.enroll_headset)
+            self.native.on_management = lambda data: self.tablet_request(data, self.peer,
+                self.native.management_authorized, self.native.enrolling)
             self.setup = SetupChannel(self.emit_setup, self.close_peer,
-                lambda data, peer: self.tablets.handle(data, peer), self.cancel_tablet_setup)
+                self.tablet_request, self.cancel_tablet_setup)
         self.last_sample = 0
         self.was_observing = False
         self.failure = None
@@ -179,6 +182,28 @@ class Server(dbus.service.Object):
             if self.controller_workaround and self.tablets.backend.scanned:
                 self.failure = 'Tablet discovery ended; restarting to restore controller address policy.'
                 self.loop.quit()
+
+    def enroll_headset(self, owner):
+        if owner != self.peer or not self.native.enrolling:
+            raise RuntimeError('The initiating encrypted setup session has ended.')
+        try:
+            self.native.finish_enrollment()
+        except ProtocolError as error:
+            raise RuntimeError('Could not save headset ownership.') from error
+        print('Tablet verified; initiating headset ownership saved.', flush=True)
+
+    def tablet_request(self, data, peer, authenticated=False, enrolling=False):
+        response = json.loads(self.tablets.handle(data, peer, authenticated, enrolling))
+        if response.get('ok'):
+            response['enrollmentVersion'] = 1
+            response['relayKey'] = self.native.public_key
+        encoded = json.dumps(response, separators=(',', ':'), ensure_ascii=False).encode()
+        while len(encoded) > 4096 and response.get('candidates'):
+            response['candidates'].pop()
+            encoded = json.dumps(response, separators=(',', ':'), ensure_ascii=False).encode()
+        if len(encoded) > 4096:
+            raise ProtocolError('Tablet setup response exceeded its bound.')
+        return encoded
 
     def emit_setup(self, data):
         if not self.setup.peer or not self.setup.notifying:
@@ -231,6 +256,7 @@ class Server(dbus.service.Object):
             self.capture.poll()
             self.native.tablet(self.capture.attached)
             if not self.peer:
+                self.native.allow_enrollment(self.tablets.initial(self.tablets.backend.devices()))
                 self.peer = peer
                 print('Headset transport connected; authenticating.', flush=True)
             was_pending = self.native.approval_pending

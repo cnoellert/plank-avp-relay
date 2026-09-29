@@ -35,6 +35,9 @@ with tempfile.TemporaryDirectory() as directory:
 with tempfile.TemporaryDirectory() as directory:
     state = Path(directory)
     native = Native(library, state)
+    assert len(bytes.fromhex(native.public_key)) == 32
+    native.allow_enrollment(True)
+    assert not native.enrolling and not native.management_authorized
     native.close()
     key = (state / 'identity.key').read_bytes()
     # A previously approved app can rediscover the same relay under a new

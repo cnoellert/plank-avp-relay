@@ -23,6 +23,12 @@ int pltr_ble_lab_tick(PltrBleLab *lab, uint64_t now_ms,
     uint8_t *out, size_t capacity, size_t *written);
 int pltr_ble_lab_observing(const PltrBleLab *lab);
 int pltr_ble_lab_has_clients(const PltrBleLab *lab);
+int pltr_ble_lab_public_key(const PltrBleLab *lab, uint8_t out[32]);
+void pltr_ble_lab_allow_enrollment(PltrBleLab *lab, int allowed);
+int pltr_ble_lab_enrolling(const PltrBleLab *lab);
+int pltr_ble_lab_management_authorized(const PltrBleLab *lab);
+// Called locally only after the same session's new tablet passes verification.
+int pltr_ble_lab_finish_enrollment(PltrBleLab *lab);
 int pltr_ble_lab_reset_clients(PltrBleLab *lab);
 // Copy one authenticated management request; no input/report privileges implied.
 int pltr_ble_lab_take_management(PltrBleLab *lab, uint8_t *out, size_t capacity);

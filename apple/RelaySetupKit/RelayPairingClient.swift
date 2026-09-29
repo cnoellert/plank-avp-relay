@@ -75,6 +75,18 @@ public final class RelayKeyStore {
         try read(address.keychainAccount)
     }
 
+    public func setupRelayKey(_ address: RelayAddress) throws -> Data? {
+        try relayKey(address) ?? read(address.keychainAccount + ":setup")
+    }
+
+    public func rememberSetupRelay(_ key: Data, address: RelayAddress) throws {
+        if let existing = try setupRelayKey(address) {
+            guard existing == key else { throw RelaySetupError.identityChanged }
+        } else {
+            try add(key, account: address.keychainAccount + ":setup")
+        }
+    }
+
     public func clientKey() throws -> Data {
         if let existing = try read("client-private-v1") { return existing }
         let key = try Self.randomBytes(count: 32)

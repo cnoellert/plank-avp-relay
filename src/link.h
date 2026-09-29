@@ -19,9 +19,9 @@ typedef enum PltrLinkStage {
     PLTR_LINK_FAILED = 7,
 } PltrLinkStage;
 
-// Return 1 only for a Client static public key found in the paired-client
-// store. This check runs after decrypting Noise message one and before the
-// Relay emits message two or any tablet data.
+// Normally accepts only a Client key from the paired-client store. First-use
+// enrollment may accept a provisional key only with restrict_tablet_setup.
+// Runs after decrypting Noise message one, before the Relay emits message two.
 typedef int (*PltrApproveClient)(void *context, const uint8_t public_key[32]);
 
 typedef struct PltrLink {
@@ -36,6 +36,7 @@ typedef struct PltrLink {
     uint32_t outgoing_sequence;
     uint32_t local_features, peer_features;
     int tablet_management;
+    int setup_only;
     char peer_version[65];
     uint8_t plaintext[PLTR_MAX_FRAME_SIZE];
 } PltrLink;
@@ -53,6 +54,9 @@ int pltr_link_enable_input_observer(PltrLink *link);
 // Explicit local opt-in, discovered through the BLE setup characteristics.
 // Does not change HELLO feature bits, preserving older readings clients.
 int pltr_link_enable_tablet_management(PltrLink *link);
+// Restrict a provisional enrollment session to encrypted tablet management.
+// No readings, raw HID or workstation session can start on this connection.
+int pltr_link_restrict_tablet_setup(PltrLink *link);
 
 // Initiator only. Returns OPEN and Noise message one as two complete records.
 int pltr_link_start(PltrLink *link, uint8_t *out, size_t capacity,

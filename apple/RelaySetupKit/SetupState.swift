@@ -2,20 +2,19 @@
 import Foundation
 
 public enum SetupStep: Int, CaseIterable, Sendable {
-    case relay, tablet, authorize, complete
+    case relay, tablet, complete
 
     public var title: String {
         switch self {
         case .relay: "Find your relay"
         case .tablet: "Connect your tablet"
-        case .authorize: "Authorize your headset"
         case .complete: "Your tablet relay"
         }
     }
 }
 
 public enum SetupActivity: Equatable, Sendable {
-    case idle, pairing, checking, observing, testingBluetooth, managingTablets, failed(String), paired
+    case idle, checking, observing, testingBluetooth, managingTablets, failed(String), paired
 }
 
 public struct RelayAddress: Equatable, Sendable {
@@ -36,7 +35,7 @@ public struct RelayAddress: Equatable, Sendable {
 }
 
 /// Pure workflow state. Cryptographic success is supplied only by the live
-/// adapter after BOTH confirmation tags.
+/// adapter after authenticated confirmation from the relay.
 public struct SetupState: Equatable, Sendable {
     public private(set) var step: SetupStep = .relay
     public private(set) var activity: SetupActivity = .idle
@@ -58,22 +57,6 @@ public struct SetupState: Equatable, Sendable {
         activity = trusted ? .paired : .idle
         step = trusted ? .complete : .tablet
         return true
-    }
-
-    @discardableResult
-    public mutating func prepareAuthorization() -> Bool {
-        guard !busy, step == .tablet, address != nil else { return false }
-        step = .authorize
-        activity = .idle
-        return true
-    }
-
-    public mutating func beginButtonApproval() -> UUID? {
-        guard !busy, step == .authorize, !hasTrust, address != nil else { return nil }
-        let id = UUID()
-        operation = id
-        activity = .pairing
-        return id
     }
 
     public mutating func beginCheck() -> UUID? {
@@ -126,6 +109,16 @@ public struct SetupState: Equatable, Sendable {
         return true
     }
 
+    /// Called only after a Noise-authenticated status confirms the relay has
+    /// persisted this headset's approval. Tablet presence alone cannot do so.
+    @discardableResult
+    public mutating func authorizeTabletSetup(_ id: UUID) -> Bool {
+        guard operation == id, activity == .managingTablets else { return false }
+        hasTrust = true
+        step = .complete
+        return true
+    }
+
     public mutating func verifyObservation(_ id: UUID) {
         guard operation == id, activity == .observing else { return }
         connectionVerified = true
@@ -157,8 +150,7 @@ public struct SetupState: Equatable, Sendable {
 
     public mutating func back() {
         guard !busy else { return }
-        if step == .authorize { step = .tablet }
-        else { step = .relay; address = nil; hasTrust = false }
+        step = .relay; address = nil; hasTrust = false
         activity = .idle
         connectionVerified = false
     }

@@ -61,7 +61,7 @@ def main():
         if args.operation == 'reset-headsets':
             native.reset_clients()
             print('Headset approvals revoked. Relay identity and tablet bonds retained.')
-            print('Forget the local relay pairing in the app, then approve the headset again with three tablet presses.')
+            print('Open tablet setup in the app and pair or reconnect a tablet to authorize the replacement headset.')
         else:
             import dbus
             import dbus.mainloop.glib

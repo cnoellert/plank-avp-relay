@@ -17,6 +17,21 @@ from ble_lab.bluez import Server, PROPERTIES
 
 
 class ServiceTests(unittest.TestCase):
+    def test_enrollment_commit_requires_same_active_provisional_session(self):
+        server = MagicMock()
+        server.peer = 'initiating-headset'
+        server.native.enrolling = True
+        with self.assertRaises(RuntimeError):
+            Server.enroll_headset(server, 'other-headset')
+        server.native.finish_enrollment.assert_not_called()
+        server.native.enrolling = False
+        with self.assertRaises(RuntimeError):
+            Server.enroll_headset(server, 'initiating-headset')
+        server.native.finish_enrollment.assert_not_called()
+        server.native.enrolling = True
+        Server.enroll_headset(server, 'initiating-headset')
+        server.native.finish_enrollment.assert_called_once()
+
     def test_hostname_default_and_explicit_override(self):
         with patch('ble_lab.config.socket.gethostname', return_value='plank-tablet-relay-02.local'):
             self.assertEqual(self.read('[relay]\n').name, 'plank-tablet-relay-02')

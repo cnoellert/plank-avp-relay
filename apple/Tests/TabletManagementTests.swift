@@ -14,6 +14,19 @@ enum TabletManagementTests {
         let status = try TabletSetupStatus.decode(data, request: 3)
         precondition(status.tablets.count == 1 && !status.tablets[0].connected)
         precondition(!status.initialSetup && !status.canManage && status.hostname == "studio-relay")
+        precondition(status.enrollmentIdentity == nil && status.headsetAuthorized != true)
+        let identity = String(repeating: "12", count: 32)
+        for (key, version, valid) in [(identity, 1, true), ("bad", 1, false),
+                                     (String(repeating: "zz", count: 32), 1, false), (identity, 2, false)] {
+            let updated = fields.merging(["relayKey": key, "enrollmentVersion": version]) { _, new in new }
+            let parsed = try TabletSetupStatus.decode(JSONSerialization.data(withJSONObject: updated), request: 3)
+            precondition((parsed.enrollmentIdentity != nil) == valid)
+            precondition(parsed.headsetAuthorized != true) // Public identity is not approval.
+        }
+        let removed = fields.merging(["tablets": [], "canManage": true, "headsetAuthorized": true]) { _, new in new }
+        let afterRemoval = try TabletSetupStatus.decode(JSONSerialization.data(withJSONObject: removed), request: 3)
+        precondition(afterRemoval.tablets.isEmpty && afterRemoval.canManage && afterRemoval.headsetAuthorized == true)
+        precondition(!afterRemoval.needsHeadsetRecovery)
         do {
             _ = try TabletSetupStatus.decode(data, request: 4)
             fatalError("A stale response must not complete a new request")
@@ -26,6 +39,6 @@ enum TabletManagementTests {
                 fatalError("Invalid or rejected setup status accepted")
             } catch {}
         }
-        print("PASS: tablet setup response binding, offline state and validation")
+        print("PASS: setup response binding, identity validation, retained ownership after removal and offline state")
     }
 }

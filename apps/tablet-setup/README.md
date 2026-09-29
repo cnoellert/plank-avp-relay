@@ -32,28 +32,25 @@ authorization or input protocol bytes are sent; established sessions and
 protocol failures are not replayed. Live readings expose the same progress
 messages, and connection-stage logs contain no identifiers, keys or input.
 
-With the Linux [packaged Bluetooth relay](../../docs/linux-ble-package.md) or
-[foreground input lab](../../docs/bluetooth-headset-lab.md) running,
-choose **Scan for relays**, select the relay and tap **Pair**. The app reports
-actual tablet availability, a countdown and completed presses. Press and release
-the tablet's Home/center button three times. If the tablet has no such button,
-use the same supported tablet button three times. No manual pairing-window
-checkbox or SSH signal is required. Use short presses, no more than two seconds
-apart; holds, mixed buttons, sleep or cancellation reset progress.
+With [relay package revision 14 or newer](../../docs/linux-ble-package.md),
+select the relay, choose **Find tablets to pair**, put the tablet into pairing
+mode, and select it. Successful bond/vendor/HID/input verification automatically
+saves the headset that initiated setup. The app proceeds to live readings with
+no three-circle or tablet-button confirmation. Existing owners use **Manage
+tablets** to replace a tablet without losing headset authorization.
 
-After approval and key confirmation, the app saves the relay key and starts live
-readings automatically. The screen shows pen position, pressure, tilt, Pad
-buttons and touch count. Tablet sleep shows an offline state while retaining
-trust; waking the same tablet resumes readings. Selection uses physical ancestry
-and capabilities rather than a product-ID allowlist.
+The read-only setup endpoint supplies the public relay identity. Mutations use
+a restricted Noise session; tablet verification promotes only its initiating
+headset key to persistent ownership. Readings open a fresh authenticated
+connection. Initial identity pinning is trust on first use, not out-of-band
+verification of a nearby relay. Existing pins are never silently replaced.
+The same private headset identity can restore a lost local relay key when the
+relay still approves it; unknown headset keys require an explicit SSH ownership
+reset. See [headless setup and recovery](../../docs/bluetooth-tablet-pairing.md).
 
-The three-press gesture authorizes the pending connection, but does not protect
-initial enrollment against a nearby active attacker racing or intercepting it.
-This is the operator-selected convenience tradeoff; do not describe it as the
-same authentication guarantee as the old random challenge. Subsequent sessions
-verify the saved key through Noise and encrypt readings. The BLE lab reuses the
-existing CPace exchange with an explicitly public constant and a local
-physical gate. The protocol and limits are documented in the lab guide.
+The screen shows pen position, pressure, tilt, Pad buttons and touch count.
+Tablet sleep retains the bond and headset ownership. Selection uses physical
+ancestry and capabilities rather than a product-ID allowlist.
 
 This is a coalesced diagnostic readout, not raw-HID forwarding to a workstation
 or a system-wide visionOS pointer. Discovery and setup use Bluetooth only.
@@ -250,8 +247,8 @@ and [export compliance](https://developer.apple.com/help/app-store-connect/manag
 ## Acceptance checklist
 
 - The app opens directly to relay discovery, with no Simulation selector.
-- Pair requests a single bounded approval and shows actual relay status.
-- Three completed short presses authorize only the current request.
+- First-time tablet setup authorizes its initiating headset without a second gesture.
+- Removing every tablet preserves ownership and offers replacement pairing.
 - Timeout, interruption, cancel and backgrounding are recoverable.
 - No stale callback can save trust after cancellation or mode/relay changes.
 - Existing trust survives failed reconnect; identity mismatch does not replace it.

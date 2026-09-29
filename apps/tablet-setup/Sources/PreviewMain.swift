@@ -12,26 +12,23 @@ enum SetupPreview {
         _ = NSApplication.shared
         let directory = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        for page in ["relay", "authorize", "readings", "offline", "tablets-empty", "tablets-scan", "tablets-saved", "tablets-pairing"] {
+        for page in ["relay", "readings", "offline", "tablets-empty", "tablets-scan", "tablets-saved", "tablets-pairing", "tablets-replacement", "tablets-recovery"] {
             let content: AnyView
             if page.hasPrefix("tablets-") {
                 let tablet: [String: Any] = ["id": "AA:BB:CC:DD:EE:01", "name": "Studio pen tablet",
                     "connected": false, "paired": page == "tablets-saved"]
                 let data = try JSONSerialization.data(withJSONObject: ["version": 1, "id": 1, "ok": true,
                     "hostname": "plank-tablet-relay-02", "phase": page == "tablets-pairing" ? "pairing" : page == "tablets-scan" ? "scanning" : "idle",
-                    "message": "Pairing the selected tablet…", "canManage": true, "initialSetup": page != "tablets-saved",
+                    "message": "Pairing the selected tablet…", "canManage": page != "tablets-recovery", "initialSetup": !["tablets-saved", "tablets-replacement", "tablets-recovery"].contains(page),
                     "attached": false, "secondsRemaining": 45,
                     "tablets": page == "tablets-saved" ? [tablet] : [],
                     "candidates": page == "tablets-scan" ? [tablet] : []])
                 let status = try TabletSetupStatus.decode(data, request: 1)
                 content = AnyView(VStack(alignment: .leading, spacing: 20) {
                     Text("Set up your tablet").font(.largeTitle.bold())
-                    TabletManagementView(status: status, trusted: page == "tablets-saved", pending: false,
-                        operation: { _, _ in }, finish: { _ in }, remove: { _ in })
+                    TabletManagementView(status: status, trusted: ["tablets-saved", "tablets-replacement"].contains(page), pending: false,
+                        operation: { _, _ in }, finish: {}, remove: { _ in })
                 }.padding(30))
-            } else if page == "authorize" {
-                content = AnyView(ButtonApprovalView(approval:
-                    ButtonApproval(tabletReady: true, presses: 1, secondsRemaining: 45)).padding(30))
             } else if page == "readings" || page == "offline" {
                 var sample = Data(repeating: 0, count: 80)
                 sample[0] = 1; sample[1] = page == "offline" ? 0 : 7

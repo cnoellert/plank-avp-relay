@@ -168,6 +168,55 @@ int main(void) {
     assert(client && pltr_client_link_start(client, a, sizeof(a), &an) == 0);
     assert(feed(lab, a, an, b, &bn) < 0); // Revocation survives restart.
     pltr_client_link_destroy(client);
+    pltr_ble_lab_disconnect(lab, 205);
+
+    // First-use Noise proves the initiating headset key, but grants only setup.
+    uint8_t discovered_key[32];
+    assert(pltr_ble_lab_public_key(lab, discovered_key) == 0);
+    assert(memcmp(discovered_key, relay_key, 32) == 0);
+    pltr_ble_lab_allow_enrollment(lab, 1);
+    client = connect_client(lab, private_key, discovered_key, 2);
+    assert(pltr_ble_lab_enrolling(lab));
+    assert(!pltr_ble_lab_has_clients(lab) && !pltr_ble_lab_management_authorized(lab));
+    assert(pltr_ble_lab_finish_enrollment(lab) < 0); // No tablet request yet.
+    assert(pltr_client_link_send(client, PLTR_INPUT_OBSERVE, &enable, 1, a, sizeof(a), &an) == 0);
+    assert(feed(lab, a, an, b, &bn) < 0); // Cannot read input provisionally.
+    assert(!pltr_ble_lab_has_clients(lab));
+    assert(pltr_ble_lab_finish_enrollment(lab) < 0); // Failed session cannot commit.
+    pltr_client_link_destroy(client);
+    pltr_ble_lab_disconnect(lab, 206);
+
+    pltr_ble_lab_allow_enrollment(lab, 1);
+    client = connect_client(lab, private_key, discovered_key, 2);
+    assert(pltr_client_link_send(client, PLTR_TABLET_REQUEST, request, sizeof(request)-1,
+                                a, sizeof(a), &an) == 0);
+    assert(feed(lab, a, an, b, &bn) == 0);
+    assert(pltr_ble_lab_take_management(lab, b, sizeof(b)) == sizeof(request)-1);
+    // Local tablet verifier commits only this session's proven static key.
+    assert(pltr_ble_lab_finish_enrollment(lab) == 0);
+    assert(pltr_ble_lab_management_authorized(lab) && !pltr_ble_lab_enrolling(lab));
+    assert(pltr_ble_lab_finish_enrollment(lab) < 0);
+    assert(pltr_ble_lab_management_reply(lab, response, sizeof(response)-1, b, sizeof(b), &bn) == 0);
+    client_feed(client, b, bn, a, &an, &type);
+    assert(type == PLTR_TABLET_RESPONSE);
+    assert(pltr_client_link_send(client, PLTR_INPUT_OBSERVE, &enable, 1, a, sizeof(a), &an) == 0);
+    assert(feed(lab, a, an, b, &bn) < 0); // Same connection remains setup-only.
+    pltr_client_link_destroy(client);
+    pltr_ble_lab_destroy(lab);
+
+    lab = pltr_ble_lab_create(directory);
+    assert(lab && pltr_ble_lab_has_clients(lab));
+    // Rediscovery of the public relay key restores an already-approved headset.
+    client = connect_client(lab, private_key, discovered_key, 2);
+    assert(pltr_ble_lab_management_authorized(lab));
+    pltr_client_link_destroy(client);
+    pltr_ble_lab_disconnect(lab, 207);
+    pltr_ble_lab_allow_enrollment(lab, 1); // Cannot override existing ownership.
+    client = pltr_client_link_create(stranger, discovered_key, 1);
+    assert(client && pltr_client_link_start(client, a, sizeof(a), &an) == 0);
+    assert(feed(lab, a, an, b, &bn) < 0);
+    assert(!pltr_ble_lab_enrolling(lab) && pltr_ble_lab_has_clients(lab));
+    pltr_client_link_destroy(client);
     pltr_ble_lab_destroy(lab);
 
     const char *files[] = {"identity.key", "paired-clients.json", "store.lock", "pair-budget"};
@@ -177,6 +226,6 @@ int main(void) {
         assert(unlink(path) == 0);
     }
     assert(rmdir(directory) == 0);
-    puts("PASS: fragmented BLE pairing, persisted trust, observer gates and stranger rejection");
+    puts("PASS: fragmented BLE pairing, persisted trust, combined enrollment, restricted setup and stranger rejection");
     return 0;
 }

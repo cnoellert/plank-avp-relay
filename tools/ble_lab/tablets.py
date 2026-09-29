@@ -49,10 +49,13 @@ def save(path, value):
 
 
 class Tablets:
-    def __init__(self, backend, directory, has_clients, select, attached, configured='', clock=time.monotonic):
+    def __init__(self, backend, directory, has_clients, select, attached, configured='', clock=time.monotonic,
+                 enroll_headset=None):
         self.backend, self.has_clients = backend, has_clients
         self.select, self.attached, self.clock = select, attached, clock
         self.configured = configured
+        self.enroll_headset = enroll_headset
+        self.enroll_owner = None
         self.path = Path(directory) / 'tablets.json'
         self.state = {'version': 1, 'selected': None, 'tablets': [], 'pending': None}
         if self.path.exists():
@@ -92,9 +95,11 @@ class Tablets:
             if item.get('Paired') and wacom(item) and hid(item)}
 
     def initial(self, devices):
-        return not (self.has_clients() or self.known(devices) or self.configured or self.attached())
+        # An explicit ownership reset retains tablet bonds. An unowned relay
+        # may verify one of those tablets in the initiating encrypted session.
+        return not (self.has_clients() or self.configured)
 
-    def snapshot(self, authenticated, devices=None):
+    def snapshot(self, authenticated, devices=None, enrolling=False):
         devices = self.backend.devices() if devices is None else devices
         known = self.known(devices)
         def item(key):
@@ -105,14 +110,15 @@ class Tablets:
         candidates = sorted(key for key, props in devices.items() if candidate(props) and key not in known)
         self.discovered.update(candidates if self.scanning else [])
         return {'version': 1, 'hostname': socket.gethostname(), 'phase': self.phase, 'message': self.message,
-                'canManage': bool(authenticated or self.initial(devices)),
+                'canManage': bool(authenticated or (enrolling and self.initial(devices))),
+                'headsetAuthorized': bool(authenticated),
                 'initialSetup': self.initial(devices), 'attached': bool(self.attached()),
                 'selected': self.configured or self.state['selected'],
                 'secondsRemaining': max(0, int(self.deadline - self.clock())) if self.deadline else 0,
                 'tablets': [item(key) for key in sorted(known)[:16]],
                 'candidates': [item(key) for key in candidates[:16]] if self.scanning else []}
 
-    def handle(self, payload, owner, authenticated=False):
+    def handle(self, payload, owner, authenticated=False, enrolling=False):
         request_id = 0
         starting_pair = False
         try:
@@ -130,7 +136,7 @@ class Tablets:
             devices = self.backend.devices()
             if self.owner and self.owner != owner:
                 raise ValueError('Tablet setup is already open on another connection.')
-            if operation not in ('status', 'cancel') and not (authenticated or self.initial(devices)):
+            if operation not in ('status', 'cancel') and not (authenticated or (enrolling and self.initial(devices))):
                 raise ValueError('Use an approved headset to manage tablets. Wake the saved tablet to approve a new headset, or use SSH recovery.')
             if operation == 'cancel':
                 self.cancel(owner)
@@ -155,9 +161,11 @@ class Tablets:
                         if target not in self.discovered or target not in devices:
                             raise ValueError('Scan again and select a discovered tablet.')
                         starting_pair = True
+                        self.enroll_owner = owner if enrolling and not authenticated else None
                         self.begin_pair(target, devices[target])
                     else:
-                        if not authenticated or target not in self.known(devices):
+                        if target not in self.known(devices) or (not authenticated and
+                                not (enrolling and self.initial(devices) and operation in ('connect', 'select'))):
                             raise ValueError('Select a saved tablet using an approved headset.')
                         self.stop_scan()
                         if operation == 'remove':
@@ -170,8 +178,9 @@ class Tablets:
                             self.phase, self.message = 'idle', 'Tablet removed. Other saved pairings are unchanged.'
                         else:
                             starting_pair = True
+                            self.enroll_owner = owner if enrolling and not authenticated else None
                             self.begin_pair(target, devices.get(target, {}), reconnect=True)
-            response = self.snapshot(authenticated)
+            response = self.snapshot(authenticated, enrolling=enrolling)
             response.update({'id': request_id, 'ok': True})
         except (ValueError, OSError, RuntimeError) as error:
             if starting_pair and self.state.get('pending') and self.owner == owner:
@@ -243,6 +252,7 @@ class Tablets:
             save(self.path, self.state)
         self.backend.close()
         self.target = None
+        self.enroll_owner = None
         self.original_pairable = None
         self.deadline = 0
 
@@ -280,6 +290,15 @@ class Tablets:
             return
         if not self.backend.input_ready(self.target):
             return
+        if self.enroll_owner is not None:
+            try:
+                if self.enroll_owner != self.owner or self.enroll_headset is None:
+                    raise RuntimeError('The initiating headset is no longer available.')
+                self.enroll_headset(self.enroll_owner)
+            except RuntimeError:
+                self.fail('Could not save headset ownership. Retry tablet setup.')
+                return
+            self.enroll_owner = None
         self.backend.trust(self.target)
         self.backend.set_pairable(bool(self.original_pairable))
         if self.target not in self.state['tablets']:
@@ -292,4 +311,4 @@ class Tablets:
         self.target = None
         self.original_pairable = None
         self.deadline = 0
-        self.phase, self.message = 'ready', 'Tablet connected. Continue to headset approval or live readings.'
+        self.phase, self.message = 'ready', 'Tablet paired and headset authorized. Ready for live readings.'
