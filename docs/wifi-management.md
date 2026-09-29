@@ -30,7 +30,8 @@ management adds no forwarding, bridge membership, NAT or DHCP server.
 The `.deb` installs `wpasupplicant`, `rfkill` and the existing network
 dependencies. `plank-avp-relay-wifi.service` starts with the relay; its process
 name is `plank-avp-wifi`. No manual supplicant launch is needed. Ubuntu Server
-26.04 amd64 and arm64 are the package targets. A working in-kernel WLAN driver,
+26.04 amd64 and Debian 13 arm64 (Armbian) are the package targets. See the
+[board/kernel matrix](relay-platforms.md). A working in-kernel WLAN driver,
 its firmware and active systemd-networkd are prerequisites. The package does
 not replace kernel WLAN drivers. NetworkManager-managed hosts are reported as
 unsupported and left unchanged.

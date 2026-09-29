@@ -10,10 +10,12 @@ run alongside Bluetooth LE with shared identity and headset authorization.
 Release 0.5.0 adds [Wi-Fi enable/disable, join and saved-network controls](docs/wifi-management.md)
 in the Network tab. Wi-Fi may carry relay TCP traffic; USB continues to use
 only wired Ethernet. Secured Wi-Fi rows show a lock and open rows no security label.
-The Ubuntu 26.04 amd64/arm64 `plank-avp-relay` package installs dependencies,
-configures startup, and migrates saved state from the previous package name.
+The Ubuntu 26.04 amd64 and Debian 13 arm64 `plank-avp-relay` packages install dependencies,
+configure startup, and migrate saved state from the previous package name.
 See [installation and network behavior](docs/linux-ble-package.md) and
 [the current app workflow](apps/tablet-setup/README.md).
+The [platform matrix](docs/relay-platforms.md) distinguishes each Armbian
+board/kernel image from the shared arm64 relay package.
 
 The older raw-HID workstation service is a separate implementation described
 below for reference. The new managed TCP path does not reuse its transport,

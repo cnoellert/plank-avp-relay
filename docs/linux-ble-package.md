@@ -1,5 +1,10 @@
 # PLANK AVP Relay Linux package
 
+Current targets: Ubuntu Server 26.04 on amd64 Intel hardware and Debian 13
+arm64 for Armbian NanoPi Zero2/R28S. Zero2 uses the operator-selected 6.18.54
+image. See the [platform/kernel matrix](relay-platforms.md); kernels/drivers
+are board-specific, while the ARM relay package is shared.
+
 `plank-avp-relay` installs the relay used by PLANK AVP Relay Setup: discover
 the relay, pair a tablet to authorize the initiating headset automatically, and
 view authenticated position, pressure and button readings. It is separate from the
@@ -186,12 +191,12 @@ the running service retains that physical identity across sleep/wake.
 
 Use the package matching `dpkg --print-architecture`: `arm64` for 64-bit ARM
 Linux, or `amd64` for x86-64. **Ubuntu Server 26.04 is the x86-64 host OS**.
-Ubuntu 26.04 remains the package build baseline for both architectures; the
-current NanoPi ARM64 hardware test uses Armbian. Automated builds use Ubuntu 26.04 containers on native ARM64
-and x86-64 runners. Bluetooth operation still requires
+Ubuntu 26.04 is the amd64 build baseline; Debian 13 is the arm64 baseline for
+the selected Armbian images. Automated builds use matching userspace containers
+on native runners. Bluetooth operation still requires
 qualification on the board's kernel, radio and firmware. The existing physical
 qualification is Ubuntu 26.04 amd64 with Intel 7265. There is no 32-bit `armhf`
-build. The `.deb` format does not imply Debian or older Ubuntu compatibility;
+build. The `.deb` format does not imply other Debian or older Ubuntu compatibility;
 OpenWrt/FriendlyWrt cannot install this package.
 
 ```sh
@@ -239,8 +244,8 @@ package does not install a replacement kernel or USB Wi-Fi driver.
 The helper runs as `plank-avp-relay-hardware.service` before the relay. Inspect
 its journal if hardware preparation fails. Dedicated-adapter management also
 supports Python before 3.14 by using Linux's native HCI control-channel address.
-Ubuntu 26.04 remains the build/installation target; operation on the test
-Armbian/Debian image is an additional hardware check, not universal Debian support.
+Targets are Ubuntu 26.04 amd64 and Debian 13 arm64; hardware behavior on each
+Armbian board/kernel still requires separate qualification.
 
 By default, discovery uses the relay hostname (shortened with a distinguishing
 suffix if it exceeds 26 UTF-8 bytes). Omit `name` in configuration to use that
@@ -329,13 +334,14 @@ This version sorts after the earlier `0.2.0~visionos-tablet-setup.14` package,
 so upgrades do not need a downgrade override.
 
 Install `build-essential cmake ninja-build pkg-config libudev-dev python3
-python3-dbus python3-gi debhelper dh-python curl ca-certificates git` in an Ubuntu 26.04
-builder. From a clean committed checkout run `scripts/build-relay-deb.sh`.
+python3-dbus python3-gi debhelper dh-python curl ca-certificates git wpasupplicant
+dbus iproute2` in an Ubuntu 26.04 amd64 or Debian 13 arm64 builder.
+From a clean committed checkout run `scripts/build-relay-deb.sh`.
 The script snapshots that commit, verifies the pinned libsodium 1.0.22 archive,
 builds it statically with PIC, runs its tests and the relay's assertions-enabled
 tests, and creates `.deb`, `.buildinfo`, `.changes` and SHA-256 artifacts in
 `artifacts/deb/<software-version>/<distribution>-<version>/<architecture>/`,
-for example `artifacts/deb/0.3.0~visionos-tablet-setup/ubuntu-26.04/arm64/`.
+for example `artifacts/deb/0.5.0~visionos-tablet-setup/debian-13/arm64/`.
 The package version comes from `debian/changelog`, checked against `VERSION`;
 the exact Git commit is
 retained in `source-commit.txt` and `provenance.json` with compiler/OS metadata.
@@ -344,13 +350,13 @@ rejects cross-builds because the packaged library and its tests must execute.
 The prepared source remains under `build/deb`
 for inspection. The package includes the libsodium license.
 
-The `Linux relay packages` GitHub Actions workflow builds both architectures
-in Ubuntu 26.04 containers, runs the tests, checks the binary with lintian, and
+The `Linux relay packages` GitHub Actions workflow builds Ubuntu 26.04 amd64
+and Debian 13 arm64 natively, runs the tests, checks the binary with lintian, and
 installs it for a configuration/native-library smoke check.
-The same binaries are installed, smoke-tested and removed in fresh Ubuntu 26.04
-containers on both architectures, including Python bytecode cleanup.
+The same binaries are installed, smoke-tested and removed in fresh matching
+containers, including Python bytecode cleanup and private Wi-Fi state retention.
 Download the
-matching `relay-ubuntu26.04-arm64-<commit>` or `relay-ubuntu26.04-amd64-<commit>` artifact
+matching `relay-debian-13-arm64-<commit>` or `relay-ubuntu-26.04-amd64-<commit>` artifact
 from the workflow run, then check `sha256sum -c SHA256SUMS` inside its package
 directory. CI does not exercise a physical Bluetooth controller or systemd
 reboot/recovery; those checks remain part of hardware qualification.
