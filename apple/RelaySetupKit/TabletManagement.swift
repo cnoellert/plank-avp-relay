@@ -42,6 +42,11 @@ public struct TabletSetupStatus: Decodable, Equatable, Sendable {
     }
 
     public var operating: Bool { ["pairing", "connecting", "verifying"].contains(phase) }
+    // A sleeping paired tablet can reconnect during observation. USB input
+    // needs no Bluetooth bond, so a currently attached tablet also qualifies.
+    public var canStartReadings: Bool {
+        !operating && (attached || tablets.contains { $0.paired && $0.id == selected })
+    }
     public var needsHeadsetRecovery: Bool { !canManage && !initialSetup && headsetAuthorized != true }
 
     public var enrollmentIdentity: Data? {
@@ -65,6 +70,13 @@ struct TabletSetupCommand: Encodable, Sendable {
 }
 
 extension RelayPairingClient {
+    public func tabletStatus(address: RelayAddress, privateKey: Data, relayKey: Data) async throws -> TabletSetupStatus {
+        let payload = try JSONEncoder().encode(TabletSetupCommand(id: 1, op: "status", tablet: nil))
+        let replies = try await managementRequests(address: address, privateKey: privateKey,
+            relayKey: relayKey, payloads: [payload])
+        return try TabletSetupStatus.decode(replies[0], request: 1)
+    }
+
     /// The plaintext endpoint supplies only status and the public relay identity.
     /// All changes use Noise; a first-use session is restricted to tablet setup
     /// until the relay saves the initiating headset after tablet verification.

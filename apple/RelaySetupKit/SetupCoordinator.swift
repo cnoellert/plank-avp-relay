@@ -12,6 +12,7 @@ public final class SetupCoordinator: ObservableObject {
     @Published public private(set) var bluetoothTestResult: String?
     @Published public private(set) var tabletStatus: TabletSetupStatus?
     @Published public private(set) var tabletCommandPending = false
+    @Published public private(set) var relayIdentityChanged = false
     @Published public private(set) var networkStatus: RelayNetworkStatus?
     @Published public private(set) var networkMessage = "Select and authorize a relay to manage its network mode."
     @Published public private(set) var wifiStatus: RelayWifiStatus?
@@ -36,6 +37,7 @@ public final class SetupCoordinator: ObservableObject {
         addresses = relay.addresses
         scanner.stop()
         bluetoothTestResult = nil
+        relayIdentityChanged = false
         networkStatus = nil
         wifiStatus = nil
         wifiAvailable = []; wifiSaved = []
@@ -46,10 +48,10 @@ public final class SetupCoordinator: ObservableObject {
         do {
             let trusted = try keys.relayKey(address) != nil
             guard state.selectRelay(address, trusted: trusted) else { return }
-            message = trusted ? "Saved pairing found. Start live readings to verify the relay and tablet." :
+            message = trusted ? "Checking the relay’s saved authorization and tablets…" :
                 "Pair a tablet to finish setting up this headset and relay."
             tabletStatus = nil
-            if !trusted { manageTablets() }
+            if trusted { refreshTabletStatus() } else { manageTablets() }
         } catch { message = error.localizedDescription }
     }
 
@@ -108,6 +110,7 @@ public final class SetupCoordinator: ObservableObject {
                     }, onStatus: { [weak self] status in
                         guard let self, self.state.operation == id else { return }
                         self.tabletStatus = status
+                        self.state.updateTabletAvailability(status.canStartReadings, operation: id)
                         // An earlier status poll must not acknowledge a command
                         // queued while that poll was in flight.
                         if self.tabletCommand == nil { self.tabletCommandPending = false }
@@ -127,6 +130,7 @@ public final class SetupCoordinator: ObservableObject {
                 self.message = "Tablet setup closed. Saved pairings are retained."
             } catch {
                 guard self.state.operation == id else { return }
+                if let error = error as? RelaySetupError, case .identityChanged = error { self.relayIdentityChanged = true }
                 self.state.fail(id, message: error.localizedDescription)
                 self.message = error.localizedDescription
             }
@@ -148,6 +152,42 @@ public final class SetupCoordinator: ObservableObject {
         guard state.activity == .managingTablets else { return }
         message = "Closing tablet setup…"
         task?.cancel()
+    }
+
+    public func refreshTabletStatus() {
+        guard let address = state.address, let id = state.beginCheck() else { return }
+        state.updateTabletAvailability(false, operation: id)
+        tabletStatus = nil
+        message = "Checking whether the relay has a tablet…"
+        task = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let address = try await self.availableAddress(address)
+                guard let relayKey = try self.keys.relayKey(address) else { throw RelaySetupError.invalidStoredKey }
+                let status = try await self.client.tabletStatus(address: address,
+                    privateKey: self.keys.clientKey(), relayKey: relayKey)
+                try Task.checkCancellation()
+                guard self.state.operation == id else { return }
+                self.state.useAddress(address, operation: id)
+                self.tabletStatus = status
+                if status.headsetAuthorized != true {
+                    self.state.cancel()
+                    self.state.forget()
+                    self.message = "This relay has not authorized the headset. Set up a tablet to finish authorization."
+                } else {
+                    self.state.updateTabletAvailability(status.canStartReadings, operation: id)
+                    _ = self.state.succeed(id)
+                    self.message = status.canStartReadings ? "Tablet found. Start live readings to check its input." :
+                        "Pair or select a tablet before starting live readings."
+                }
+            } catch {
+                guard self.state.operation == id else { return }
+                if let error = error as? RelaySetupError, case .identityChanged = error { self.relayIdentityChanged = true }
+                self.state.fail(id, message: error.localizedDescription)
+                self.message = error.localizedDescription
+            }
+            self.task = nil
+        }
     }
 
     public func checkConnection() {
@@ -174,6 +214,24 @@ public final class SetupCoordinator: ObservableObject {
             }
             self.task = nil
         }
+    }
+
+    public func forgetSelectedRelay() {
+        guard !state.busy, let address = state.address else { return }
+        do {
+            try keys.forgetRelay(addresses.isEmpty ? [address] : addresses)
+            state.forget()
+            relayIdentityChanged = false
+            tabletStatus = nil
+            readings = nil
+            networkStatus = nil
+            wifiStatus = nil
+            wifiAvailable = []; wifiSaved = []
+            wifiAvailableNext = nil; wifiSavedNext = nil
+            wifiAvailableGeneration = ""; wifiSavedGeneration = ""
+            message = "Saved relay identity forgotten. Set up a tablet on this relay again."
+            manageTablets()
+        } catch { message = error.localizedDescription }
     }
 
     public func testBluetooth() {
@@ -480,6 +538,22 @@ public final class SetupCoordinator: ObservableObject {
                     let candidate = candidates[attempt % candidates.count]
                     self.state.useAddress(candidate, operation: id)
                     do {
+                        let status = try await self.client.tabletStatus(address: candidate,
+                            privateKey: self.keys.clientKey(), relayKey: relayKey)
+                        try Task.checkCancellation()
+                        guard self.state.operation == id else { return }
+                        self.tabletStatus = status
+                        self.state.updateTabletAvailability(status.canStartReadings, operation: id)
+                        if status.headsetAuthorized != true {
+                            self.state.cancel()
+                            self.state.forget()
+                            self.message = "This relay has not authorized the headset. Set up a tablet to finish authorization."
+                            self.task = nil
+                            return
+                        }
+                        guard status.canStartReadings else {
+                            throw RelaySetupError.rejected("Pair or select a tablet before starting live readings.")
+                        }
                         try await self.client.observe(address: candidate, privateKey: self.keys.clientKey(), relayKey: relayKey,
                             onProgress: { [weak self] message in
                                 guard let self, self.state.operation == id else { return }
@@ -513,6 +587,7 @@ public final class SetupCoordinator: ObservableObject {
 
     public func back() {
         state.back()
+        relayIdentityChanged = false
         bluetoothTestResult = nil
         message = "Choose the next setup step."
     }

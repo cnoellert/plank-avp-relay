@@ -1,3 +1,12 @@
+plank-avp-relay (0.5.1) experimental; urgency=medium
+
+  * Match the Setup app fix that requires current tablet availability before
+    starting live readings and checks saved headset authorization on the relay.
+  * Add explicit app recovery for a relay reinstalled at the same address,
+    clearing its saved aliases without removing other relays or the headset key.
+
+ -- PLANK contributors <625982+alatteri@users.noreply.github.com>  Tue, 29 Sep 2026 23:30:00 +0000
+
 plank-avp-relay (0.5.0) experimental; urgency=medium
 
   * Add authorized Wi-Fi radio, discovery, join and saved-network controls.

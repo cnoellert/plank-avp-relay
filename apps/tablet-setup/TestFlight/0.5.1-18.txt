@@ -1,0 +1,8 @@
+PLANK AVP Relay Setup 0.5.1
+
+- Start live readings is unavailable until the relay confirms a selected paired tablet or attached USB tablet.
+- Saved tablets that are asleep can still reconnect. Removing the final tablet disables readings without removing headset authorization.
+- The app checks authorization and tablet status when selecting a saved relay and checks status again before starting input.
+- After reinstalling a relay, use Forget saved relay to confirm its replacement and set up its tablet again. This clears the old relay's saved transport records and keeps other relays.
+
+Shared app/relay version: 0.5.1. Pair a tablet in setup before starting live readings. Hardware Bluetooth, input and network checks continue on the relay.

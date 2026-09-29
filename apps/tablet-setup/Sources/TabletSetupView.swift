@@ -8,6 +8,7 @@ struct TabletSetupView: View {
     @State private var tabletToRemove: ManagedTablet?
     @State private var selectedTab = "tablet"
     @State private var editingWifi = false
+    @State private var forgettingRelay = false
 
     init(setup: SetupCoordinator = SetupCoordinator()) {
         _setup = StateObject(wrappedValue: setup)
@@ -37,6 +38,12 @@ struct TabletSetupView: View {
                         case .tablet: tabletPage
                         case .complete: completePage
                         }
+                    }
+                    if setup.relayIdentityChanged {
+                        Text("A fresh OS install creates a new relay pairing identity. Confirm that you reinstalled or replaced this relay before forgetting its saved identity.")
+                            .font(.callout)
+                        Button("Forget saved relay") { forgettingRelay = true }
+                            .disabled(setup.state.busy)
                     }
                     if setup.state.address != nil &&
                         setup.state.activity != .testingBluetooth && setup.state.activity != .managingTablets {
@@ -121,6 +128,12 @@ struct TabletSetupView: View {
         } message: {
             Text("This removes this tablet's Bluetooth bond. To use it again, put it into pairing mode and add it again. Headset approvals are retained.")
         }
+        .confirmationDialog("Forget the saved pairing for \(setup.state.address?.description ?? "this relay")?",
+                            isPresented: $forgettingRelay) {
+            Button("Forget saved relay", role: .destructive) { setup.forgetSelectedRelay() }
+        } message: {
+            Text("Use this after reinstalling or replacing the relay. You will need to set up a tablet on it again. Other saved relays are retained.")
+        }
     }
 
     private var relayPage: some View {
@@ -158,7 +171,15 @@ struct TabletSetupView: View {
                 }.buttonStyle(.borderedProminent)
             } else {
                 Button("Start live readings") { setup.startReadings() }
-                    .buttonStyle(.borderedProminent).disabled(setup.state.busy)
+                    .buttonStyle(.borderedProminent).disabled(!setup.state.canObserve)
+                if !setup.state.hasTablet {
+                    Text(setup.state.activity == .checking ? "Checking the relay’s tablets…" :
+                         "Pair or select a tablet before starting live readings.")
+                        .font(.callout).foregroundStyle(.secondary)
+                    if setup.tabletStatus == nil && !setup.state.busy {
+                        Button("Check tablet status") { setup.refreshTabletStatus() }
+                    }
+                }
             }
             if let readings = setup.readings {
                 TabletReadingsView(readings: readings, count: setup.readingCount)

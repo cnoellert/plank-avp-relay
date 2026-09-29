@@ -58,16 +58,19 @@ public struct SetupState: Equatable, Sendable {
     public private(set) var operation: UUID?
     public private(set) var hasTrust = false
     public private(set) var connectionVerified = false
+    public private(set) var hasTablet = false
 
     public init() {}
 
     public var busy: Bool { operation != nil }
+    public var canObserve: Bool { !busy && hasTrust && hasTablet && address != nil }
 
     @discardableResult
     public mutating func selectRelay(_ address: RelayAddress, trusted: Bool = false) -> Bool {
         guard !busy else { return false }
         self.address = address
         hasTrust = trusted
+        hasTablet = false
         connectionVerified = false
         activity = trusted ? .paired : .idle
         step = trusted ? .complete : .tablet
@@ -107,9 +110,17 @@ public struct SetupState: Equatable, Sendable {
     }
 
     public mutating func beginObservation() -> UUID? {
-        guard address != nil, let id = beginCheck() else { return nil }
+        guard canObserve, let id = beginCheck() else { return nil }
         activity = .observing
         return id
+    }
+
+    /// Availability comes from the current relay status, separately from
+    /// headset authorization. Stale callbacks cannot enable another relay.
+    public mutating func updateTabletAvailability(_ available: Bool, operation: UUID) {
+        guard self.operation == operation,
+              activity == .checking || activity == .managingTablets || activity == .observing else { return }
+        hasTablet = available
     }
 
     public mutating func beginNetworkSettings() -> UUID? {
@@ -123,6 +134,7 @@ public struct SetupState: Equatable, Sendable {
         let id = UUID()
         operation = id
         activity = .managingTablets
+        hasTablet = false
         connectionVerified = false
         return id
     }
@@ -177,6 +189,7 @@ public struct SetupState: Equatable, Sendable {
     public mutating func back() {
         guard !busy else { return }
         step = .relay; address = nil; hasTrust = false
+        hasTablet = false
         activity = .idle
         connectionVerified = false
     }
@@ -184,6 +197,7 @@ public struct SetupState: Equatable, Sendable {
     public mutating func forget() {
         guard !busy else { return }
         hasTrust = false
+        hasTablet = false
         connectionVerified = false
         step = address == nil ? .relay : .tablet
         activity = .idle

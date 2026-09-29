@@ -50,6 +50,15 @@ changes. Apple’s separate, increasing upload build number stays in bundle
 metadata and build records; it is not appended to the app’s visible version.
 App and Linux package versions advance together, including app-only fixes.
 
+Release 0.5.1 checks the selected relay's authorization and tablet status
+before enabling **Start live readings**, then rechecks status before opening
+input. A selected paired tablet may be asleep; an attached USB tablet also
+qualifies. A saved headset record alone does not enable readings.
+If an OS reinstall changes the relay identity at the same address, choose
+**Forget saved relay** in the reported identity-change recovery, confirm the
+replacement, then set up its tablet again. This clears the old relay's pending,
+canonical and transport pins while retaining other relays and the headset key.
+
 ## Network and Bluetooth pairing and readings
 
 Allow Local Network access to discover `_plank-avp-relay._tcp` services. A relay
@@ -130,7 +139,9 @@ Setup and readings use the existing C Noise implementation and the app's
 Keychain namespace. Updates retain Bluetooth account identifiers and the Client
 key. A provisional relay pin is stored before tablet changes, so interruption
 after relay-side approval can recover using the same headset identity. The
-local-forget control is removed; an explicit SSH reset transfers ownership.
+normal ownership transfer uses an explicit SSH reset. After an identity-change
+error, the targeted **Forget saved relay** action recovers a reinstalled or
+replaced relay; it does not transfer ownership of an unchanged relay.
 
 Stop readings before using **Check authorization** or **Test Bluetooth
 connection**. Cancel, interruption and backgrounding preserve saved identities;

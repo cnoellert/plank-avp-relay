@@ -32,7 +32,7 @@ public enum RelaySetupError: LocalizedError, Sendable {
         case let .network(message): "Relay connection failed: \(message)"
         case let .rejected(message): message
         case .timedOut: "The relay did not complete the operation in time. You can try again."
-        case .identityChanged: "This address already has a different trusted relay. Forget it explicitly before pairing a replacement."
+        case .identityChanged: "This relay differs from the saved pairing. If you reinstalled or replaced it, choose Forget saved relay to set it up again."
         case .unexpectedMessage: "The relay sent an unsupported message. The connection closed; saved trust is retained."
         case .approvalFailed: "Tablet approval expired or could not be verified. Tap Pair to try again."
         }
@@ -131,10 +131,39 @@ public final class RelayKeyStore {
     }
 
     public func forgetRelay(_ address: RelayAddress) throws {
-        let result = SecItemDelete(query(address.keychainAccount) as CFDictionary)
-        guard result == errSecSuccess || result == errSecItemNotFound else {
-            throw RelaySetupError.storage(result)
+        try forgetRelay([address])
+    }
+
+    public func forgetRelay(_ addresses: [RelayAddress]) throws {
+        let request: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service, kSecReturnAttributes as String: true,
+            kSecReturnData as String: true, kSecMatchLimit as String: kSecMatchLimitAll]
+        var result: CFTypeRef?
+        let status = SecItemCopyMatching(request as CFDictionary, &result)
+        guard status == errSecSuccess || status == errSecItemNotFound else { throw RelaySetupError.storage(status) }
+        let records = (result as? [[String: Any]] ?? []).compactMap { item -> (String, Data)? in
+            guard let account = item[kSecAttrAccount as String] as? String,
+                  let data = item[kSecValueData as String] as? Data else { return nil }
+            return (account, data)
         }
+        for account in Self.accountsToForget(records, addresses: addresses) {
+            let status = SecItemDelete(query(account) as CFDictionary)
+            guard status == errSecSuccess || status == errSecItemNotFound else { throw RelaySetupError.storage(status) }
+        }
+    }
+
+    static func accountsToForget(_ records: [(String, Data)], addresses: [RelayAddress]) -> Set<String> {
+        let selected = Set(addresses.flatMap { [$0.keychainAccount, $0.keychainAccount + ":setup"] })
+        var keys = Set(records.compactMap { selected.contains($0.0) ? $0.1 : nil })
+        for address in addresses {
+            if let key = address.advertisedKey,
+               records.contains(where: { $0.0.hasPrefix("relay-") && $0.1 == key }) { keys.insert(key) }
+        }
+        // Remove pending pins, canonical records and aliases of this relay.
+        // Never delete the headset private key or another relay's identity.
+        return selected.union(records.compactMap { account, key in
+            account.hasPrefix("relay-") && keys.contains(key) ? account : nil
+        })
     }
 
     public static func randomBytes(count: Int) throws -> Data {

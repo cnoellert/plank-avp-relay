@@ -36,6 +36,10 @@ enum SetupStateTests {
         expect(!state.selectRelay(renamed), "Cannot switch relay during setup")
         expect(state.authorizeTabletSetup(enrollment), "Verified relay approval grants trust in the same setup")
         expect(state.hasTrust && state.step == .complete, "No separate button approval page")
+        expect(!state.hasTablet, "Headset authorization alone does not make a tablet available")
+        state.updateTabletAvailability(true, operation: failed)
+        expect(!state.hasTablet, "A stale status cannot enable live readings")
+        state.updateTabletAvailability(true, operation: enrollment)
         expect(state.beginObservation() == nil, "Finish setup transport before readings")
         expect(state.finishTabletSetup(enrollment), "Close setup after both bonds complete")
         expect(state.hasTrust && !state.connectionVerified, "Enrollment is not a live input sample")
@@ -50,8 +54,13 @@ enum SetupStateTests {
         // Removing every tablet and adding another is management, not re-approval.
         let replacement = state.beginTabletSetup()!
         expect(state.hasTrust, "Tablet management preserves headset ownership")
+        expect(!state.hasTablet, "Reopening management requires fresh tablet status")
+        state.updateTabletAvailability(false, operation: replacement)
         expect(state.finishTabletSetup(replacement), "Close after removing a tablet")
         expect(state.hasTrust && state.step == .complete, "No table-button dependency after removal")
+        expect(!state.canObserve && state.beginObservation() == nil, "Removing the final tablet blocks readings without clearing ownership")
+        let network = state.beginNetworkSettings()!
+        expect(state.succeed(network), "Network controls remain usable with no paired tablet")
         let retry = state.beginTabletSetup()!
         state.fail(retry, message: "Replacement tablet offline")
         expect(state.hasTrust, "Replacement failure preserves ownership")
@@ -66,11 +75,16 @@ enum SetupStateTests {
         expect(state.step == .relay && !state.hasTrust, "Back clears selection only")
         expect(state.selectRelay(address, trusted: true), "Restore saved pairing on discovery")
         expect(state.step == .complete, "Normal reconnect skips setup")
+        expect(!state.canObserve && state.beginObservation() == nil, "Cached headset trust cannot enable readings before tablet status is checked")
         let check = state.beginCheck()!
         state.fail(check, message: "Offline")
         expect(state.hasTrust, "Radio outage preserves ownership")
         let nextCheck = state.beginCheck()!
         expect(state.succeed(nextCheck), "Check verifies saved identity")
+        expect(!state.canObserve, "Verifying authorization still does not imply a paired tablet")
+        let tabletCheck = state.beginCheck()!
+        state.updateTabletAvailability(true, operation: tabletCheck)
+        expect(state.succeed(tabletCheck) && state.canObserve, "A selected saved tablet permits readings after the check closes")
         state.back()
         expect(state.selectRelay(address), "Reopen with lost local relay key")
         let restoration = state.beginTabletSetup()!
