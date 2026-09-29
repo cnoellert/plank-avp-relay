@@ -25,8 +25,8 @@ source_commit=$(git rev-parse HEAD)
 package_version=$(dpkg-parsechangelog -SVersion)
 release_version=$(cat VERSION)
 if [[ ! $release_version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ||
-      $package_version != "$release_version~visionos-tablet-setup" ]]; then
-    echo 'debian/changelog must match VERSION with the branch suffix and no build counter.' >&2
+      $package_version != "$release_version" ]]; then
+    echo 'debian/changelog must match VERSION exactly, without a branch suffix or build counter.' >&2
     exit 2
 fi
 build_root=${PLANK_DEB_BUILD_ROOT:-"$relay_root/build/deb"}
@@ -77,4 +77,8 @@ metadata = {
 Path(destination, "provenance.json").write_text(json.dumps(metadata, indent=2) + "\n")
 PY
 (cd "$destination" && sha256sum *.{deb,ddeb,buildinfo,changes} source-commit.txt provenance.json > SHA256SUMS)
-printf 'Package artifacts: %s\nBuild source: %s\n' "$destination" "$stage/source"
+installer="plank-avp-relay_${package_version}_${architecture}.deb"
+install -m 0644 "$destination/$installer" "$relay_root/artifacts/$installer"
+(cd "$relay_root/artifacts" && sha256sum "$installer" > "$installer.sha256")
+printf 'Installer: %s\nPackage artifacts: %s\nBuild source: %s\n' \
+    "$relay_root/artifacts/$installer" "$destination" "$stage/source"

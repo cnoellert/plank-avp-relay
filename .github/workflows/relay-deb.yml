@@ -87,10 +87,14 @@ jobs:
         run: |
           set -o pipefail
           package_version=$(dpkg-parsechangelog -SVersion)
+          test "$package_version" = "$(cat VERSION)"
           package=(artifacts/deb/"$package_version"/${{ matrix.platform }}/${{ matrix.arch }}/plank-avp-relay_*.deb)
           test "${#package[@]}" = 1
           test "$(dpkg-deb -f "${package[0]}" Version)" = "$package_version"
           test "$(dpkg-deb -f "${package[0]}" Architecture)" = '${{ matrix.arch }}'
+          installer="plank-avp-relay_${package_version}_${{ matrix.arch }}.deb"
+          cmp "artifacts/$installer" "${package[0]}"
+          (cd artifacts && sha256sum -c "$installer.sha256")
           dependencies=$(dpkg-deb -f "${package[0]}" Depends)
           # ctypes does not require the builder's CPython minor version.
           [[ ! $dependencies =~ python3\.[0-9] ]]

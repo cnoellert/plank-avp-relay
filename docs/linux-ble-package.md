@@ -326,12 +326,11 @@ administrator BlueZ overrides remain under administrator control.
 ## Build and validation
 
 The app and relay share the `Major.Minor.Ancillary` release in `VERSION` and
-advance together. The package retains the branch description using Debian's
-prerelease separator, for example `0.3.0~visionos-tablet-setup`, with no trailing
-build counter. `debian/changelog` must match that shared release; the builder
-rejects a mismatch. Apple keeps its required upload identifier separately.
-This version sorts after the earlier `0.2.0~visionos-tablet-setup.14` package,
-so upgrades do not need a downgrade override.
+advance together. The Debian package uses that release exactly, for example
+`0.5.0`, without a branch suffix or trailing build counter. `debian/changelog`
+must match `VERSION`; the builder rejects a mismatch. Apple keeps its required
+upload identifier separately. The version `0.5.0` sorts after the previous
+`0.5.0~visionos-tablet-setup` package, so this naming correction is an upgrade.
 
 Install `build-essential cmake ninja-build pkg-config libudev-dev python3
 python3-dbus python3-gi debhelper dh-python curl ca-certificates git wpasupplicant
@@ -341,7 +340,10 @@ The script snapshots that commit, verifies the pinned libsodium 1.0.22 archive,
 builds it statically with PIC, runs its tests and the relay's assertions-enabled
 tests, and creates `.deb`, `.buildinfo`, `.changes` and SHA-256 artifacts in
 `artifacts/deb/<software-version>/<distribution>-<version>/<architecture>/`,
-for example `artifacts/deb/0.5.0~visionos-tablet-setup/debian-13/arm64/`.
+for example `artifacts/deb/0.5.0/debian-13/arm64/`.
+The installer is also copied directly to
+`artifacts/plank-avp-relay_0.5.0_arm64.deb` (or `_amd64.deb`), with an adjacent
+`.sha256` checksum file. Debug-symbol packages remain in the versioned directory.
 The package version comes from `debian/changelog`, checked against `VERSION`;
 the exact Git commit is
 retained in `source-commit.txt` and `provenance.json` with compiler/OS metadata.
