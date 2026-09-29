@@ -19,8 +19,12 @@ struct RelayDiscovery {
         guard connectable else { remove(id); return }
         let index = relays.firstIndex { $0.id == id }
         guard index != nil || relays.count < 32 else { return }
+        let advertisedName = advertisedName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        // The service advertisement can arrive before its name. Wait for a
+        // name from this scan rather than briefly displaying a generic row.
         let name = advertisedName.flatMap { $0.isEmpty ? nil : String($0.prefix(64)) }
-            ?? index.map { relays[$0].name } ?? "Tablet relay"
+            ?? index.map { relays[$0].name }
+        guard let name else { return }
         let relay = BluetoothRelay(id: id, name: name, signal: signal)
         if let index { relays[index] = relay } else { relays.append(relay) }
         lastSeen[id] = now

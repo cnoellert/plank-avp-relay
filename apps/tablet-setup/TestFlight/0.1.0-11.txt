@@ -1,0 +1,7 @@
+Relays now appear with their advertised name from the start.
+
+- The relay list waits for a name instead of briefly showing a generic "Tablet relay" placeholder.
+- Names come from the current scan. Later advertisements without a name retain the name already received, and unavailable relays still disappear.
+- Includes build 10's recovery when the previous Bluetooth link closes during connection startup.
+
+Quit and reopen the app near the relay. Confirm it first appears with its hostname and stays consistently named. Pair or reconnect, then start live readings and confirm pen position and pressure change.
