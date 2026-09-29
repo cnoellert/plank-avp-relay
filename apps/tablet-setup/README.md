@@ -12,6 +12,14 @@ pairing management are in expandable sections.
 Synthetic readout fixtures exist only in the separate offscreen preview executable.
 The shipping app has no simulation workflow or TCP client.
 
+The visible version uses `Major.Minor.Ancillary` followed by the branch
+description, for example `0.1.1-visionos-tablet-setup`. The numeric version is
+defined once by the CMake project. Increment Ancillary for delivered fixes and
+small refinements, Minor for features, and Major for substantial or incompatible
+changes. Apple’s separate, increasing upload build number stays in bundle
+metadata and build records; it is not appended to the app’s visible version.
+App and Linux package versions advance independently.
+
 ## Bluetooth pairing and readings
 
 For a tablet-free hardware check, select the discovered relay and choose
@@ -38,6 +46,9 @@ mode, and select it. Successful bond/vendor/HID/input verification automatically
 saves the headset that initiated setup. The app proceeds to live readings with
 no three-circle or tablet-button confirmation. Existing owners use **Manage
 tablets** to replace a tablet without losing headset authorization.
+Discovery and saved tablet rows show the Bluetooth MAC address below the name,
+including when a saved tablet is offline. Removal confirmation also includes
+the address so tablets with identical names can be distinguished.
 
 The read-only setup endpoint supplies the public relay identity. Mutations use
 a restricted Noise session; tablet verification promotes only its initiating

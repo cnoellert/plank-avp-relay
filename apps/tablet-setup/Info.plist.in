@@ -6,10 +6,10 @@
     <key>CFBundleName</key><string>PLANK Tablet Setup</string>
     <key>CFBundleDisplayName</key><string>PLANK Tablet Setup</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>0.1.0</string>
+    <key>CFBundleShortVersionString</key><string>${PROJECT_VERSION}</string>
     <key>CFBundleVersion</key><string>${PLANK_SETUP_BUILD_NUMBER}</string>
     <key>CFBundleDevelopmentRegion</key><string>en</string>
-    <key>PLANKSetupVersion</key><string>${PLANK_SETUP_VERSION} (${PLANK_SETUP_BUILD_NUMBER})</string>
+    <key>PLANKSetupVersion</key><string>${PLANK_SETUP_VERSION}</string>
     <key>NSHighResolutionCapable</key><true/>
     <key>NSBluetoothAlwaysUsageDescription</key>
     <string>Find your tablet relay, approve this headset, and display live tablet readings.</string>

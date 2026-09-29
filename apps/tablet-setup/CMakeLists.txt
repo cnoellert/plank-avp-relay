@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.30)
-project(PlankTabletSetup VERSION 0.1.0 LANGUAGES C Swift)
+project(PlankTabletSetup VERSION 0.1.1 LANGUAGES C Swift)
 set(CMAKE_XCODE_ATTRIBUTE_SWIFT_VERSION 6.0)
 set(CMAKE_OSX_DEPLOYMENT_TARGET 27.0 CACHE STRING "Minimum Apple OS" FORCE)
 
@@ -62,7 +62,7 @@ target_include_directories(PlankTabletSetup PRIVATE "${CMAKE_CURRENT_BINARY_DIR}
 target_link_libraries(PlankTabletSetup PRIVATE RelaySetupKit "-framework SwiftUI")
 target_compile_options(PlankTabletSetup PRIVATE -strict-concurrency=complete)
 
-set(PLANK_SETUP_VERSION "0.1.0-visionos-tablet-setup" CACHE STRING "Visible prototype version")
+set(PLANK_SETUP_VERSION "${PROJECT_VERSION}-visionos-tablet-setup")
 set(PLANK_SETUP_BUILD_NUMBER "1" CACHE STRING "Monotonically increasing TestFlight build number")
 if(NOT PLANK_SETUP_BUILD_NUMBER MATCHES "^[1-9][0-9]*$")
     message(FATAL_ERROR "PLANK_SETUP_BUILD_NUMBER must be a positive integer")
@@ -73,7 +73,7 @@ set_target_properties(PlankTabletSetup PROPERTIES
     MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/Info.plist.in"
     XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "la.instinctual.PLANK.TabletSetup"
     XCODE_ATTRIBUTE_PRODUCT_NAME "PLANK Tablet Setup"
-    XCODE_ATTRIBUTE_MARKETING_VERSION "0.1.0"
+    XCODE_ATTRIBUTE_MARKETING_VERSION "${PROJECT_VERSION}"
     XCODE_ATTRIBUTE_CURRENT_PROJECT_VERSION "${PLANK_SETUP_BUILD_NUMBER}"
     XCODE_ATTRIBUTE_CODE_SIGN_STYLE "Automatic"
     XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO"

@@ -15,14 +15,17 @@ enum SetupPreview {
         for page in ["relay", "readings", "offline", "tablets-empty", "tablets-scan", "tablets-saved", "tablets-pairing", "tablets-replacement", "tablets-recovery"] {
             let content: AnyView
             if page.hasPrefix("tablets-") {
-                let tablet: [String: Any] = ["id": "AA:BB:CC:DD:EE:01", "name": "Studio pen tablet",
+                let tablet: [String: Any] = ["id": "AA:BB:CC:DD:EE:01", "name": "Wacom Intuos Pro M",
                     "connected": false, "paired": page == "tablets-saved"]
+                var secondTablet = tablet
+                secondTablet["id"] = "AA:BB:CC:DD:EE:02"
+                secondTablet["connected"] = page == "tablets-saved"
                 let data = try JSONSerialization.data(withJSONObject: ["version": 1, "id": 1, "ok": true,
                     "hostname": "plank-tablet-relay-02", "phase": page == "tablets-pairing" ? "pairing" : page == "tablets-scan" ? "scanning" : "idle",
                     "message": "Pairing the selected tablet…", "canManage": page != "tablets-recovery", "initialSetup": !["tablets-saved", "tablets-replacement", "tablets-recovery"].contains(page),
                     "attached": false, "secondsRemaining": 45,
-                    "tablets": page == "tablets-saved" ? [tablet] : [],
-                    "candidates": page == "tablets-scan" ? [tablet] : []])
+                    "tablets": page == "tablets-saved" ? [tablet, secondTablet] : [],
+                    "candidates": page == "tablets-scan" ? [tablet, secondTablet] : []])
                 let status = try TabletSetupStatus.decode(data, request: 1)
                 content = AnyView(VStack(alignment: .leading, spacing: 20) {
                     Text("Set up your tablet").font(.largeTitle.bold())

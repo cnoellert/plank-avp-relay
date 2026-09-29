@@ -78,7 +78,7 @@ struct TabletSetupView: View {
         .confirmationDialog("Remove this tablet from the relay?", isPresented: Binding(
             get: { tabletToRemove != nil }, set: { if !$0 { tabletToRemove = nil } })) {
             if let tablet = tabletToRemove {
-                Button("Remove \(tablet.name)", role: .destructive) {
+                Button("Remove \(tablet.name) (\(tablet.id))", role: .destructive) {
                     setup.tabletOperation("remove", tablet: tablet.id)
                     tabletToRemove = nil
                 }
@@ -177,6 +177,8 @@ struct TabletManagementView: View {
             ForEach(status.tablets) { tablet in
                 VStack(alignment: .leading, spacing: 8) {
                     Text(tablet.name).font(.headline)
+                    Text(tablet.id).font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(.secondary).textSelection(.enabled)
                     Text(tablet.connected ? "Connected" : "Saved · offline — wake the tablet to reconnect")
                         .font(.callout).foregroundStyle(.secondary)
                     if status.canManage {
@@ -206,7 +208,8 @@ struct TabletManagementView: View {
                         } label: {
                             VStack(alignment: .leading) {
                                 Text("Pair \(tablet.name)")
-                                Text(tablet.id).font(.caption).foregroundStyle(.secondary)
+                                Text(tablet.id).font(.system(.caption, design: .monospaced))
+                                    .foregroundStyle(.secondary)
                             }
                         }.disabled(pending)
                     }

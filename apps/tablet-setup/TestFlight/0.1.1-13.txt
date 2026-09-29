@@ -1,0 +1,8 @@
+Keep tablets with identical names easy to distinguish.
+
+- The tablet's Bluetooth MAC address stays visible below its name after pairing, whether connected or offline.
+- The removal confirmation includes both the tablet name and MAC address.
+- Discovery continues to show the MAC address for each tablet found.
+- The app shows version 0.1.1 with the branch description, without a trailing build number. Apple's upload build identifier is retained internally.
+
+Please check that your tablet's address remains visible in Manage tablets after pairing and after it goes offline.

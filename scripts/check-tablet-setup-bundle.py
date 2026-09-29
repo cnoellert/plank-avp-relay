@@ -3,6 +3,7 @@
 """Check the built bundle, not merely its source templates."""
 import argparse
 import plistlib
+import re
 from pathlib import Path
 
 parser = argparse.ArgumentParser(description=__doc__)
@@ -16,8 +17,9 @@ with (contents / "Info.plist").open("rb") as source:
 assert info["CFBundleIdentifier"] == "la.instinctual.PLANK.TabletSetup"
 assert info.get("NSBluetoothAlwaysUsageDescription")
 assert "NSLocalNetworkUsageDescription" not in info
-assert f'({info["CFBundleVersion"]})' in info["PLANKSetupVersion"]
-assert "visionos-tablet-setup" in info["PLANKSetupVersion"]
+assert re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", info["CFBundleShortVersionString"])
+assert re.fullmatch(r"[1-9][0-9]*", info["CFBundleVersion"])
+assert info["PLANKSetupVersion"] == f'{info["CFBundleShortVersionString"]}-visionos-tablet-setup'
 with (resources / "PrivacyInfo.xcprivacy").open("rb") as source:
     privacy = plistlib.load(source)
 assert privacy["NSPrivacyTracking"] is False
