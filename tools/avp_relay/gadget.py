@@ -157,13 +157,13 @@ def main():
     if args.check_config:
         print('USB network configuration valid')
         return 0
-    STATE.mkdir(parents=True, exist_ok=True, mode=0o700)
     backend = LinuxGadget(settings)
     if args.remove:
         # Avoid touching routing on a machine where this feature never ran.
         if (STATE / 'wired-before.json').exists() or (STATE / 'armbianEnv.before').exists():
             backend.remove()
         return 0
+    STATE.mkdir(parents=True, exist_ok=True, mode=0o700)
     controller = GadgetController(backend)
     path = Path(SOCKET)
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
