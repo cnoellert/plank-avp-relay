@@ -8,24 +8,34 @@ requested pull/rebase completed without replay. No merge or public release.
 Root PLANK and its unrelated work remain untouched. Machine access, signing
 jobs and deployment details belong in the operator's private notes.
 
-Shared release **0.4.0** adds managed USB Ethernet with Bridge/Router control
-and renames the product to **PLANK AVP Relay**. App source
-`f61a5beca57e9ebdb4083cbe88f5d8c7fd5c52ca` and relay source
-`7f07860532bc21c67c0bb0dad344c157d5f74c03` are committed and pushed. The app
-is displayed as **PLANK AVP Relay Setup**; Apple bundle ID and repository name
-are unchanged. The app is **VALID / IN_BETA_TESTING**, with notes and saved
-Standard / No France compliance completed and read back. Both Ubuntu 26.04
-package architectures pass native build and clean install/upgrade checks.
+Shared release **0.5.0** adds full Wi-Fi client controls to the Network tab.
+App source `27bd518de7bedf6ab806f2b675f9ef21b5f2da90` and relay source
+`c3eb9de3c1e476b45a8d23f4373329ed75a91508` are committed and pushed. The app remains **PLANK AVP Relay Setup** and the Linux package is
+`plank-avp-relay`. Apple build **17** is **VALID / IN_BETA_TESTING**, with notes and saved
+Standard / No France compliance verified. Package build and clean-install
+checks passed for both target distributions. Release artifacts and
+results are recorded in the 0.5.0 section below.
 The operator confirmed the NanoPi is unavailable: **it has not been upgraded
 and remains on 0.2.1**. Do not retry host access until it is available.
 
-When the host returns, back up its private state and install the 0.4.0 arm64
-package, preserving tablet bonds and headset ownership. Validate the namespace
+Platform targets are **Ubuntu Server 26.04 / amd64** on Intel hardware and
+**Armbian Minimal, Debian 13 / arm64** on the NanoPi boards. The operator
+explicitly selected **6.18.54 current** for Zero2. R28S's published Armbian
+image currently uses **6.1.172 vendor**; it remains physically unqualified.
+Both use one Debian 13 arm64 relay package, with board-specific OS images,
+drivers and hardware acceptance. See [platform matrix](docs/relay-platforms.md).
+Automatic USB gadget enablement applies to Zero2 only; R28S needs its wired
+uplink and USB controller configuration qualified before enablement.
+
+When the host returns, back up its private state and install the 0.5.0 arm64
+package, preserving tablet bonds and headset ownership. Validate namespace
 migration, Avahi discovery, TCP/Bluetooth saved authorization and live pen
-X/Y/pressure on AVP. Test Bridge and Router, USB attachment with Ethernet link
-but no Internet, cable removal/restoration, reconnect after Apply, reboot and
-tablet sleep/wake. Physical USB/AVP qualification remains pending. Offscreen
-previews, software tests and package checks do not replace hardware acceptance.
+X/Y/pressure on AVP. Test Wi-Fi join, wrong-password recovery, saved/hidden
+networks, on/off and reboot persistence. Test Bridge and Router, USB attachment
+with Ethernet link but no Internet, cable removal/restoration, reconnect after
+Apply and tablet sleep/wake. USB must withdraw when Ethernet is removed even
+if relay Wi-Fi is connected. Physical Wi-Fi/USB/AVP qualification remains
+pending; software tests and package checks do not replace hardware acceptance.
 
 The operator authorized autonomous relay refinement, Debian packaging and app
 cleanup. The working readings path now has a managed Linux TCP/BLE service and
@@ -37,6 +47,73 @@ author's coding agent. See [AVP Bluetooth upstream handoff](docs/avp-bluetooth-u
 for the verified address-resolution and battery-plugin fixes, fixed reference
 snapshot, implementation/recovery requirements and acceptance tests. Creating
 this document changes no runtime code or deployed host configuration.
+
+## Shared release 0.5.0 — Wi-Fi management
+
+- Network tab now enables/disables Wi-Fi, scans, joins WPA2/WPA3 Personal and
+  open networks, accepts hidden SSIDs, reconnects saved profiles, updates
+  passwords and forgets networks. Secured rows show only a lock; open rows have
+  no security icon/label. Connection and address status remain read-only.
+- Persistent manual radio policy is independent of Ethernet carrier. Fresh
+  unconfigured supported WLAN starts off; existing configured Wi-Fi remains
+  untouched until an authorized action takes ownership. Off retains profiles
+  and uses the selected WLAN rfkill index, leaving Bluetooth available.
+- `plank-avp-relay-wifi.service` / process `plank-avp-wifi` owns the selected
+  WLAN through wpa_supplicant D-Bus and systemd-networkd. The package includes
+  wpasupplicant/rfkill; no manual daemon launch. NetworkManager hosts and
+  missing/unqualified drivers report unavailable and retain configuration.
+- Wi-Fi can carry relay TCP traffic; its DHCP/RA metric prefers normal wired
+  routes. USB remains wired-Ethernet-only in Bridge and Router. No Wi-Fi AP,
+  web UI, USB Wi-Fi uplink or old workstation transport was added.
+- Wi-Fi commands require the current approved Noise identity. Requests are
+  durably accepted before apply and continue after connection loss. Status is
+  bound to the same UUID and relay key; the app does not resend mutations.
+  Failed joins restore prior native profiles; interrupted operations resume.
+- Configuration `/etc/plank-avp-relay/wifi.conf`; private profiles, rollback,
+  ownership and operation journal `/var/lib/plank-avp-relay/wifi/` (0700/0600);
+  root-only socket `/run/plank-avp-relay/wifi/control.sock`. Main relay cannot
+  read the Wi-Fi state directory. No passwords in status/discovery/logs/app
+  persistence. Native supplicant credentials and original backups stay private.
+- Wi-Fi takes over only its selected interface on networkd appliances, preserves
+  native profiles and original unit/configuration metadata, and releases its
+  networkd file/unmasks prior units on removal. Removal retains private state.
+  See [Wi-Fi behavior and acceptance](docs/wifi-management.md) for limits.
+
+Validation: 30 Linux suites and 15 Apple suites pass. New tests include
+16 controller/ownership/privacy cases, real isolated supplicant D-Bus profile
+persistence/rollback with WPA2 raw keys, WPA3, open/hidden and raw SSID bytes,
+and real authenticated TCP rejection of provisional Wi-Fi management. macOS,
+visionOS device/simulator builds, signed archive/export and bundle/privacy/
+dSYM checks passed. Simulator compiled, not run. Wi-Fi offscreen previews
+were inspected; secured/open rows follow the requested presentation.
+
+Apple upload accepted at 2026-09-29T20:23:55Z. Archive/export/upload GUI jobs
+are unloaded. IPA/dSYMs/logs/provenance: `artifacts/testflight/0.5.0/build-17/`;
+previews: `artifacts/previews/0.5.0/`.
+IPA SHA-256: `99e5361ab580764f5d9e55c9e153ffdbdf4d243639db228b626df6446f5acafd`.
+arm64 dSYM UUID: `B34B666D-BFEA-3502-B130-932CD2C92F94`.
+Next Apple upload identifier is **18**.
+
+[Final package CI](https://github.com/instinctual/plank-tablet-relay/actions/runs/36627990159)
+passed all four jobs: native Ubuntu 26.04 amd64 and Debian 13 arm64 builds,
+plus clean install, reinstall, private-state retention, removal and
+old-namespace migration on both distributions. Each native build passed all
+30 Linux suites. Artifact hashes and source provenance were verified locally.
+Final packages are under
+`artifacts/deb/0.5.0~visionos-tablet-setup/ubuntu-26.04/amd64/` and
+`artifacts/deb/0.5.0~visionos-tablet-setup/debian-13/arm64/`.
+CI logs/downloads are in `artifacts/ci/36627990159/`; additional Debian 13
+userspace and real isolated supplicant checks are in
+`artifacts/validation/0.5.0/`. Containers do not qualify the board kernels.
+
+Two earlier CI issues were corrected: removal must not regenerate Python
+bytecode after Debian cleanup, and the retention test's dummy Wi-Fi profile
+must be moved out before preparing the separate namespace-migration fixture.
+Do not install the first failed-run packages retained under
+`artifacts/rejected/36625702966/`. Subsequent changes from app source
+`27bd518` affect Linux packaging, CI and documentation only; Apple build 17
+needs no replacement. Apple readback is **VALID / IN_BETA_TESTING**, with notes
+and saved Standard / No France compliance verified (`usesNonExemptEncryption=false`).
 
 ## Shared release 0.4.0 — USB Ethernet and product naming
 
@@ -87,7 +164,7 @@ arm64 dSYM UUID: `A103DE26-D5C4-39B6-932E-08E24267F72E`.
 
 Apple API readback is **VALID / IN_BETA_TESTING**. Notes and saved Standard /
 No France compliance were saved and verified (`usesNonExemptEncryption=false`).
-Next Apple upload identifier is **17**.
+That release used Apple upload **16**; see the current release above for the next identifier.
 
 All four [Ubuntu 26.04 CI jobs](https://github.com/instinctual/plank-tablet-relay/actions/runs/36619511923)
 pass: native amd64/arm64 builds plus clean installation/reinstallation/removal
