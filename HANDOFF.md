@@ -19,7 +19,51 @@ for the verified address-resolution and battery-plugin fixes, fixed reference
 snapshot, implementation/recovery requirements and acceptance tests. Creating
 this document changes no runtime code or deployed host configuration.
 
-## Combined setup — build 12 and package revision 14
+## Shared release 0.2.1 — current delivery
+
+The operator requires identical `Major.Minor.Ancillary` numbers for the app and
+relay. Both now take release `0.2.1` from `VERSION`; the Debian changelog is
+checked against that file before packaging. Keep the branch description, but
+do not append a build counter. The app displays `0.2.1-visionos-tablet-setup`;
+the package uses Debian's prerelease separator, `0.2.1~visionos-tablet-setup`.
+Apple's internal upload identifier remains separate (this upload uses 14).
+Increment the shared release for delivered updates to either component.
+
+This release also keeps each tablet's MAC address below its name in discovery
+and saved connected/offline rows, and includes it in removal confirmation.
+Source `560327b2b0de5e297488a7634bbf13a338f8a6ea` passed all 12 Apple suites,
+macOS and visionOS device/simulator compilation, signed archive/export,
+bundle/privacy checks, and matching executable/dSYM checks. The simulator was
+compiled, not executed. Identical-name tablet previews were inspected using
+the same UI source in the preceding 0.1.1 archive. Physical acceptance of the
+new display and current live pen readings remains pending.
+
+The earlier 0.1.1 upload was already underway when matching release numbers
+were requested. Its notes/compliance were completed, but 0.2.1 supersedes it.
+Retained app artifacts: `artifacts/testflight/0.2.1/build-14/`.
+Retained earlier upload: `artifacts/testflight/0.1.1/build-13/`.
+Apple accepted 0.2.1 at 2026-09-29T07:40:33Z; final API readback is
+**VALID / IN_BETA_TESTING**. Notes and the confirmed Standard / No France
+compliance baseline were saved and read back. All GUI signing jobs are unloaded.
+IPA SHA-256: `a5a8d2e3174c2bb7f4b0f54d6a255780a5a07ca86cc6f425ccaad48f5eb129d0`.
+arm64 dSYM UUID: `A29AEBDA-4FC5-3DCC-B893-4FAD5AC303E4`.
+Next Apple upload identifier: **15**; advance the shared release for new changes.
+
+Package `0.2.1~visionos-tablet-setup` is installed on the NanoPi and advertising
+as of 2026-09-29T07:43:29Z. The stock extracted-package smoke passed on the
+board. Relay identity, headset approvals, tablet metadata, pairing budget and
+configuration are byte-identical to the private pre-upgrade backup; the one
+tablet Bluetooth bond is retained. The active BlueZ daemon still excludes the
+battery plugin. The only package checksum difference is the expected retained
+administrator configuration. No ownership reset or tablet removal was run.
+All four Ubuntu 26.04 jobs pass: native amd64/arm64 build and package checks,
+and clean install/reinstall/removal checks on both architectures. Both native
+builds passed 24 relay suites and 101 libsodium tests; lintian passed.
+Checksummed packages, provenance and CI logs are retained under
+`artifacts/deb/0.2.1~visionos-tablet-setup/`.
+[Shared-release package build](https://github.com/instinctual/plank-tablet-relay/actions/runs/36537727000).
+
+## Combined setup — build 12 and package revision 14 (previous delivery)
 
 The operator approved combining initial tablet pairing and headset ownership.
 Build 12 and package revision 14 implement a restricted encrypted Noise setup
@@ -46,7 +90,7 @@ saved/read back. All GUI signing jobs are unloaded. Artifacts are retained at
 `artifacts/testflight/0.1.0/build-12/`.
 IPA SHA-256: `dc232f23095103814b57d0510988371fed6b54a989e49f6c8dcc395bb013f368`.
 arm64 dSYM UUID: `678F33A8-D10A-38A3-B3E3-0D0A29E388A1`.
-Next TestFlight upload: **13**.
+This delivery is superseded by the shared-release work above.
 
 Package source `1f14bd26b995f5188ae9ad421dd085fee7f46e1c` adds only a changelog
 line-wrap fix to that implementation. Revision 14 is installed on the NanoPi;
@@ -68,8 +112,8 @@ lines; the corrected source above is the installed package.
 
 The x86-64 host OS is **Ubuntu Server 26.04**. Packages use Ubuntu 26.04 as
 the native **amd64 and arm64** build baseline; the current NanoPi hardware
-check uses Armbian/Debian 13. Revision `0.2.0~visionos-tablet-setup.14`, source
-`1f14bd26b995f5188ae9ad421dd085fee7f46e1c`, is installed on the NanoPi.
+check uses Armbian/Debian 13. Version `0.2.1~visionos-tablet-setup`, source
+`560327b2b0de5e297488a7634bbf13a338f8a6ea`, is installed on the NanoPi.
 See [package documentation](docs/linux-ble-package.md).
 
 - Revision 11 adds tablet enrollment from the headset app, explicit SSH
@@ -295,7 +339,7 @@ Artifacts and provenance are retained under
 `artifacts/testflight/0.1.0/build-11/`.
 IPA SHA-256: `6b7bf7d80f51ea2ea2653affce1f012738fc909a74d1c87a2b8224ba4efbc89e`.
 arm64 dSYM UUID: `14698049-DDE6-3C3F-8523-132164FCD34C`.
-Build 12 supersedes this build; the next upload must use build 13.
+This historical build is superseded by the current delivery at the top.
 
 ## TestFlight build 10
 
@@ -357,7 +401,7 @@ of changing pen X/Y and pressure remains pending.
 Apple accepted upload at 2026-09-29T05:32:37Z. Processing completed as VALID;
 notes and saved compliance were written and read back. The exact build is
 **VALID / IN_BETA_TESTING**. All GUI signing jobs are unloaded. The next
-upload after build 12 must use build 13. Physical availability-list acceptance remains pending.
+upload identifier is recorded with the current delivery at the top. Physical availability-list acceptance remains pending.
 
 ## TestFlight build 8
 
