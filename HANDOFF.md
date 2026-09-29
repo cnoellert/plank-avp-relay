@@ -1,4 +1,4 @@
-# Tablet relay and setup app
+# PLANK AVP Relay and Setup app
 
 ## Current state — 2026-09-29 UTC
 
@@ -8,21 +8,24 @@ requested pull/rebase completed without replay. No merge or public release.
 Root PLANK and its unrelated work remain untouched. Machine access, signing
 jobs and deployment details belong in the operator's private notes.
 
-Shared release **0.3.0** adds fresh managed TCP communication and automatic LAN
-discovery. The app is **VALID / IN_BETA_TESTING** and both Ubuntu 26.04 package
-architectures are ready. The operator confirmed the NanoPi is unavailable for
-now: **it has not been upgraded and remains on 0.2.1**. Do not retry host access
-until it is available. Signing jobs and the temporary LAN test service are
-stopped; no relay SSH connection or capture remains active.
+Shared release **0.4.0** adds managed USB Ethernet with Bridge/Router control
+and renames the product to **PLANK AVP Relay**. App source
+`f61a5beca57e9ebdb4083cbe88f5d8c7fd5c52ca` and relay source
+`7f07860532bc21c67c0bb0dad344c157d5f74c03` are committed and pushed. The app
+is displayed as **PLANK AVP Relay Setup**; Apple bundle ID and repository name
+are unchanged. The app is **VALID / IN_BETA_TESTING**, with notes and saved
+Standard / No France compliance completed and read back. Both Ubuntu 26.04
+package architectures pass native build and clean install/upgrade checks.
+The operator confirmed the NanoPi is unavailable: **it has not been upgraded
+and remains on 0.2.1**. Do not retry host access until it is available.
 
-Next, when the host returns, back up its private state and install the 0.3.0
-arm64 package, preserving the tablet bond and headset ownership. Confirm Avahi
-discovery, TCP and Bluetooth connection tests, saved authorization on both
-transports, and changing pen X/Y and pressure on the AVP. Also test interrupted
-network recovery, relay reboot, tablet sleep/wake, and persistent tablet MAC
-display. Physical AVP TCP acceptance is pending; do not equate the passing Mac
-LAN test with this acceptance. Apple upload identifier **16** is next; advance
-the shared VERSION for the next delivered code change.
+When the host returns, back up its private state and install the 0.4.0 arm64
+package, preserving tablet bonds and headset ownership. Validate the namespace
+migration, Avahi discovery, TCP/Bluetooth saved authorization and live pen
+X/Y/pressure on AVP. Test Bridge and Router, USB attachment with Ethernet link
+but no Internet, cable removal/restoration, reconnect after Apply, reboot and
+tablet sleep/wake. Physical USB/AVP qualification remains pending. Offscreen
+previews, software tests and package checks do not replace hardware acceptance.
 
 The operator authorized autonomous relay refinement, Debian packaging and app
 cleanup. The working readings path now has a managed Linux TCP/BLE service and
@@ -35,7 +38,72 @@ for the verified address-resolution and battery-plugin fixes, fixed reference
 snapshot, implementation/recovery requirements and acceptance tests. Creating
 this document changes no runtime code or deployed host configuration.
 
-## Shared release 0.3.0 — current delivery, host installation pending
+## Shared release 0.4.0 — USB Ethernet and product naming
+
+- Linux package, command and main unit: `plank-avp-relay`;
+  USB unit: `plank-avp-relay-usb.service`; admin: `plank-avp-relay-admin`.
+  Configuration `/etc/plank-avp-relay/`, identity `/var/lib/plank-avp-relay/`,
+  USB state in its `usb/` subdirectory. Main process label `plank-avp-relay`;
+  USB process label `plank-avp-usb` fits Linux's 15-byte limit.
+- `apt` replaces the old package. Post-install migration copies private state,
+  config and backups before service startup, retains original copies and
+  refuses conflicting identities. BlueZ tablet bonds remain in place. A
+  migration stamp prevents later reinstalls from copying old settings again.
+- Bonjour is now `_plank-avp-relay._tcp`; update both components. BLE UUIDs,
+  wire authentication and Keychain identity namespace remain unchanged.
+- Dedicated appliance uses Bridge by default, Router when selected. Physical
+  wired carrier gates the USB adapter in both modes; Internet reachability is
+  irrelevant. Wi-Fi is never an upstream path. Router provides IPv4 NAT and
+  blocks forwarded IPv6; Bridge carries the wired LAN directly.
+- Gadget support enables automatically only on Armbian NanoPi Zero2. x86
+  Ubuntu Server 26.04 reports unavailable and retains its network settings.
+  The package includes required networking tools. A separately privileged
+  service owns networkd/configfs/boot configuration, with root-only IPC.
+- Network tab separates an editable mode selector/Apply from read-only
+  Ethernet and USB connection statuses. USB status uses the actual controller
+  state. Status refreshes every four seconds when idle and active onscreen.
+- Only a previously authorized headset can manage networking over encrypted
+  TCP/BLE. Provisional setup cannot. Mode requests are durable and idempotent;
+  accepted changes finish independently of the app. App reconnects across
+  verified endpoints and checks the request result without replaying mutation.
+- The supplied parent-folder `install-usb-gadget.sh` is unchanged. Recognized
+  standalone installations are backed up and retired by the new controller,
+  retaining Bridge/Router choice. Unknown installations are not overwritten.
+  Non-default private subnets require explicit configuration before migration.
+
+Software validation: all 28 Linux CTest suites and 14 Apple suites pass.
+Linux includes real native identity/approval migration tests, authenticated
+network-management socket tests and a real-kernel isolated nftables test.
+macOS plus visionOS device/simulator compilation, signed archive/export,
+bundle/privacy checks and executable/dSYM matching passed. The simulator was
+compiled, not executed. Network-tab offscreen previews were inspected.
+
+App upload was accepted at 2026-09-29T19:22:41Z. The displayed app name changed;
+its App Store Connect application record and bundle identifier are unchanged.
+Archive/export/upload GUI jobs are unloaded. IPA, dSYMs, previews, logs and
+source provenance are retained in `artifacts/testflight/0.4.0/build-16/`.
+IPA SHA-256: `ed8ef1c9970258aa1a87d0c68058d7b73d5289bdaa3dc980d3ef41e4c8fe7aef`.
+arm64 dSYM UUID: `A103DE26-D5C4-39B6-932E-08E24267F72E`.
+
+Apple API readback is **VALID / IN_BETA_TESTING**. Notes and saved Standard /
+No France compliance were saved and verified (`usesNonExemptEncryption=false`).
+Next Apple upload identifier is **17**.
+
+All four [Ubuntu 26.04 CI jobs](https://github.com/instinctual/plank-tablet-relay/actions/runs/36619511923)
+pass: native amd64/arm64 builds plus clean installation/reinstallation/removal
+and old-package replacement on both architectures. The upgrade fixture proves
+its original native state is valid, installs the previous package namespace,
+then verifies the actual new postinst preserved identity, saved approval and
+custom configuration. Each native build passed all 28 relay suites, 101
+libsodium tests, installed-package checks and lintian. The real-kernel nftables
+check ran locally; CI can skip that subtest without the required privileges.
+Final checksummed packages and source provenance are retained under
+`artifacts/deb/0.4.0~visionos-tablet-setup/ubuntu-26.04/{amd64,arm64}/`;
+complete CI records are in `artifacts/ci/36619511923/`. The app source predates
+three Linux-only packaging/test fixes; Apple source is otherwise identical.
+No host installation or physical USB/AVP testing was performed.
+
+## Shared release 0.3.0 — previous delivery, never installed on unavailable host
 
 App and relay source is `5e2a402c83a5573512b2524f46b0e72736a62a9f`. The visible
 app version is `0.3.0-visionos-tablet-setup`; Debian uses
