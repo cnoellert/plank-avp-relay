@@ -247,3 +247,17 @@ and [export compliance](https://developer.apple.com/help/app-store-connect/manag
 - Test the actual authorization button on each supported physical layout.
 
 See `docs/visionos-tablet-setup.plan` for the subsequent daemon/Bluetooth work.
+
+## Headless tablet enrollment
+
+Select the relay hostname to view its tablet setup status. On an unconfigured
+relay, **Add tablet** starts bounded discovery; select the intended tablet in
+pairing mode. After Linux verifies the bond and input capabilities, continue
+to the separate three-press headset approval. An approved headset can stop
+readings and use **Manage pairing → Manage tablets** to reconnect, select or
+remove saved tablets. Sleeping tablets remain saved.
+
+Use package revision 11 or later for this UI. Older relays remain usable for
+existing pairing/readings but show an update message for tablet management.
+No hardware button or web UI is required; explicit SSH recovery commands are
+in [the tablet enrollment guide](../../docs/bluetooth-tablet-pairing.md).

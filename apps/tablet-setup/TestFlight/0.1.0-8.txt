@@ -1,0 +1,11 @@
+This build adds tablet pairing from the headset app, without an active SSH session. Install the matching Linux relay update first.
+
+- Scan for relays and select the relay hostname.
+- On a new relay, choose Add tablet, put the tablet into Bluetooth pairing mode, then select it. The relay checks its bond and input capabilities.
+- Continue to headset approval, wait for the three circles, then press and release the same Home, center or tablet button three times.
+- Confirm position, pressure and buttons update in live readings.
+- With a saved headset approval, stop readings and open Manage pairing → Manage tablets. Test reconnecting a saved tablet and adding or removing a tablet.
+- Cancel a scan or pairing attempt, then retry. Existing tablet bonds and headset approvals should remain intact.
+- Let the tablet sleep and wake it. It should remain saved, with no new pairing needed.
+
+Discovery now uses the relay hostname unless its configuration explicitly overrides the name. Tablet-free Bluetooth diagnostics remain available. Lost access can be recovered with an explicit SSH command; no hardware button or web UI is required.

@@ -29,6 +29,8 @@ int pltr_identity_store_add(PltrIdentityStore *store,
                             const uint8_t public_key[32]);
 int pltr_identity_store_remove(PltrIdentityStore *store,
                                const uint8_t public_key[32]);
+// Administrator recovery: revoke all Clients while retaining the Relay identity.
+int pltr_identity_store_clear_clients(PltrIdentityStore *store);
 // Reserve a nonzero raw-HID attachment generation durably before the worker
 // sends DEVICE. The store's lifetime lock serializes reservations across runs.
 int pltr_identity_store_next_generation(PltrIdentityStore *store,

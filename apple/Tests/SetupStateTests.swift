@@ -25,6 +25,12 @@ enum SetupStateTests {
         expect(state.beginObservation() == nil, "No readings without a trusted relay")
         expect(!state.prepareAuthorization(), "No premature authorization")
         expect(state.selectRelay(address), "Select Bluetooth relay")
+        let tabletSetup = state.beginTabletSetup()!
+        expect(!state.succeed(tabletSetup), "Tablet setup cannot approve a headset")
+        expect(!state.prepareAuthorization(), "Finish tablet management before headset approval")
+        expect(state.finishTabletSetup(tabletSetup), "Bootstrap tablet setup finishes independently")
+        expect(!state.hasTrust, "Pairing a tablet does not grant headset trust")
+        expect(!state.finishTabletSetup(tabletSetup), "Ignore stale tablet-setup completion")
         expect(state.prepareAuthorization(), "Prepare button approval")
         let first = state.beginButtonApproval()!
         expect(!state.selectRelay(renamed), "No endpoint switch in flight")

@@ -56,4 +56,12 @@ with tempfile.TemporaryDirectory() as directory:
     assert (state / 'paired-clients.json').read_text() == clients
     assert (state / 'identity.key').read_bytes() == key
     assert (state / 'identity.key').stat().st_mode & 0o777 == 0o600
+    native = Native(library, state)
+    assert native.has_clients
+    native.reset_clients()
+    native.close()
+    assert (state / 'identity.key').read_bytes() == key
+    native = Native(library, state)
+    assert not native.has_clients
+    native.close()
 print('PASS: extracted package imports, native re-approval, retained trust and default policy')

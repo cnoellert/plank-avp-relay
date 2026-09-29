@@ -11,6 +11,9 @@ Wacom pen and tablet-button input through Linux input devices.
 The headset approves its first connection using three tablet-button presses;
 subsequent connections authenticate the saved keys.
 Normally run through the plank-tablet-relay-ble system service.
+The headset app can discover and pair a tablet on an unconfigured relay.
+Subsequent tablet management requires an approved headset.
+The relay hostname is advertised by default; configuration may override it.
 .SH OPTIONS
 .TP
 .BI --config " file"
@@ -24,12 +27,13 @@ Validate configuration and exit without opening Bluetooth or tablet devices.
 Adapter, tablet selection and opt-in controller compatibility settings.
 .TP
 .I /var/lib/plank-tablet-relay-ble
-Private identity, approved headset keys and pairing attempt budget.
+Private identity, approved headset keys, tablet selection and pairing attempt budget.
 Retained by package upgrades, removal and purge.
 .TP
 .I /usr/share/doc/plank-tablet-relay-ble/linux-ble-package.md.gz
 Installation, hardware qualification and compatibility guidance.
 .SH SEE ALSO
+.BR plank-tablet-relay-admin (8),
 .BR systemctl (1),
 .BR journalctl (1),
 .BR bluetoothctl (1)

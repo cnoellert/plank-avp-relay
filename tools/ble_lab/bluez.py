@@ -12,13 +12,17 @@ from .capture import Capture
 from .controller import clear_advertisements, disable_address_resolution
 from .notify import ready
 from .native import Native, ProtocolError
-from .transport import EchoChannel, Indications, write_peer
+from .transport import EchoChannel, Indications, SetupChannel, write_peer
+from .tablets import Tablets
+from .tablet_bluez import TabletBlueZ
 
 SERVICE_UUID = '462f3a10-7a31-4ab3-9e7f-c36af495ecf0'
 RX_UUID = '462f3a11-7a31-4ab3-9e7f-c36af495ecf0'
 TX_UUID = '462f3a12-7a31-4ab3-9e7f-c36af495ecf0'
 ECHO_RX_UUID = '462f3a13-7a31-4ab3-9e7f-c36af495ecf0'
 ECHO_TX_UUID = '462f3a14-7a31-4ab3-9e7f-c36af495ecf0'
+SETUP_RX_UUID = '462f3a15-7a31-4ab3-9e7f-c36af495ecf0'
+SETUP_TX_UUID = '462f3a16-7a31-4ab3-9e7f-c36af495ecf0'
 PROPERTIES = 'org.freedesktop.DBus.Properties'
 OBJECTS = 'org.freedesktop.DBus.ObjectManager'
 GATT = 'org.bluez.GattCharacteristic1'
@@ -65,11 +69,14 @@ class Advertisement(Object):
 
 
 class Characteristic(Object):
-    def __init__(self, server, transmit, diagnostic=False):
+    def __init__(self, server, transmit, diagnostic=False, setup=False):
         self.server, self.transmit, self.diagnostic = server, transmit, diagnostic
-        self.endpoint = server.echo if diagnostic else server
-        path = BASE + '/service/' + ('echo_' if diagnostic else '') + ('tx' if transmit else 'rx')
+        self.setup = setup
+        self.endpoint = server.setup if setup else server.echo if diagnostic else server
+        path = BASE + '/service/' + ('setup_' if setup else 'echo_' if diagnostic else '') + ('tx' if transmit else 'rx')
         uuid = (ECHO_TX_UUID if transmit else ECHO_RX_UUID) if diagnostic else (TX_UUID if transmit else RX_UUID)
+        if setup:
+            uuid = SETUP_TX_UUID if transmit else SETUP_RX_UUID
         super().__init__(server.bus, path, GATT, {
             'UUID': uuid,
             'Service': dbus.ObjectPath(BASE + '/service'),
@@ -80,7 +87,9 @@ class Characteristic(Object):
     def WriteValue(self, value, options):
         if self.transmit:
             raise Rejected('Write to RX')
-        if self.diagnostic:
+        if self.setup:
+            self.server.receive_setup(bytes(value), options)
+        elif self.diagnostic:
             self.server.receive_echo(bytes(value), options)
         else:
             self.server.receive(bytes(value), options)
@@ -124,6 +133,20 @@ class Server(dbus.service.Object):
         self.notifying = False
         self.queue = Indications(self.emit)
         self.echo = EchoChannel(self.emit_echo, self.close_peer)
+        self.tablets = None
+        self.setup = None
+        if self.native:
+            backend = TabletBlueZ(self.bus, self.adapter)
+            def select_tablet(value):
+                self.capture.close_nodes()
+                self.capture.identity = None
+                self.capture.selected = value.lower() if value else None
+                self.capture.last_scan = 0
+            self.tablets = Tablets(backend, args.state_dir, lambda: self.native.has_clients,
+                select_tablet, lambda: self.capture.attached, args.tablet)
+            self.native.on_management = lambda data: self.tablets.handle(data, self.peer, authenticated=True)
+            self.setup = SetupChannel(self.emit_setup, self.close_peer,
+                lambda data, peer: self.tablets.handle(data, peer), self.cancel_tablet_setup)
         self.last_sample = 0
         self.was_observing = False
         self.failure = None
@@ -132,6 +155,8 @@ class Server(dbus.service.Object):
         self.rx = Characteristic(self, False) if self.native else None
         self.tx = Characteristic(self, True) if self.native else None
         self.echo_rx, self.echo_tx = Characteristic(self, False, True), Characteristic(self, True, True)
+        self.setup_rx = Characteristic(self, False, setup=True) if self.setup else None
+        self.setup_tx = Characteristic(self, True, setup=True) if self.setup else None
         self.advertisement = Advertisement(self.bus, getattr(args, 'name', 'PLANK Relay Lab'))
         self.gatt_registered = self.advertising = False
         self.bus.add_signal_receiver(self.device_changed, dbus_interface=PROPERTIES,
@@ -146,7 +171,31 @@ class Server(dbus.service.Object):
     @dbus.service.method(OBJECTS, out_signature='a{oa{sa{sv}}}')
     def GetManagedObjects(self):
         return {dbus.ObjectPath(obj.path): {obj.interface: obj.properties}
-                for obj in (self.service, self.rx, self.tx, self.echo_rx, self.echo_tx) if obj is not None}
+                for obj in (self.service, self.rx, self.tx, self.echo_rx, self.echo_tx, self.setup_rx, self.setup_tx) if obj is not None}
+
+    def cancel_tablet_setup(self, peer):
+        if self.tablets:
+            self.tablets.cancel(peer)
+            if self.controller_workaround and self.tablets.backend.scanned:
+                self.failure = 'Tablet discovery ended; restarting to restore controller address policy.'
+                self.loop.quit()
+
+    def emit_setup(self, data):
+        if not self.setup.peer or not self.setup.notifying:
+            raise ProtocolError('Tablet setup subscription ended.')
+        self.setup_tx.PropertiesChanged(GATT, {'Value': dbus.Array(data, signature='y')}, [])
+
+    def receive_setup(self, data, options):
+        # A competing peer cannot cancel the current owner's pairing attempt.
+        try:
+            write_peer(data, options, self.adapter, self.setup.notifying, self.setup.peer)
+        except ValueError as error:
+            raise Rejected(str(error))
+        try:
+            self.setup.receive(data, options, self.adapter, self.peer or self.echo.peer)
+        except (ValueError, ProtocolError, BufferError, TimeoutError) as error:
+            self.setup.disconnect()
+            raise Rejected(str(error))
 
     def emit_echo(self, data):
         if not self.echo.peer or not self.echo.notifying:
@@ -155,7 +204,7 @@ class Server(dbus.service.Object):
 
     def receive_echo(self, data, options):
         try:
-            self.echo.receive(data, options, self.adapter, self.peer)
+            self.echo.receive(data, options, self.adapter, self.peer or (self.setup.peer if self.setup else None))
         except ValueError as error:
             raise Rejected(str(error))
         except (ProtocolError, BufferError, TimeoutError) as error:
@@ -168,7 +217,7 @@ class Server(dbus.service.Object):
         self.tx.PropertiesChanged(GATT, {'Value': dbus.Array(data, signature='y')}, [])
 
     def receive(self, data, options):
-        if not self.native or self.echo.peer:
+        if not self.native or self.echo.peer or (self.setup and self.setup.peer):
             raise Rejected('Bluetooth transport test is active; no pairing request accepted.')
         try:
             peer = write_peer(data, options, self.adapter, self.notifying, self.peer)
@@ -208,6 +257,7 @@ class Server(dbus.service.Object):
             self.native.disconnect()
         self.was_observing = False
         if peer:
+            self.cancel_tablet_setup(peer)
             print('Headset link closed; existing trust retained.', flush=True)
             self.close_peer(peer)
 
@@ -219,12 +269,16 @@ class Server(dbus.service.Object):
             pass  # The adapter or BlueZ may already have disappeared.
 
     def device_changed(self, interface, changed, invalidated, path):
+        if self.setup and str(path) == self.setup.peer and 'Connected' in changed and not changed['Connected']:
+            self.setup.disconnect()
         if str(path) == self.peer and 'Connected' in changed and not changed['Connected']:
             self.disconnect()
         if str(path) == self.echo.peer and 'Connected' in changed and not changed['Connected']:
             self.echo.disconnect()
 
     def removed(self, path, interfaces):
+        if self.setup and str(path) == self.setup.peer and 'org.bluez.Device1' in interfaces:
+            self.setup.disconnect()
         if str(path) == self.adapter and 'org.bluez.Adapter1' in interfaces:
             self.failure = 'Bluetooth adapter removed; service will retry.'
             self.loop.quit()
@@ -244,6 +298,18 @@ class Server(dbus.service.Object):
             self.loop.quit()
 
     def tick(self):
+        try:
+            if self.tablets:
+                self.tablets.tick()
+            if self.setup:
+                self.setup.tick()
+        except (ProtocolError, BufferError, TimeoutError) as error:
+            print(str(error), flush=True)
+            self.setup.disconnect()
+        except (OSError, RuntimeError, ValueError, dbus.exceptions.DBusException) as error:
+            self.failure = 'Tablet setup failed: ' + str(error)
+            self.loop.quit()
+            return False
         try:
             self.echo.tick()
         except (ProtocolError, BufferError, TimeoutError) as error:
@@ -326,6 +392,11 @@ class Server(dbus.service.Object):
         finally:
             self.disconnect()
             self.echo.disconnect()
+            if self.setup:
+                self.setup.disconnect()
+                if self.tablets.owner:
+                    self.tablets.cancel(self.tablets.owner)
+                self.tablets.backend.close()
             for enabled, function, path in (
                 (self.advertising, advertising.UnregisterAdvertisement, self.advertisement.path),
                 (self.gatt_registered, gatt.UnregisterApplication, BASE)):

@@ -10,6 +10,11 @@ private let relayTX = CBUUID(string: "462F3A12-7A31-4AB3-9E7F-C36AF495ECF0")
 private let echoRX = CBUUID(string: "462F3A13-7A31-4AB3-9E7F-C36AF495ECF0")
 private let echoTX = CBUUID(string: "462F3A14-7A31-4AB3-9E7F-C36AF495ECF0")
 
+private let setupRX = CBUUID(string: "462F3A15-7A31-4AB3-9E7F-C36AF495ECF0")
+private let setupTX = CBUUID(string: "462F3A16-7A31-4AB3-9E7F-C36AF495ECF0")
+
+enum RelayBLEChannel { case relay, echo, setup }
+
 public struct BluetoothRelay: Identifiable, Equatable, Sendable {
     public let id: UUID
     public let name: String
@@ -81,9 +86,11 @@ private func bluetoothStateMessage(_ state: CBManagerState) -> String {
 final class RelayBLEConnection: NSObject, RelayByteConnection,
     @preconcurrency CBCentralManagerDelegate, @preconcurrency CBPeripheralDelegate {
     private let identifier: UUID
-    private let diagnostic: Bool
-    private var rxUUID: CBUUID { diagnostic ? echoRX : relayRX }
-    private var txUUID: CBUUID { diagnostic ? echoTX : relayTX }
+    private let channel: RelayBLEChannel
+    private let requireTabletSetup: Bool
+    private var diagnostic: Bool { channel == .echo }
+    private var rxUUID: CBUUID { channel == .setup ? setupRX : diagnostic ? echoRX : relayRX }
+    private var txUUID: CBUUID { channel == .setup ? setupTX : diagnostic ? echoTX : relayTX }
     private let onProgress: ((String) -> Void)?
     private let logger = Logger(subsystem: "la.instinctual.PLANK.TabletSetup", category: "Bluetooth")
     private var phase = "waiting for Bluetooth"
@@ -122,9 +129,11 @@ final class RelayBLEConnection: NSObject, RelayByteConnection,
         waiter?.resume()
     }
 
-    init(identifier: UUID, diagnostic: Bool = false, onProgress: ((String) -> Void)? = nil) {
+    init(identifier: UUID, channel: RelayBLEChannel = .relay, requireTabletSetup: Bool = false,
+         onProgress: ((String) -> Void)? = nil) {
         self.identifier = identifier
-        self.diagnostic = diagnostic
+        self.channel = channel
+        self.requireTabletSetup = requireTabletSetup
         self.onProgress = onProgress
         super.init()
         central = CBCentralManager(delegate: self, queue: .main)
@@ -274,15 +283,21 @@ final class RelayBLEConnection: NSObject, RelayByteConnection,
             fail(RelaySetupError.network("The selected relay does not expose the input test service.")); return
         }
         progress("opening the relay data channels", "Relay service found. Opening its data channels…")
-        peripheral.discoverCharacteristics([rxUUID, txUUID], for: service)
+        peripheral.discoverCharacteristics(requireTabletSetup ? [rxUUID, txUUID, setupRX, setupTX] : [rxUUID, txUUID], for: service)
     }
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
+        if requireTabletSetup && !(service.characteristics?.contains(where: { $0.uuid == setupRX }) == true &&
+                                    service.characteristics?.contains(where: { $0.uuid == setupTX }) == true) {
+            fail(RelaySetupError.network("Update the Linux relay package to use tablet setup from this app."))
+            return
+        }
         guard failure == nil else { return }
         rx = service.characteristics?.first { $0.uuid == rxUUID }
         tx = service.characteristics?.first { $0.uuid == txUUID }
         guard error == nil, let rx, let tx, rx.properties.contains(.write), tx.properties.contains(.indicate) else {
-            fail(RelaySetupError.network(diagnostic
+            fail(RelaySetupError.network(channel == .setup
+                ? "Update the Linux relay package to use tablet setup from this app." : diagnostic
                 ? "This relay does not expose the Bluetooth test. Update the relay lab first."
                 : "The relay's pairing service is unavailable. It may be running the transport-only test.")); return
         }

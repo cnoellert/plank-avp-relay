@@ -126,7 +126,7 @@ public final class RelayPairingClient {
     /// Tests only byte delivery over dedicated, unauthenticated echo channels.
     /// No pairing codec, Keychain access or tablet input is used or authorized.
     public func testBluetooth(address: RelayAddress, onProgress: @escaping (String) -> Void) async throws -> String {
-        let socket = RelayBLEConnection(identifier: address.bluetoothIdentifier, diagnostic: true, onProgress: onProgress)
+        let socket = RelayBLEConnection(identifier: address.bluetoothIdentifier, channel: .echo, onProgress: onProgress)
         let result = try await bounded(socket: socket, seconds: 40) {
             try await socket.connect()
             var total = 0
@@ -343,7 +343,7 @@ public final class RelayPairingClient {
         }
     }
 
-    private func receiveWithDeadline(_ socket: any RelayByteConnection) async throws -> Data {
+    func receiveWithDeadline(_ socket: any RelayByteConnection) async throws -> Data {
         var expired = false
         let deadline = Task {
             do { try await Task.sleep(for: .seconds(10)) } catch { return }
@@ -358,7 +358,7 @@ public final class RelayPairingClient {
         }
     }
 
-    private func bounded<T>(socket: any RelayByteConnection, seconds: UInt64,
+    func bounded<T>(socket: any RelayByteConnection, seconds: UInt64,
                             operation: () async throws -> T) async throws -> T {
         var expired = false
         let timer = Task {

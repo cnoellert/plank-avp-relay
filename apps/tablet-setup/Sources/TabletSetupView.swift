@@ -6,6 +6,7 @@ struct TabletSetupView: View {
     @StateObject private var setup = SetupCoordinator()
     @Environment(\.scenePhase) private var scenePhase
     @State private var confirmForget = false
+    @State private var tabletToRemove: ManagedTablet?
 
     init(setup: SetupCoordinator = SetupCoordinator()) {
         _setup = StateObject(wrappedValue: setup)
@@ -20,11 +21,14 @@ struct TabletSetupView: View {
             }
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    Text(setup.state.activity == .testingBluetooth ? "Test Bluetooth connection" :
+                    Text(setup.state.activity == .managingTablets ? "Set up your tablet" :
+                         setup.state.activity == .testingBluetooth ? "Test Bluetooth connection" :
                          setup.state.step == .authorize &&
                          setup.state.busy && setup.approval == nil ? "Connect to your relay" :
                          setup.state.step.title).font(.largeTitle.bold())
-                    if setup.state.activity == .testingBluetooth {
+                    if setup.state.activity == .managingTablets {
+                        tabletManagementPage
+                    } else if setup.state.activity == .testingBluetooth {
                         ProgressView("Testing communication in both directions…")
                         Text("The tablet can be powered off. No button presses are needed.")
                     } else {
@@ -36,7 +40,7 @@ struct TabletSetupView: View {
                         }
                     }
                     if setup.state.address != nil &&
-                        setup.state.activity != .testingBluetooth {
+                        setup.state.activity != .testingBluetooth && setup.state.activity != .managingTablets {
                         Divider()
                         DisclosureGroup("Connection diagnostics") {
                             VStack(alignment: .leading, spacing: 12) {
@@ -80,6 +84,17 @@ struct TabletSetupView: View {
         } message: {
             Text("This removes this app's saved relay identity. Pairing again requires fresh approval on the tablet.")
         }
+        .confirmationDialog("Remove this tablet from the relay?", isPresented: Binding(
+            get: { tabletToRemove != nil }, set: { if !$0 { tabletToRemove = nil } })) {
+            if let tablet = tabletToRemove {
+                Button("Remove \(tablet.name)", role: .destructive) {
+                    setup.tabletOperation("remove", tablet: tablet.id)
+                    tabletToRemove = nil
+                }
+            }
+        } message: {
+            Text("This removes this tablet's Bluetooth bond. To use it again, put it into pairing mode and add it again. Headset approvals are retained.")
+        }
     }
 
     private var relayPage: some View {
@@ -103,11 +118,20 @@ struct TabletSetupView: View {
     private var tabletPage: some View {
         VStack(alignment: .leading, spacing: 18) {
             LabeledContent("Relay", value: setup.state.address?.description ?? "")
+            Button("Set up a tablet") { setup.manageTablets() }
             Text("Keep your tablet connected to the relay. Tap Pair, then press and release its Home or center button three times.")
             Text("If your tablet has no Home or center button, use the same tablet button for all three presses.")
                 .font(.callout).foregroundStyle(.secondary)
             Button("Pair") { setup.pairSelectedRelay() }.buttonStyle(.borderedProminent)
         }
+    }
+
+    private var tabletManagementPage: some View {
+        TabletManagementView(status: setup.tabletStatus, trusted: setup.state.hasTrust,
+            pending: setup.tabletCommandPending,
+            operation: { setup.tabletOperation($0, tablet: $1) },
+            finish: { setup.finishTabletSetup(approveHeadset: $0) },
+            remove: { tabletToRemove = $0 })
     }
 
     @ViewBuilder private var authorizePage: some View {
@@ -145,6 +169,7 @@ struct TabletSetupView: View {
             }
             DisclosureGroup("Manage pairing") {
                 HStack {
+                    Button("Manage tablets") { setup.manageTablets() }.disabled(setup.state.busy)
                     Button("Check saved pairing") { setup.checkConnection() }.disabled(setup.state.busy)
                     Button("Forget local pairing", role: .destructive) { confirmForget = true }
                         .disabled(setup.state.busy)
@@ -172,4 +197,74 @@ struct ButtonApprovalView: View {
             Text("\(approval.secondsRemaining) seconds remaining").font(.callout).foregroundStyle(.secondary)
         }
     }
+}
+
+struct TabletManagementView: View {
+    let status: TabletSetupStatus?
+    let trusted: Bool
+    let pending: Bool
+    let operation: (String, String?) -> Void
+    let finish: (Bool) -> Void
+    let remove: (ManagedTablet) -> Void
+    @ViewBuilder var body: some View {
+        if let status = status {
+            LabeledContent("Relay", value: status.hostname)
+            if status.tablets.isEmpty && !status.attached {
+                Text("No tablet paired").font(.title2.bold())
+            }
+            ForEach(status.tablets) { tablet in
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(tablet.name).font(.headline)
+                    Text(tablet.connected ? "Connected" : "Saved · offline — wake the tablet to reconnect")
+                        .font(.callout).foregroundStyle(.secondary)
+                    if trusted {
+                        HStack {
+                            Button(tablet.connected ? "Use this tablet" : "Connect") {
+                                operation("connect", tablet.id)
+                            }
+                            Button("Remove", role: .destructive) { remove(tablet) }
+                        }.disabled(status.operating || pending)
+                    }
+                }
+            }
+            if status.operating {
+                ProgressView(status.message)
+                Text("\(status.secondsRemaining) seconds remaining").font(.callout)
+            } else if status.canManage {
+                Button(status.phase == "scanning" ? "Scan again" : "Add tablet") {
+                    operation("scan", nil)
+                }.buttonStyle(.borderedProminent).disabled(pending)
+                if status.phase == "scanning" {
+                    Text("Put your tablet into Bluetooth pairing mode, then choose it below.")
+                    Text("Scanning · \(status.secondsRemaining) seconds remaining")
+                        .font(.callout).foregroundStyle(.secondary)
+                    ForEach(status.candidates) { tablet in
+                        Button {
+                            operation("pair", tablet.id)
+                        } label: {
+                            VStack(alignment: .leading) {
+                                Text(tablet.name)
+                                Text(tablet.id).font(.caption).foregroundStyle(.secondary)
+                            }
+                        }.disabled(pending)
+                    }
+                    if status.candidates.isEmpty { Text("No candidate tablets found yet.") }
+                }
+            } else if !trusted && !status.attached {
+                Text("Wake the saved tablet to approve this headset. If neither the tablet nor an approved headset is available, use the relay’s SSH recovery command.")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+            if !status.operating {
+                if !trusted && status.attached {
+                    Button("Continue to headset approval") { finish(true) }
+                        .buttonStyle(.borderedProminent)
+                } else if trusted {
+                    Button("Done") { finish(false) }
+                }
+            }
+        } else {
+            ProgressView("Checking the relay’s tablets…")
+        }
+    }
+
 }

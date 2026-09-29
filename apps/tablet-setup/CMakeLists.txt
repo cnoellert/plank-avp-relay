@@ -35,6 +35,7 @@ add_library(RelaySetupKit STATIC
     "${RELAY_ROOT}/apple/RelaySetupKit/SetupCoordinator.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayBluetooth.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/TabletReadings.swift"
+    "${RELAY_ROOT}/apple/RelaySetupKit/TabletManagement.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayPairingClient.swift")
 target_link_libraries(RelaySetupKit PUBLIC CRelayProtocol
     "-framework Foundation" "-framework Security" "-framework Combine"
@@ -116,6 +117,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     target_include_directories(tablet-readings-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
     target_link_libraries(tablet-readings-tests PRIVATE RelaySetupKit)
     add_test(NAME tablet-readings-tests COMMAND tablet-readings-tests)
+    add_executable(tablet-management-tests "${RELAY_ROOT}/apple/Tests/TabletManagementTests.swift")
+    target_include_directories(tablet-management-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+    target_link_libraries(tablet-management-tests PRIVATE RelaySetupKit)
+    add_test(NAME tablet-management-tests COMMAND tablet-management-tests)
     foreach(test protocol session client_link pair_e2e noise_vector cpace_vector confirm)
         if(test STREQUAL "noise_vector" OR test STREQUAL "cpace_vector")
             # Vector fixtures require a different test-only context layout.

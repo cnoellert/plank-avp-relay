@@ -99,6 +99,9 @@ static int valid_payload(uint16_t type, const uint8_t *bytes, size_t size,
                bytes[5] == 0 && bytes[6] == 0 && bytes[7] == 0 &&
                (read_le32(bytes + 8) & ~3u) == 0 &&
                (read_le32(bytes + 8) & PLTR_FEATURE_RAW_HID) != 0;
+    case PLTR_TABLET_REQUEST:
+    case PLTR_TABLET_RESPONSE:
+        return size >= 2 && size <= 4096 && valid_utf8(bytes, size);
     case PLTR_INPUT_OBSERVE:
         return size == 1 && bytes[0] <= 1;
     case PLTR_INPUT_SAMPLE:
@@ -171,11 +174,11 @@ static int allowed_type(uint16_t type, PltrDirection direction, PltrPhase phase)
     }
     if (direction == PLTR_CLIENT_TO_RELAY) {
         return (type >= PLTR_SESSION_READY && type <= PLTR_HOST_FRAME) ||
-               type == PLTR_INPUT_OBSERVE;
+               type == PLTR_INPUT_OBSERVE || type == PLTR_TABLET_REQUEST;
     }
     if (direction == PLTR_RELAY_TO_CLIENT) {
         return type == PLTR_CLIENT_FRAME || type == PLTR_STATUS ||
-               type == PLTR_INPUT_SAMPLE;
+               type == PLTR_INPUT_SAMPLE || type == PLTR_TABLET_RESPONSE;
     }
     return 0;
 }

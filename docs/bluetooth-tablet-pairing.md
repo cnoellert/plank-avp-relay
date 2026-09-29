@@ -1,9 +1,64 @@
 # Headless Bluetooth tablet pairing
 
-This is the operator procedure for pairing a tablet to a Linux relay over SSH.
-It establishes the Bluetooth bond and checks Linux input. Headset enrollment
-with CPace/ExpressKeys and PLANK raw-HID forwarding are separate steps. The
-current daemon and setup app do not yet implement Bluetooth tablet enrollment.
+PLANK Tablet Setup can enroll a Bluetooth tablet through the relay without an
+active SSH session. The Linux relay owns the tablet's Bluetooth bond; the app
+then obtains its separate headset approval through three tablet-button presses.
+
+## Pair using the headset app
+
+1. Scan for relays and select the relay hostname.
+2. With no saved headset or tablet, choose **Add tablet**. Discovery lasts at
+   most 60 seconds. Put the intended tablet into its own Bluetooth pairing mode.
+3. Select the intended candidate. Names and addresses distinguish candidates;
+   names are not verification. The relay requires a persistent bond, Wacom
+   vendor identity, HID service, and matching local pen/pad input capabilities.
+4. Once the tablet connects, choose **Continue to headset approval**. Wait for
+   the three circles and press/release the same tablet button three times.
+5. The app saves the relay identity and starts authenticated readings.
+
+Saved headsets use **Manage pairing → Manage tablets** to add, connect, select
+or remove tablets. Stop live readings first. Removal requires an explicit app
+confirmation and removes only the selected tablet bond; headset approvals remain.
+An offline saved tablet remains enrolled. Wake it or choose **Connect**; do not
+remove its bond to recover from ordinary sleep. A new headset can be approved
+using the already-paired tablet, without an existing approved headset.
+
+Only an unconfigured relay (no approved headsets, saved tablet or attached USB
+tablet) allows initial tablet enrollment without headset authentication. Once
+configured, management commands use the approved headset's existing Noise
+session. Bluetooth names, diagnostic echo, tablet enrollment and public status
+never grant headset trust. The initial selection remains a nearby setup window,
+not a cryptographic proof of which human owns the device.
+
+The agent accepts only the selected device and its HID service. It does not
+become the system default agent. PIN/passkey entry and numeric comparison are
+not supported; such tablets fail enrollment instead of being silently accepted.
+The workflow has no model/generation allowlist. Pair/connect attempts time out,
+return the controller's prior bondable state, unregister the temporary agent,
+and remove only a provisional bond created by that attempt. A durable journal
+cleans up interrupted provisional enrollment on restart. Pre-existing bonds and
+headset approvals are retained on failure or cancellation.
+
+If both the tablet and an approved headset are unavailable, recover over SSH:
+
+```sh
+# Revoke headset approvals; retain the relay identity and all tablet bonds.
+sudo plank-tablet-relay-admin reset-headsets --yes
+# Remove one saved tablet bond, using its address from bluetoothctl devices.
+sudo plank-tablet-relay-admin remove-tablet AA:BB:CC:DD:EE:FF --yes
+```
+
+These commands stop the relay, hold its state lock, save previous enrollment
+metadata privately, perform the selected operation, and restart a previously
+running relay. No hardware button is required. A web UI is deferred.
+After resetting headset approvals, forget local relay trust in the app before
+approving it again. To reopen initial tablet setup, remove the obsolete tablet
+bond as well as resetting unavailable headset approvals. Do not delete the
+relay's identity directory or unrelated Bluetooth devices.
+
+A manually pinned `tablet` in `relay.conf` takes precedence and disables app
+management until cleared through SSH. The old SSH procedure below remains
+useful for diagnosis, and is distinct from unattended app enrollment.
 
 ## Device policy
 
@@ -13,8 +68,8 @@ window, then check the resolved HID service, Wacom vendor identity and actual
 Linux input capabilities. Advertised names are selection hints, not identity
 verification.
 
-The relay's initial capability contract is a Wacom pen tablet with eight usable
-ExpressKeys. Check all eight physical keys, pen motion and pressure. Match the
+The relay requires Wacom pen and pad input capabilities, including at least one
+usable approval button. Check the tablet’s available keys, pen motion and pressure. Match the
 Pad, pen and hidraw nodes to the same physical device. USB and Bluetooth product
 IDs can differ for the same tablet; do not reuse a USB product-ID filter for
 Bluetooth. A Touch Ring center button can appear as an additional Pad key and
@@ -98,7 +153,7 @@ unrelated tablets just because they have the same vendor/product or names.
 Read the selected tablet's evdev capabilities and events without grabbing it:
 
 - Pen: absolute X/Y, tip/buttons and varying pressure.
-- Pad: all eight distinct physical ExpressKeys, including releases.
+- Pad: available physical tablet buttons, including releases.
 - Verify touch and ring input separately where available.
 - On disconnect, close vanished descriptors and rediscover; event numbers and
   HID instance suffixes are not persistent identities.
@@ -196,25 +251,17 @@ This qualifies the tested Bluetooth connection and observed inputs only. Other
 models, prolonged operation and PLANK raw-HID forwarding over Bluetooth remain
 unqualified. Keep machine addresses and bond keys out of this repository.
 
-## Automated enrollment follow-up
+## Implementation boundaries
 
-Use BlueZ's D-Bus interfaces for a bounded operation with one explicitly
-selected candidate. Scope the temporary agent to that candidate and the HID
-service; reject unrelated pairing/service requests. Enable bonding during that
-window and restore controller state on success, failure, cancellation or timeout.
-Require actual Wacom/input capabilities and physical confirmation before
-promoting a provisional connection to trusted enrollment. Preserve pre-existing
-bonds on failed retries and remove only provisional state created by the attempt.
+The packaged service implements the bounded BlueZ workflow above. Bootstrap
+requests use dedicated setup characteristics, while approved-headset management
+uses encrypted request/response frames. One setup connection owns an operation;
+disconnect and inactivity cancel it. The tablet selection is persisted separately
+from the headset allowlist and the BlueZ bond store.
 
-Treat a bonded tablet going offline as a connection-state change. Preserve its
-enrollment, guide the operator to wake it when needed, and rediscover its HID
-nodes after reconnection. A remote-disconnect reason alone cannot establish
-that the tablet is asleep, and sleeping must not trigger automatic re-pairing.
-
-Then implement Bluetooth-aware capture grouping upstream in PLANK Client and
-update the pinned worker snapshot here. Do not edit the vendored worker alone;
-CMake checks its source hashes. None of this grants the headset an approved
-Client identity or bypasses the existing CPace/Noise session requirements.
+Upstream raw-HID worker forwarding over Bluetooth remains separate work. Do not
+edit its vendored snapshot alone: CMake checks source hashes. Headless tablet
+enrollment does not claim raw-HID workstation forwarding is qualified.
 
 References: [BlueZ Device API](https://github.com/bluez/bluez/blob/master/doc/org.bluez.Device.rst),
 [Agent API](https://github.com/bluez/bluez/blob/master/doc/org.bluez.Agent.rst),

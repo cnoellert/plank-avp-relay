@@ -24,6 +24,7 @@ int pltr_relay_session_accept(PltrRelaySession *session, const uint8_t *bytes,
         session->stage = PLTR_RELAY_WAIT_READY;
         break;
     case PLTR_RELAY_WAIT_READY:
+        if (out->type == PLTR_TABLET_REQUEST) break;
         if (out->type == PLTR_INPUT_OBSERVE && out->payload[0] == 1) {
             session->stage = PLTR_RELAY_OBSERVING;
         } else if (out->type == PLTR_SESSION_READY) {

@@ -17,6 +17,7 @@ PltrClientLink *pltr_client_link_create(const uint8_t client_private_key[32],
                                         uint8_t link_type);
 void pltr_client_link_destroy(PltrClientLink *client);
 int pltr_client_link_enable_input_observer(PltrClientLink *client);
+int pltr_client_link_enable_tablet_management(PltrClientLink *client);
 
 int pltr_client_link_start(PltrClientLink *client, uint8_t *out,
                            size_t capacity, size_t *written);

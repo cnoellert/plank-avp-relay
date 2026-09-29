@@ -31,6 +31,11 @@ class Native:
             'tick': ([C.c_void_p, C.c_uint64, C.c_void_p,
                       C.c_size_t, C.POINTER(C.c_size_t)], C.c_int),
             'observing': ([C.c_void_p], C.c_int),
+            'has_clients': ([C.c_void_p], C.c_int),
+            'reset_clients': ([C.c_void_p], C.c_int),
+            'take_management': ([C.c_void_p, C.c_void_p, C.c_size_t], C.c_int),
+            'management_reply': ([C.c_void_p, C.c_void_p, C.c_size_t, C.c_void_p,
+                                  C.c_size_t, C.POINTER(C.c_size_t)], C.c_int),
             'approval_pending': ([C.c_void_p], C.c_int),
             'sample': ([C.c_void_p, C.c_void_p, C.c_size_t,
                         C.c_void_p, C.c_size_t, C.POINTER(C.c_size_t)], C.c_int),
@@ -38,6 +43,7 @@ class Native:
         for name, (arguments, result) in signatures.items():
             function = getattr(self.lib, 'pltr_ble_lab_' + name)
             function.argtypes, function.restype = arguments, result
+        self.on_management = None
         self.handle = self.lib.pltr_ble_lab_create(os.fsencode(directory))
         if not self.handle:
             raise ProtocolError('Identity store unavailable; require an owned 0700 directory.')
@@ -61,6 +67,15 @@ class Native:
             data = data[consumed.value:]
             if reply:
                 replies.append(reply)
+            request = (C.c_uint8 * 4096)()
+            size = self.lib.pltr_ble_lab_take_management(self.handle, request, len(request))
+            if size < 0 or size > len(request):
+                raise ProtocolError('Invalid management request size.')
+            if size:
+                if not self.on_management:
+                    raise ProtocolError('Tablet management unavailable.')
+                payload = self.on_management(bytes(request[:size]))
+                replies.append(self.output('management_reply', C.create_string_buffer(payload), len(payload)))
         return replies
 
     def open_pairing(self):
@@ -78,6 +93,14 @@ class Native:
 
     def tick(self):
         return self.output('tick', now_ms())
+
+    @property
+    def has_clients(self):
+        return bool(self.lib.pltr_ble_lab_has_clients(self.handle))
+
+    def reset_clients(self):
+        if self.lib.pltr_ble_lab_reset_clients(self.handle):
+            raise ProtocolError('Could not revoke headset approvals.')
 
     @property
     def observing(self):

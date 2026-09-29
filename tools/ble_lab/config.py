@@ -1,16 +1,26 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Strict configuration for the installed Bluetooth relay service."""
 import configparser
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+import hashlib
 from pathlib import Path
 import re
+import socket
+
+
+def hostname_name():
+    name = socket.gethostname().split('.', 1)[0]
+    raw = name.encode('utf-8')
+    if len(raw) > 26:
+        name = raw[:21].decode('utf-8', errors='ignore') + '-' + hashlib.sha256(raw).hexdigest()[:4]
+    return name
 
 
 @dataclass(frozen=True)
 class Settings:
     adapter: str = 'hci0'
     tablet: str = ''
-    name: str = 'PLANK Tablet Relay'
+    name: str = field(default_factory=hostname_name)
     exclusive_adapter: bool = False
     disable_controller_address_resolution: bool = False
 
@@ -27,7 +37,7 @@ def read_settings(path):
     settings = Settings(
         adapter=values.get('adapter', 'hci0').strip(),
         tablet=values.get('tablet', '').strip(),
-        name=values.get('name', 'PLANK Tablet Relay').strip(),
+        name=values.get('name', hostname_name()).strip(),
         exclusive_adapter=values.getboolean('exclusive_adapter', False),
         disable_controller_address_resolution=values.getboolean('disable_controller_address_resolution', False))
     if not re.fullmatch(r'hci[0-9]+', settings.adapter):

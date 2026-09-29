@@ -77,6 +77,11 @@ supports Python before 3.14 by using Linux's native HCI control-channel address.
 Ubuntu 26.04 remains the build/installation target; operation on the test
 Armbian/Debian image is an additional hardware check, not universal Debian support.
 
+By default, discovery uses the relay hostname (shortened with a distinguishing
+suffix if it exceeds 26 UTF-8 bytes). Omit `name` in configuration to use that
+default; an explicit `name` remains an override, including in an older retained
+configuration. Renaming does not change Bluetooth identity or saved approval.
+
 Installation enables and starts the service. Defaults do not take ownership
 of the adapter or apply chipset workarounds. Power the adapter on before use,
 or explicitly set `exclusive_adapter = true` on a dedicated relay. That option
@@ -85,8 +90,8 @@ advertisements only when BlueZ reports no active advertisements or discovery.
 It retains existing tablet bonds. Do not run another advertising service on
 an adapter configured as exclusive.
 
-To pair a tablet to Linux, stop this service and follow
-[headless tablet pairing](bluetooth-tablet-pairing.md), then restart it.
+To pair a tablet, use **Add tablet** in the headset app. See
+[headless tablet pairing and SSH recovery](bluetooth-tablet-pairing.md).
 Headset approval happens inside the app; it does not need OS-level Bluetooth
 pairing to the relay. The tablet can sleep without forgetting its bond or the
 headset's saved approval. Wake it to resume input.
@@ -151,7 +156,7 @@ The script snapshots that commit, verifies the pinned libsodium 1.0.22 archive,
 builds it statically with PIC, runs its tests and the relay's assertions-enabled
 tests, and creates `.deb`, `.buildinfo`, `.changes` and SHA-256 artifacts in
 `artifacts/deb/<software-version>/<distribution>-<version>/<architecture>/`,
-for example `artifacts/deb/0.2.0~visionos-tablet-setup.10/ubuntu-26.04/arm64/`.
+for example `artifacts/deb/0.2.0~visionos-tablet-setup.11/ubuntu-26.04/arm64/`.
 The software version comes from `debian/changelog`; the exact Git commit is
 retained in `source-commit.txt` and `provenance.json` with compiler/OS metadata.
 Build natively on the target architecture; the script

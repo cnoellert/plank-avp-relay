@@ -10,13 +10,23 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
 from ble_lab.capture import Capture, SAMPLE
-from ble_lab.config import read_settings
+from ble_lab.config import hostname_name, read_settings
 from ble_lab.controller import clear_advertisements
 from ble_lab.notify import ready
 from ble_lab.bluez import Server, PROPERTIES
 
 
 class ServiceTests(unittest.TestCase):
+    def test_hostname_default_and_explicit_override(self):
+        with patch('ble_lab.config.socket.gethostname', return_value='plank-tablet-relay-02.local'):
+            self.assertEqual(self.read('[relay]\n').name, 'plank-tablet-relay-02')
+            self.assertEqual(self.read('[relay]\nname=Studio tablet\n').name, 'Studio tablet')
+        with patch('ble_lab.config.socket.gethostname', return_value='tablet-relay-' + 'a' * 40):
+            first = hostname_name()
+        with patch('ble_lab.config.socket.gethostname', return_value='tablet-relay-' + 'a' * 39 + 'b'):
+            self.assertNotEqual(first, hostname_name())
+            self.assertLessEqual(len(hostname_name().encode()), 26)
+
     def read(self, content):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / 'relay.conf'

@@ -138,6 +138,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/ble_controller_test.py")
         add_test(NAME ble_hardware_test COMMAND "${Python3_EXECUTABLE}"
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/ble_hardware_test.py")
+        add_test(NAME tablet_enrollment_test COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/tablet_enrollment_test.py")
         add_test(NAME ble_service_test COMMAND "${Python3_EXECUTABLE}"
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/ble_service_test.py")
 

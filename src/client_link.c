@@ -35,6 +35,10 @@ int pltr_client_link_enable_input_observer(PltrClientLink *client) {
     return client ? pltr_link_enable_input_observer(&client->link) : -1;
 }
 
+int pltr_client_link_enable_tablet_management(PltrClientLink *client) {
+    return client ? pltr_link_enable_tablet_management(&client->link) : -1;
+}
+
 int pltr_client_link_start(PltrClientLink *client, uint8_t *out,
                            size_t capacity, size_t *written) {
     if (client == NULL) return -1;

@@ -99,3 +99,56 @@ class EchoChannel:
             print(f'Bluetooth transport test closed; received {self.received} test bytes.', flush=True)
             self.close_peer(peer)
         self.received = self.started = 0
+
+
+class SetupChannel:
+    """Length-prefixed bootstrap requests; never grants headset trust."""
+    def __init__(self, emit, close_peer, request, cancel):
+        self.queue = Indications(emit)
+        self.close_peer, self.request, self.cancel_operation = close_peer, request, cancel
+        self.peer = None
+        self.notifying = False
+        self.buffer = bytearray()
+        self.started = self.last_received = 0
+        self.requests = 0
+
+    def receive(self, data, options, adapter, other_peer=None):
+        peer = write_peer(data, options, adapter, self.notifying, self.peer)
+        if other_peer:
+            raise ValueError('Close the other relay operation before tablet setup.')
+        if not self.peer:
+            self.peer, self.started = peer, time.monotonic()
+        self.last_received = time.monotonic()
+        self.queue.mtu_payload = max(20, min(512, int(options.get('mtu', 23)) - 3))
+        self.buffer.extend(data)
+        while len(self.buffer) >= 2:
+            size = int.from_bytes(self.buffer[:2], 'little')
+            if not 2 <= size <= 512 or len(self.buffer) > 1026:
+                raise ValueError('Invalid tablet setup record size.')
+            if len(self.buffer) < size + 2:
+                break
+            self.requests += 1
+            if self.requests > 600:
+                raise ValueError('Tablet setup request limit reached.')
+            reply = self.request(bytes(self.buffer[2:size+2]), self.peer)
+            del self.buffer[:size+2]
+            if not 2 <= len(reply) <= 4096:
+                raise ValueError('Invalid tablet setup reply size.')
+            self.queue.append(len(reply).to_bytes(2, 'little') + reply)
+
+    def tick(self):
+        self.queue.check_timeout()
+        now = time.monotonic()
+        if self.queue.busy:
+            self.last_received = now  # A bounded response may need many ATT fragments.
+        if self.peer and (now - self.started > 300 or now - self.last_received > 15):
+            raise TimeoutError('Tablet setup connection timed out.')
+
+    def disconnect(self):
+        peer, self.peer = self.peer, None
+        self.queue.clear()
+        self.buffer.clear()
+        self.requests = 0
+        if peer:
+            self.cancel_operation(peer)
+            self.close_peer(peer)

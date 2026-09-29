@@ -43,6 +43,8 @@ typedef enum PltrType {
     PLTR_PAIR_CONFIRM = 34,
     PLTR_PAIR_RESULT = 35,
     PLTR_PAIR_APPROVAL = 36,
+    PLTR_TABLET_REQUEST = 48,
+    PLTR_TABLET_RESPONSE = 49,
 } PltrType;
 
 typedef enum PltrDirection {

@@ -11,10 +11,14 @@ public final class SetupCoordinator: ObservableObject {
     @Published public private(set) var readingCount = 0
     @Published public private(set) var approval: ButtonApproval?
     @Published public private(set) var bluetoothTestResult: String?
+    @Published public private(set) var tabletStatus: TabletSetupStatus?
+    @Published public private(set) var tabletCommandPending = false
     public let scanner = RelayBLEScanner()
     private let keys = RelayKeyStore()
     private let client = RelayPairingClient()
     private var task: Task<Void, Never>?
+    private var tabletCommand: (String, String?)?
+    private var approveAfterTabletSetup = false
 
     public init() {}
 
@@ -35,7 +39,70 @@ public final class SetupCoordinator: ObservableObject {
             guard state.selectRelay(address, trusted: trusted) else { return }
             message = trusted ? "Saved pairing found. Start live readings to verify the relay and tablet." :
                 "Tap Pair, then press your tablet's Home or center button three times."
+            tabletStatus = nil
+            if !trusted { manageTablets() }
         } catch { message = error.localizedDescription }
+    }
+
+    public func manageTablets() {
+        guard let address = state.address, let id = state.beginTabletSetup() else { return }
+        tabletStatus = nil
+        tabletCommand = nil
+        tabletCommandPending = false
+        approveAfterTabletSetup = false
+        message = "Checking the relay’s saved tablets…"
+        task = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let relayKey = self.state.hasTrust ? try self.keys.relayKey(address) : nil
+                let privateKey = relayKey == nil ? nil : try self.keys.clientKey()
+                try await self.client.manageTablets(address: address, privateKey: privateKey, relayKey: relayKey,
+                    nextCommand: { [weak self] in
+                        guard let self, self.state.operation == id else { return nil }
+                        let command = self.tabletCommand
+                        self.tabletCommand = nil
+                        return command
+                    }, onStatus: { [weak self] status in
+                        guard let self, self.state.operation == id else { return }
+                        self.tabletStatus = status
+                        self.tabletCommandPending = false
+                        self.message = status.message
+                    }, onProgress: { [weak self] message in
+                        guard let self, self.state.operation == id else { return }
+                        self.message = message
+                    })
+            } catch is CancellationError {
+                guard self.state.operation == id else { return }
+                _ = self.state.finishTabletSetup(id)
+                self.message = "Tablet setup closed. Saved pairings are retained."
+            } catch {
+                guard self.state.operation == id else { return }
+                self.state.fail(id, message: error.localizedDescription)
+                self.message = error.localizedDescription
+                self.approveAfterTabletSetup = false
+            }
+            guard self.state.operation == nil else { return }
+            self.task = nil
+            self.tabletCommandPending = false
+            if self.approveAfterTabletSetup {
+                self.approveAfterTabletSetup = false
+                self.pairSelectedRelay()
+            }
+        }
+    }
+
+    public func tabletOperation(_ operation: String, tablet: String? = nil) {
+        guard state.activity == .managingTablets, !tabletCommandPending,
+              tabletStatus?.operating != true else { return }
+        tabletCommand = (operation, tablet)
+        tabletCommandPending = true
+    }
+
+    public func finishTabletSetup(approveHeadset: Bool = false) {
+        guard state.activity == .managingTablets else { return }
+        approveAfterTabletSetup = approveHeadset && !state.hasTrust
+        message = "Closing tablet setup…"
+        task?.cancel()
     }
 
     public func pairSelectedRelay() {
@@ -131,6 +198,10 @@ public final class SetupCoordinator: ObservableObject {
     }
 
     public func cancel() {
+        if state.activity == .managingTablets {
+            finishTabletSetup()
+            return
+        }
         scanner.stop()
         task?.cancel()
         task = nil

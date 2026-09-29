@@ -22,6 +22,9 @@ struct PltrBleLab {
     uint16_t button, held;
     unsigned presses, prior_failures;
     int attached, status_dirty, physically_approved;
+    uint8_t management[4096];
+    size_t management_size;
+    int management_session;
 };
 
 static void clear_presses(PltrBleLab *lab) {
@@ -91,6 +94,8 @@ void pltr_ble_lab_disconnect(PltrBleLab *lab, uint64_t now_ms) {
     memset(&lab->wire, 0, sizeof(lab->wire));
     pltr_record_reader_init(&lab->probe, PLTR_PRE_AUTH);
     lab->mode = 0;
+    lab->management_size = 0;
+    lab->management_session = 0;
     lab->started_ms = lab->received_ms = lab->ping_ms = 0;
     lab->physically_approved = 0;
     lab->status_ms = 0;
@@ -129,7 +134,8 @@ int pltr_ble_lab_receive(PltrBleLab *lab, const uint8_t *data, size_t size,
             if (pltr_link_init(&lab->link, PLTR_NOISE_RESPONDER,
                 lab->store.private_key, NULL, pltr_identity_store_approve,
                 &lab->store, 1) != 0 ||
-                pltr_link_enable_input_observer(&lab->link) != 0) return -1;
+                pltr_link_enable_input_observer(&lab->link) != 0 ||
+                pltr_link_enable_tablet_management(&lab->link) != 0) return -1;
         }
         // Replay the already validated OPEN into the selected stream parser.
         size_t replayed = 0;
@@ -150,6 +156,13 @@ int pltr_ble_lab_receive(PltrBleLab *lab, const uint8_t *data, size_t size,
     int result = pltr_link_receive(&lab->link, data, size, consumed,
                                     out, capacity, written, &frame);
     if (result != 1 || !frame.type) return result;
+    if (frame.type == PLTR_TABLET_REQUEST) {
+        if (lab->management_size || frame.payload_size > sizeof(lab->management)) return -1;
+        memcpy(lab->management, frame.payload, frame.payload_size);
+        lab->management_size = frame.payload_size;
+        lab->management_session = 1;
+        return 1;
+    }
     if (frame.type == PLTR_PONG || frame.type == PLTR_INPUT_OBSERVE ||
         frame.type == PLTR_GOODBYE) return 1;
     if (frame.type == PLTR_PING) {
@@ -236,7 +249,7 @@ int pltr_ble_lab_tick(PltrBleLab *lab, uint64_t now_ms,
         return now_ms - lab->received_ms > 10000 ? -1 : 0;
     if (lab->link.stage != PLTR_LINK_READY)
         return now_ms - lab->started_ms > 10000 ? -1 : 0;
-    if (now_ms - lab->received_ms > 10000) return -1;
+    if (now_ms - lab->received_ms > (lab->management_session ? 30000u : 10000u)) return -1;
     if (now_ms - lab->ping_ms < 1000) return 0;
     uint8_t ping[16] = {0};
     for (unsigned i = 0; i < 8; ++i)
@@ -261,4 +274,27 @@ int pltr_ble_lab_sample(PltrBleLab *lab, const uint8_t *payload, size_t size,
     if (!pltr_ble_lab_observing(lab)) return -1;
     return pltr_link_send(&lab->link, PLTR_INPUT_SAMPLE, payload, size,
                            out, capacity, written);
+}
+
+int pltr_ble_lab_has_clients(const PltrBleLab *lab) {
+    return lab && lab->store.client_count != 0;
+}
+
+int pltr_ble_lab_reset_clients(PltrBleLab *lab) {
+    if (!lab || lab->mode || lab->probe.filled) return -1;
+    return pltr_identity_store_clear_clients(&lab->store);
+}
+
+int pltr_ble_lab_take_management(PltrBleLab *lab, uint8_t *out, size_t capacity) {
+    if (!lab || !out || capacity < lab->management_size) return -1;
+    size_t size = lab->management_size;
+    memcpy(out, lab->management, size);
+    lab->management_size = 0;
+    return (int)size;
+}
+
+int pltr_ble_lab_management_reply(PltrBleLab *lab, const uint8_t *payload, size_t size,
+    uint8_t *out, size_t capacity, size_t *written) {
+    if (!lab || lab->mode != 1) return -1;
+    return pltr_link_send(&lab->link, PLTR_TABLET_RESPONSE, payload, size, out, capacity, written);
 }

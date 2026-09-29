@@ -219,6 +219,14 @@ int pltr_identity_store_add(PltrIdentityStore *store,
     return 0;
 }
 
+int pltr_identity_store_clear_clients(PltrIdentityStore *store) {
+    if (!store || store->directory_fd < 0 || store->lock_fd < 0) return -1;
+    if (save_clients(store, store->client_keys, 0) != 0) return -1;
+    sodium_memzero(store->client_keys, sizeof(store->client_keys));
+    store->client_count = 0;
+    return 0;
+}
+
 int pltr_identity_store_remove(PltrIdentityStore *store,
                                const uint8_t public_key[32]) {
     if (store == NULL || public_key == NULL || store->directory_fd < 0) return -1;

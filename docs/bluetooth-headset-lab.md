@@ -23,6 +23,36 @@ The same input adapter is also available as a [managed Debian service](linux-ble
 Use that package for unattended startup/recovery. The foreground commands below
 remain useful for diagnosis; stop the installed service before running them.
 
+## Tablet management extension
+
+The installed relay adds setup RX/TX characteristics ending in `3a15` / `3a16`
+within the existing service UUID family. Their presence discovers support;
+the existing HELLO bits and readings/pairing channels stay compatible. The
+setup channel carries a two-byte little-endian length followed by JSON (512-byte
+request, 4096-byte response limits). It exposes status plus initial tablet
+setup only while no headset/tablet is enrolled. It never returns tablet samples
+or grants a Client approval.
+
+Approved-headset management uses new `TABLET_REQUEST` (48) and
+`TABLET_RESPONSE` (49) frames inside the existing Noise link. Both sides must
+locally opt in; these are valid only after authentication, in the relay's
+pre-observation state. The app checks setup characteristic availability before
+using this extension. Request JSON has `version:1`, an operation-scoped integer
+`id`, `op`, and an optional `tablet` address selected from the relay's list.
+Operations are `status`, `scan`, `pair`, `connect`, `select`, `remove`, `cancel`.
+Responses echo the request ID; the app rejects mismatches and invalid bounds.
+
+A setup connection owns its bounded scan/enrollment operation. Competing peers
+cannot change its selected candidate. Disconnect/backgrounding cancels it.
+Discovery and pairing each allow up to 60 seconds; input verification allows
+15 seconds; the complete setup connection is capped at five minutes. Saved
+connections do not reopen tablet enrollment when the tablet goes offline.
+The temporary BlueZ agent is not made the system default. It rejects unrelated
+devices/services and pairing methods requiring PIN entry or numeric comparison.
+On Intel configurations using the address-resolution workaround, ending a
+setup connection that scanned triggers service re-registration to restore the
+controller policy before the next headset connection.
+
 ## Operator procedure
 
 ### Tablet-free Bluetooth test

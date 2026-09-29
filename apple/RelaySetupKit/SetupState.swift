@@ -15,7 +15,7 @@ public enum SetupStep: Int, CaseIterable, Sendable {
 }
 
 public enum SetupActivity: Equatable, Sendable {
-    case idle, pairing, checking, observing, testingBluetooth, failed(String), paired
+    case idle, pairing, checking, observing, testingBluetooth, managingTablets, failed(String), paired
 }
 
 public struct RelayAddress: Equatable, Sendable {
@@ -109,6 +109,23 @@ public struct SetupState: Equatable, Sendable {
         return id
     }
 
+    public mutating func beginTabletSetup() -> UUID? {
+        guard !busy, address != nil else { return nil }
+        let id = UUID()
+        operation = id
+        activity = .managingTablets
+        connectionVerified = false
+        return id
+    }
+
+    @discardableResult
+    public mutating func finishTabletSetup(_ id: UUID) -> Bool {
+        guard operation == id, activity == .managingTablets else { return false }
+        operation = nil
+        activity = hasTrust ? .paired : .idle
+        return true
+    }
+
     public mutating func verifyObservation(_ id: UUID) {
         guard operation == id, activity == .observing else { return }
         connectionVerified = true
@@ -116,7 +133,7 @@ public struct SetupState: Equatable, Sendable {
 
     @discardableResult
     public mutating func succeed(_ id: UUID) -> Bool {
-        guard operation == id, activity != .testingBluetooth else { return false }
+        guard operation == id, activity != .testingBluetooth, activity != .managingTablets else { return false }
         operation = nil
         hasTrust = true
         connectionVerified = true

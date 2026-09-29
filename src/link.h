@@ -35,6 +35,7 @@ typedef struct PltrLink {
     uint32_t incoming_sequence;
     uint32_t outgoing_sequence;
     uint32_t local_features, peer_features;
+    int tablet_management;
     char peer_version[65];
     uint8_t plaintext[PLTR_MAX_FRAME_SIZE];
 } PltrLink;
@@ -49,6 +50,9 @@ int pltr_link_init(PltrLink *link, PltrNoiseRole role,
 void pltr_link_clear(PltrLink *link);
 // Opt in before sending/receiving any records. Default remains RAW_HID only.
 int pltr_link_enable_input_observer(PltrLink *link);
+// Explicit local opt-in, discovered through the BLE setup characteristics.
+// Does not change HELLO feature bits, preserving older readings clients.
+int pltr_link_enable_tablet_management(PltrLink *link);
 
 // Initiator only. Returns OPEN and Noise message one as two complete records.
 int pltr_link_start(PltrLink *link, uint8_t *out, size_t capacity,

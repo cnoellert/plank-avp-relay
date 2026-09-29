@@ -50,6 +50,7 @@ static PltrClientLink *connect_client(PltrBleLab *lab, const uint8_t *private_ke
     PltrClientLink *client = pltr_client_link_create(private_key, relay_key, 1);
     assert(client);
     if (observer) assert(pltr_client_link_enable_input_observer(client) == 0);
+    if (observer == 2) assert(pltr_client_link_enable_tablet_management(client) == 0);
     uint8_t a[4096], b[4096]; size_t an, bn; uint16_t type;
     assert(pltr_client_link_start(client, a, sizeof(a), &an) == 0);
     assert(feed(lab, a, an, b, &bn) == 0);
@@ -64,6 +65,7 @@ int main(void) {
     assert(mkdtemp(directory));
     PltrBleLab *lab = pltr_ble_lab_create(directory);
     assert(lab);
+    assert(!pltr_ble_lab_has_clients(lab));
     uint8_t private_key[32] = {19}, relay_key[32] = {0};
     const uint8_t code[] = "12345";
     uint8_t a[4096], b[4096], sample[PLTR_INPUT_SAMPLE_SIZE] = {1};
@@ -114,12 +116,38 @@ int main(void) {
     pltr_client_link_destroy(client);
     pltr_ble_lab_disconnect(lab, 203);
 
+    // Management is an authenticated extension; it never starts observation.
+    const uint8_t request[] = "{\"version\":1,\"id\":1,\"op\":\"status\"}";
+    const uint8_t response[] = "{\"ok\":true}";
+    assert(pltr_ble_lab_has_clients(lab));
+    assert(pltr_ble_lab_management_reply(lab, response, sizeof(response)-1, b, sizeof(b), &bn) < 0);
+    client = connect_client(lab, private_key, relay_key, 0);
+    assert(pltr_client_link_send(client, PLTR_TABLET_REQUEST, request, sizeof(request)-1,
+                                a, sizeof(a), &an) < 0);
+    pltr_client_link_destroy(client);
+    pltr_ble_lab_disconnect(lab, 203);
+    client = connect_client(lab, private_key, relay_key, 2);
+    assert(pltr_client_link_send(client, PLTR_TABLET_REQUEST, request, sizeof(request)-1,
+                                a, sizeof(a), &an) == 0);
+    assert(feed(lab, a, an, b, &bn) == 0 && bn == 0);
+    assert(pltr_ble_lab_take_management(lab, b, sizeof(b)) == sizeof(request)-1);
+    assert(memcmp(request, b, sizeof(request)-1) == 0);
+    assert(pltr_ble_lab_take_management(lab, b, sizeof(b)) == 0);
+    assert(!pltr_ble_lab_observing(lab));
+    assert(pltr_ble_lab_reset_clients(lab) < 0); // Recovery is local and requires an idle store.
+    assert(pltr_ble_lab_management_reply(lab, response, sizeof(response)-1, b, sizeof(b), &bn) == 0);
+    client_feed(client, b, bn, a, &an, &type);
+    assert(type == PLTR_TABLET_RESPONSE && an == 0);
+    pltr_client_link_destroy(client);
+    pltr_ble_lab_disconnect(lab, 203);
+
     // A stranger cannot authenticate or obtain readings with a known relay key.
     uint8_t stranger[32] = {29};
     client = pltr_client_link_create(stranger, relay_key, 1);
     assert(client && pltr_client_link_start(client, a, sizeof(a), &an) == 0);
     assert(feed(lab, a, an, b, &bn) < 0 && bn == 0);
     assert(!pltr_ble_lab_observing(lab));
+    assert(pltr_ble_lab_take_management(lab, b, sizeof(b)) == 0);
     pltr_client_link_destroy(client);
     pltr_ble_lab_disconnect(lab, 204);
 
@@ -129,6 +157,16 @@ int main(void) {
     assert(pltr_client_link_send(client, PLTR_SESSION_READY, ready, sizeof(ready), a, sizeof(a), &an) == 0);
     assert(feed(lab, a, an, b, &bn) < 0);
     assert(!pltr_ble_lab_observing(lab));
+    pltr_client_link_destroy(client);
+    pltr_ble_lab_disconnect(lab, 204);
+    assert(pltr_ble_lab_reset_clients(lab) == 0);
+    assert(!pltr_ble_lab_has_clients(lab));
+    pltr_ble_lab_destroy(lab);
+    lab = pltr_ble_lab_create(directory);
+    assert(lab && !pltr_ble_lab_has_clients(lab));
+    client = pltr_client_link_create(private_key, relay_key, 1);
+    assert(client && pltr_client_link_start(client, a, sizeof(a), &an) == 0);
+    assert(feed(lab, a, an, b, &bn) < 0); // Revocation survives restart.
     pltr_client_link_destroy(client);
     pltr_ble_lab_destroy(lab);
 
