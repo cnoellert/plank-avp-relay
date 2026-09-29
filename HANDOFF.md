@@ -8,15 +8,20 @@ requested pull/rebase completed without replay. No merge or public release.
 Root PLANK and its unrelated work remain untouched. Machine access, signing
 jobs and deployment details belong in the operator's private notes.
 
-Shared release **0.5.0** adds full Wi-Fi client controls to the Network tab.
-App source `27bd518de7bedf6ab806f2b675f9ef21b5f2da90` and relay source
-`b5de18318e35aff186c216613100ab165f0ec989` are committed and pushed. The app remains **PLANK AVP Relay Setup** and the Linux package is
-`plank-avp-relay`. Apple build **17** is **VALID / IN_BETA_TESTING**, with notes and saved
+Shared release **0.5.1** requires a tablet before live readings and adds
+explicit recovery after reinstalling a relay at the same address.
+App source `af9afeec34ece305eaa41a35ece9ebbae20cdd36` and relay source
+`1102145ce9a78f0beb74aadd76003799e93a139a` are committed and pushed. The app remains **PLANK AVP Relay Setup** and the Linux package is
+`plank-avp-relay`. Apple build **18** is **VALID / IN_BETA_TESTING**, with notes and saved
 Standard / No France compliance verified. Package build and clean-install
 checks passed for both target distributions. Release artifacts and
-results are recorded in the 0.5.0 section below.
-The operator confirmed the NanoPi is unavailable: **it has not been upgraded
-and remains on 0.2.1**. Do not retry host access until it is available.
+results are recorded in the current release section below.
+The operator supplied the available fresh-install Zero2 host. It has now been
+upgraded from 0.5.0 to **0.5.1**, with identity, headset and tablet state
+retention verified against a private pre-install backup. Main, Wi-Fi, USB
+and Bluetooth services are active; BLE advertising and Avahi registration
+resumed. Access details belong in private notes. Earlier unavailable-host
+instructions are historical and superseded for this host.
 
 Platform targets are **Ubuntu Server 26.04 / amd64** on Intel hardware and
 **Armbian Minimal, Debian 13 / arm64** on the NanoPi boards. The operator
@@ -27,10 +32,12 @@ drivers and hardware acceptance. See [platform matrix](docs/relay-platforms.md).
 Automatic USB gadget enablement applies to Zero2 only; R28S needs its wired
 uplink and USB controller configuration qualified before enablement.
 
-When the host returns, back up its private state and install the 0.5.0 arm64
-package, preserving tablet bonds and headset ownership. Validate namespace
-migration, Avahi discovery, TCP/Bluetooth saved authorization and live pen
-X/Y/pressure on AVP. Test Wi-Fi join, wrong-password recovery, saved/hidden
+Next, confirm identity replacement in app 0.5.1 using **Forget saved relay**
+after the mismatch error, then pair the tablet to enroll the headset.
+Verify readings cannot start with no tablet, allow a saved sleeping tablet,
+and disable after removing the last tablet. Validate discovery, TCP/Bluetooth
+saved authorization and live pen X/Y/pressure on AVP. Test Wi-Fi join,
+wrong-password recovery, saved/hidden
 networks, on/off and reboot persistence. Test Bridge and Router, USB attachment
 with Ethernet link but no Internet, cable removal/restoration, reconnect after
 Apply and tablet sleep/wake. USB must withdraw when Ethernet is removed even
@@ -47,6 +54,51 @@ author's coding agent. See [AVP Bluetooth upstream handoff](docs/avp-bluetooth-u
 for the verified address-resolution and battery-plugin fixes, fixed reference
 snapshot, implementation/recovery requirements and acceptance tests. Creating
 this document changes no runtime code or deployed host configuration.
+
+## Shared release 0.5.1 — tablet availability and identity recovery
+
+- Local headset trust alone no longer enables **Start live readings**.
+  The app checks Noise-authenticated tablet status on selection and again
+  before observing. A selected paired tablet may be asleep; an attached USB
+  tablet also qualifies. No tablet / no selection disables readings while
+  retaining network management and headset ownership.
+- Availability is invalidated when switching relays or reopening management;
+  stale status callbacks cannot enable readings. The authorization heading
+  says **Saved headset pairing** until the relay confirms current approval.
+- A fresh OS creates a new relay identity. On a mismatch, **Forget saved relay**
+  asks for explicit replacement confirmation and removes the selected relay's
+  pending pins, canonical records and Bluetooth/TCP aliases. It retains other
+  relays and the headset private key, then reopens tablet setup. Normal
+  ownership transfer of an unchanged relay continues through SSH recovery.
+- Live inspection of the fresh-install Zero2 showed no saved tablet and no
+  approved headset. Public local TCP status confirmed initial setup and a
+  current public identity. The existing app's cached authorization offered
+  observation despite this. BLE logs showed authentication followed by closure;
+  the changed identity is consistent with the reported write rejection.
+  Physical AVP recovery/reading acceptance remains pending.
+
+Validation: all **16 Apple suites** pass, including stale availability,
+last-tablet removal, sleeping tablet, USB input and targeted Keychain-record
+selection. macOS and visionOS device/simulator compile; signed archive/export,
+privacy and matching dSYM checks pass. Simulator compiled, not run.
+All four [package CI jobs](https://github.com/instinctual/plank-tablet-relay/actions/runs/36632410225)
+pass; each native build passed 30 Linux suites, followed by clean install,
+reinstall, retention, removal and migration on Ubuntu 26.04 amd64 / Debian 13
+arm64. Sources differ only by the final app authorization-heading refinement.
+
+Installers: `artifacts/plank-avp-relay_0.5.1_{amd64,arm64}.deb` with checksums.
+Versioned metadata/debug symbols: `artifacts/deb/0.5.1/<platform>/<arch>/`.
+The previous 0.5.0 top-level files are archived under `artifacts/superseded/`.
+The host upgrade passed configuration/package verification and preserved
+private state. No tablet bond or headset approval was created during inspection.
+
+Apple upload accepted at **2026-09-29T21:28:49Z**. App Store Connect readback:
+**VALID / IN_BETA_TESTING**, notes and Standard / No France compliance saved
+and verified (`usesNonExemptEncryption=false`). Signing jobs are unloaded.
+Artifacts: `artifacts/testflight/0.5.1/build-18/`.
+IPA SHA-256: `ef643d769dce502431c33b03ce73d499dc7f6f49c574ec659dea6f34b1aa06d8`.
+arm64 dSYM UUID: `D9A745E7-F2FA-3C3E-A1F4-809B492A5A06`.
+Next Apple upload identifier: **19**.
 
 ## Shared release 0.5.0 — Wi-Fi management
 
@@ -92,7 +144,7 @@ are unloaded. IPA/dSYMs/logs/provenance: `artifacts/testflight/0.5.0/build-17/`;
 previews: `artifacts/previews/0.5.0/`.
 IPA SHA-256: `99e5361ab580764f5d9e55c9e153ffdbdf4d243639db228b626df6446f5acafd`.
 arm64 dSYM UUID: `B34B666D-BFEA-3502-B130-932CD2C92F94`.
-Next Apple upload identifier is **18**.
+That release used Apple upload **17**; see the current release above for the next identifier.
 
 [Final package CI](https://github.com/instinctual/plank-tablet-relay/actions/runs/36629621596)
 passed all four jobs: native Ubuntu 26.04 amd64 and Debian 13 arm64 builds,
