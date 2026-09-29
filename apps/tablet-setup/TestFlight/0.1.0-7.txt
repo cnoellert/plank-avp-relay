@@ -1,0 +1,10 @@
+This build simplifies setup around the Bluetooth relay.
+
+- Scan for your relay, select it, then tap Pair. When the three circles appear, press and release the same Home, center or tablet button three times.
+- Confirm pen position, pressure and tablet buttons update in live readings.
+- Reconnect using the saved pairing, including after the tablet sleeps and wakes. Existing Bluetooth approvals are preserved by this update.
+- Connection diagnostics still includes the tablet-free, three-round-trip Bluetooth test.
+
+The old network-address setup and simulation code have been removed. No local-network permission is needed. Pairing management and Bluetooth diagnostics remain available.
+
+The app displays diagnostic readings; it does not drive a system-wide pointer or forward input to a workstation. The updated Linux package automates supported Realtek dongle preparation. New relay hardware still needs physical tablet/headset qualification.
