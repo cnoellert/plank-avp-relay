@@ -3,6 +3,7 @@
 // and Keychain approach follow cnoellert's Vision Pro prototype; see NOTICE.md.
 import Foundation
 import Security
+@preconcurrency import Network
 import CRelayProtocol
 
 public struct ButtonApproval: Equatable, Sendable {
@@ -23,7 +24,7 @@ public enum RelaySetupError: LocalizedError, Sendable {
 
     public var errorDescription: String? {
         switch self {
-        case .invalidState: "Choose a Bluetooth relay first."
+        case .invalidState: "Choose an available relay first."
         case .storage: "The app could not access its pairing keys in Keychain."
         case .invalidStoredKey: "The saved identity is invalid. It was not replaced."
         case .random: "The system could not generate secure random data."
@@ -72,7 +73,28 @@ public final class RelayKeyStore {
     }
 
     public func relayKey(_ address: RelayAddress) throws -> Data? {
-        try read(address.keychainAccount)
+        if let key = try read(address.keychainAccount) { return key }
+        if let hint = address.advertisedKey, try trustedKeys().contains(hint) { return hint }
+        return nil
+    }
+
+    // Includes existing BLE accounts so a TCP connection can verify the same
+    // approved relay without enrolling the headset again. Pending pins excluded.
+    func trustedKeys() throws -> Set<Data> {
+        let request: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service, kSecReturnAttributes as String: true,
+            kSecReturnData as String: true, kSecMatchLimit as String: kSecMatchLimitAll]
+        var result: CFTypeRef?
+        let status = SecItemCopyMatching(request as CFDictionary, &result)
+        if status == errSecItemNotFound { return [] }
+        guard status == errSecSuccess else { throw RelaySetupError.storage(status) }
+        let items = result as? [[String: Any]] ?? []
+        return Set(items.compactMap { item in
+            guard let account = item[kSecAttrAccount as String] as? String,
+                  account.hasPrefix("relay-"), !account.hasSuffix(":setup"),
+                  let key = item[kSecValueData as String] as? Data, key.count == 32 else { return nil }
+            return key
+        })
     }
 
     public func setupRelayKey(_ address: RelayAddress) throws -> Data? {
@@ -80,6 +102,7 @@ public final class RelayKeyStore {
     }
 
     public func rememberSetupRelay(_ key: Data, address: RelayAddress) throws {
+        if let advertised = address.advertisedKey, advertised != key { throw RelaySetupError.identityChanged }
         if let existing = try setupRelayKey(address) {
             guard existing == key else { throw RelaySetupError.identityChanged }
         } else {
@@ -95,6 +118,9 @@ public final class RelayKeyStore {
     }
 
     public func saveRelay(_ key: Data, address: RelayAddress) throws {
+        if let advertised = address.advertisedKey, advertised != key { throw RelaySetupError.identityChanged }
+        let canonical = "relay-key-v2:" + key.map { String(format: "%02x", $0) }.joined()
+        if try read(canonical) == nil { try add(key, account: canonical) }
         if let existing = try relayKey(address) {
             guard existing == key else { throw RelaySetupError.identityChanged }
             return
@@ -125,20 +151,27 @@ protocol RelayByteConnection: AnyObject, Sendable {
     func send(_ data: Data) async throws
     func receive() async throws -> Data
     nonisolated func cancel()
+    func finishDisconnect() async
 }
 
 @MainActor
 public final class RelayPairingClient {
     public init() {}
 
-    private func connection(_ address: RelayAddress, onProgress: ((String) -> Void)? = nil) -> RelayBLEConnection {
-        RelayBLEConnection(identifier: address.bluetoothIdentifier, onProgress: onProgress)
+    func connection(_ address: RelayAddress, channel: RelayBLEChannel = .relay,
+                    onProgress: ((String) -> Void)? = nil) -> any RelayByteConnection {
+        if let service = address.networkService, let domain = address.networkDomain {
+            onProgress?("Connecting to your relay over the local network…")
+            return RelayTCPConnection(endpoint: .service(name: service, type: "_plank-tablet._tcp", domain: domain, interface: nil),
+                channel: channel == .setup ? 1 : channel == .echo ? 2 : 0)
+        }
+        return RelayBLEConnection(identifier: address.bluetoothIdentifier, channel: channel, onProgress: onProgress)
     }
 
     /// Tests only byte delivery over dedicated, unauthenticated echo channels.
     /// No pairing codec, Keychain access or tablet input is used or authorized.
     public func testBluetooth(address: RelayAddress, onProgress: @escaping (String) -> Void) async throws -> String {
-        let socket = RelayBLEConnection(identifier: address.bluetoothIdentifier, channel: .echo, onProgress: onProgress)
+        let socket = connection(address, channel: .echo, onProgress: onProgress)
         let result = try await bounded(socket: socket, seconds: 40) {
             try await socket.connect()
             var total = 0
@@ -240,7 +273,7 @@ public final class RelayPairingClient {
         let codec = privateKey.withUnsafeBytes { client in
             relayKey.withUnsafeBytes { relay in
                 pltr_client_link_create(client.bindMemory(to: UInt8.self).baseAddress,
-                                        relay.bindMemory(to: UInt8.self).baseAddress, 1)
+                                        relay.bindMemory(to: UInt8.self).baseAddress, address.linkType)
             }
         }
         guard let codec else { throw RelaySetupError.protocolError }
@@ -299,7 +332,7 @@ public final class RelayPairingClient {
         let codec = privateKey.withUnsafeBytes { client in
             relayKey.withUnsafeBytes { relay in
                 pltr_client_link_create(client.bindMemory(to: UInt8.self).baseAddress,
-                    relay.bindMemory(to: UInt8.self).baseAddress, 1)
+                    relay.bindMemory(to: UInt8.self).baseAddress, address.linkType)
             }
         }
         guard let codec else { throw RelaySetupError.protocolError }
@@ -382,8 +415,12 @@ public final class RelayPairingClient {
         }
         defer { timer.cancel(); socket.cancel() }
         return try await withTaskCancellationHandler {
-            do { return try await operation() }
-            catch {
+            do {
+                let result = try await operation()
+                await socket.finishDisconnect()
+                return result
+            } catch {
+                await socket.finishDisconnect()
                 if Task.isCancelled { throw CancellationError() }
                 if expired { throw RelaySetupError.timedOut }
                 throw error

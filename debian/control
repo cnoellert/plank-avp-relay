@@ -9,9 +9,10 @@ Homepage: https://github.com/instinctual/plank-tablet-relay
 
 Package: plank-tablet-relay-ble
 Architecture: linux-any
-Depends: ${shlibs:Depends}, ${misc:Depends}, ${python3:Depends}, python3-dbus, python3-gi, bluez, systemd, udev, kmod, usb-modeswitch, usb-modeswitch-data
-Description: Bluetooth tablet readings relay for PLANK Tablet Setup
+Depends: ${shlibs:Depends}, ${misc:Depends}, ${python3:Depends}, python3-dbus, python3-gi, bluez, avahi-daemon, systemd, udev, kmod, usb-modeswitch, usb-modeswitch-data
+Description: Network and Bluetooth tablet relay for PLANK Tablet Setup
  Receives Wacom tablet input through Linux input devices and provides
- physically approved pairing and authenticated readings over Bluetooth LE.
+ tablet enrollment and authenticated readings over TCP and Bluetooth LE.
+ Advertises the active network service automatically through Avahi.
  Includes a managed system service and persistent headset trust. This setup
  component is separate from the raw-HID workstation forwarding service.

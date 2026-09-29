@@ -14,22 +14,23 @@ from ble_lab.config import hostname_name, read_settings
 from ble_lab.controller import clear_advertisements
 from ble_lab.notify import ready
 from ble_lab.bluez import Server, PROPERTIES
+from ble_lab.core import RelayCore
 
 
 class ServiceTests(unittest.TestCase):
     def test_enrollment_commit_requires_same_active_provisional_session(self):
         server = MagicMock()
-        server.peer = 'initiating-headset'
+        server.owner = 'initiating-headset'
         server.native.enrolling = True
         with self.assertRaises(RuntimeError):
-            Server.enroll_headset(server, 'other-headset')
+            RelayCore.enroll_headset(server, 'other-headset')
         server.native.finish_enrollment.assert_not_called()
         server.native.enrolling = False
         with self.assertRaises(RuntimeError):
-            Server.enroll_headset(server, 'initiating-headset')
+            RelayCore.enroll_headset(server, 'initiating-headset')
         server.native.finish_enrollment.assert_not_called()
         server.native.enrolling = True
-        Server.enroll_headset(server, 'initiating-headset')
+        RelayCore.enroll_headset(server, 'initiating-headset')
         server.native.finish_enrollment.assert_called_once()
 
     def test_hostname_default_and_explicit_override(self):
@@ -108,7 +109,7 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(capture.identity, ('bluetooth:a', 'local-controller', 5))
         capture.close()
 
-    def test_bluetooth_daemon_loss_and_adapter_removal_require_restart(self):
+    def test_bluetooth_failure_retries_without_stopping_network(self):
         for event in ('daemon', 'power', 'removed'):
             server = MagicMock()
             server.adapter = '/org/bluez/hci0'
@@ -119,8 +120,8 @@ class ServiceTests(unittest.TestCase):
                 Server.adapter_changed(server, 'org.bluez.Adapter1', {'Powered': False}, [])
             else:
                 Server.removed(server, server.adapter, ['org.bluez.Adapter1'])
-            self.assertIsNotNone(server.failure)
-            server.loop.quit.assert_called_once()
+            server.bluetooth_unavailable.assert_called_once()
+            server.loop.quit.assert_not_called()
 
     def test_busy_adapter_is_rejected_before_controller_changes(self):
         server = MagicMock()
@@ -131,47 +132,32 @@ class ServiceTests(unittest.TestCase):
                 patch('ble_lab.bluez.clear_advertisements') as clear, \
                 patch('ble_lab.bluez.disable_address_resolution') as workaround:
             with self.assertRaisesRegex(RuntimeError, 'no scan'):
-                Server.run(server)
+                Server.register_bluetooth(server)
             properties.Set.assert_not_called()
             clear.assert_not_called()
             workaround.assert_not_called()
 
-    def test_ready_only_after_both_registrations_succeed(self):
-        for advertise_success in (False, True):
-            with self.subTest(advertise_success=advertise_success):
-                server = MagicMock()
-                server.adapter = '/org/bluez/hci0'
-                server.exclusive_adapter = server.controller_workaround = False
-                server.native = server.capture = None
-                server.failure = None
-                server.notify_systemd = True
-                server.advertising = server.gatt_registered = False
-                gatt, advertising, properties = MagicMock(), MagicMock(), MagicMock()
-                properties.Get.return_value = True
-                def register_ad(*args, **kwargs):
-                    self.assertTrue(server.gatt_registered)
-                    if advertise_success:
-                        kwargs['reply_handler']()
-                    else:
-                        kwargs['error_handler'](RuntimeError('no advertising slots'))
-                advertising.RegisterAdvertisement.side_effect = register_ad
-                def run_loop():
-                    gatt.RegisterApplication.call_args.kwargs['reply_handler']()
-                server.loop.run.side_effect = run_loop
-                interfaces = {'org.bluez.GattManager1': gatt,
-                              'org.bluez.LEAdvertisingManager1': advertising,
-                              PROPERTIES: properties}
-                with patch('ble_lab.bluez.dbus.Interface', side_effect=lambda _, kind: interfaces[kind]), \
-                        patch('ble_lab.bluez.signal.signal'), patch('ble_lab.bluez.GLib.timeout_add'), \
-                        patch('ble_lab.bluez.ready') as notify:
-                    if advertise_success:
-                        Server.run(server)
-                        notify.assert_called_once()
-                    else:
-                        with self.assertRaisesRegex(RuntimeError, 'registration failed'):
-                            Server.run(server)
-                        notify.assert_not_called()
-                    gatt.UnregisterApplication.assert_called_once()
+    def test_ready_after_advertisement_without_a_network_listener(self):
+        server = MagicMock()
+        server.controller_workaround = server.exclusive_adapter = False
+        server.registration_generation = 0
+        gatt, advertising, properties = MagicMock(), MagicMock(), MagicMock()
+        properties.Get.return_value = True
+        gatt.RegisterApplication.side_effect = lambda *a, **k: k['reply_handler']()
+        advertising.RegisterAdvertisement.side_effect = lambda *a, **k: k['reply_handler']()
+        interfaces = {'org.bluez.GattManager1': gatt,
+                      'org.bluez.LEAdvertisingManager1': advertising, PROPERTIES: properties}
+        with patch('ble_lab.bluez.dbus.Interface', side_effect=lambda _, kind: interfaces[kind]):
+            Server.register_bluetooth(server)
+        self.assertTrue(server.advertising)
+        server.notify_ready.assert_called_once()
+
+    def test_tcp_configuration_and_port_bounds(self):
+        self.assertTrue(self.read('[relay]\n').tcp_enabled)
+        self.assertEqual(self.read('[relay]\n').tcp_port, 28991)
+        self.assertFalse(self.read('[relay]\ntcp_enabled=false\n').tcp_enabled)
+        for port in ('0', '-1', '80', '65536', 'invalid'):
+            with self.assertRaises(ValueError): self.read('[relay]\ntcp_port=' + port)
 
 
 if __name__ == '__main__':

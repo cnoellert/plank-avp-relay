@@ -17,6 +17,7 @@ struct PltrBleLab {
     PltrLink link;
     PltrRecordReader probe;
     unsigned mode;
+    uint8_t transport;
     uint64_t started_ms, received_ms, ping_ms;
     uint64_t status_ms, pressed_ms, released_ms;
     uint16_t button, held;
@@ -66,6 +67,7 @@ PltrBleLab *pltr_ble_lab_create(const char *directory) {
     PltrBleLab *lab = calloc(1, sizeof(*lab));
     if (!lab) return NULL;
     lab->store.directory_fd = lab->store.lock_fd = -1;
+    lab->transport = 1;
     const uint8_t name[] = "PLANK Relay Lab";
     if (pltr_identity_store_open(&lab->store, directory) != 0 ||
         pltr_pairing_init(&lab->pairing, &lab->store, name, sizeof(name)-1) != 0) {
@@ -74,6 +76,12 @@ PltrBleLab *pltr_ble_lab_create(const char *directory) {
     }
     pltr_record_reader_init(&lab->probe, PLTR_PRE_AUTH);
     return lab;
+}
+
+int pltr_ble_lab_transport(PltrBleLab *lab, uint8_t transport) {
+    if (!lab || lab->mode || lab->probe.filled || (transport != 1 && transport != 2)) return -1;
+    lab->transport = transport;
+    return 0;
 }
 
 void pltr_ble_lab_destroy(PltrBleLab *lab) {
@@ -131,6 +139,8 @@ int pltr_ble_lab_receive(PltrBleLab *lab, const uint8_t *data, size_t size,
                               PLTR_PRE_AUTH, 1, &first) != 0 ||
             first.type != PLTR_OPEN) return -1;
         lab->mode = first.payload[0];
+        // Network enrollment uses the current restricted Noise setup only.
+        if (lab->transport == 2 && lab->mode != 1) return -1;
         if (lab->mode == 2 || lab->mode == 3) {
             if (lab->mode == 3) {
                 lab->prior_failures = lab->pairing.failures;
@@ -146,7 +156,7 @@ int pltr_ble_lab_receive(PltrBleLab *lab, const uint8_t *data, size_t size,
             lab->enrollment_session = lab->enrollment_allowed && !lab->store.client_count;
             if (pltr_link_init(&lab->link, PLTR_NOISE_RESPONDER,
                 lab->store.private_key, NULL, approve_management,
-                lab, 1) != 0 ||
+                lab, lab->transport) != 0 ||
                 pltr_link_enable_input_observer(&lab->link) != 0 ||
                 pltr_link_enable_tablet_management(&lab->link) != 0) return -1;
             if (lab->enrollment_session && pltr_link_restrict_tablet_setup(&lab->link) != 0) return -1;

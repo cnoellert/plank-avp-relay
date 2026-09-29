@@ -8,6 +8,8 @@ extern "C" {
 #endif
 typedef struct PltrBleLab PltrBleLab;
 PltrBleLab *pltr_ble_lab_create(const char *directory);
+// Select transport only while idle: 1 = BLE, 2 = TCP. One shared identity/store.
+int pltr_ble_lab_transport(PltrBleLab *lab, uint8_t transport);
 void pltr_ble_lab_destroy(PltrBleLab *lab);
 int pltr_ble_lab_open_pairing(PltrBleLab *lab, uint64_t wall_seconds, uint64_t now_ms);
 void pltr_ble_lab_disconnect(PltrBleLab *lab, uint64_t now_ms);

@@ -21,7 +21,7 @@ struct TabletSetupView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     Text(setup.state.activity == .managingTablets ? "Set up your tablet" :
-                         setup.state.activity == .testingBluetooth ? "Test Bluetooth connection" :
+                         setup.state.activity == .testingBluetooth ? "Test relay connection" :
                          setup.state.step.title).font(.largeTitle.bold())
                     if setup.state.activity == .managingTablets {
                         tabletManagementPage
@@ -40,12 +40,12 @@ struct TabletSetupView: View {
                         Divider()
                         DisclosureGroup("Connection diagnostics") {
                             VStack(alignment: .leading, spacing: 12) {
-                                Text("Check Bluetooth communication without a tablet or a saved pairing. Stop live readings before running this test.")
+                                Text("Check relay communication without a tablet or a saved pairing. Stop live readings before running this test.")
                                     .font(.callout).foregroundStyle(.secondary)
-                                Button("Test Bluetooth connection") { setup.testBluetooth() }
+                                Button("Test relay connection") { setup.testBluetooth() }
                                     .disabled(setup.state.busy)
                                 if let result = setup.bluetoothTestResult {
-                                    Label("Bluetooth test passed", systemImage: "checkmark.circle.fill")
+                                    Label("Connection test passed", systemImage: "checkmark.circle.fill")
                                         .foregroundStyle(.green)
                                     Text(result).font(.callout)
                                 }
@@ -89,12 +89,13 @@ struct TabletSetupView: View {
     }
 
     private var relayPage: some View {
-        BluetoothRelayPicker(scanner: setup.scanner, selected: setup.selectBluetoothRelay)
+        RelayPicker(scanner: setup.scanner, selected: setup.selectRelay)
     }
 
     private var tabletPage: some View {
         VStack(alignment: .leading, spacing: 18) {
             LabeledContent("Relay", value: setup.state.address?.description ?? "")
+            LabeledContent("Connection", value: setup.state.address?.transportName ?? "")
             Text("Pair or reconnect a tablet. The relay will save this headset automatically once the tablet is verified.")
             Button("Set up a tablet") { setup.manageTablets() }
                 .buttonStyle(.borderedProminent).disabled(setup.state.busy)
@@ -115,6 +116,7 @@ struct TabletSetupView: View {
             Label("Headset authorized", systemImage: "checkmark.shield.fill")
                 .font(.title2).foregroundStyle(.green)
             LabeledContent("Relay", value: setup.state.address?.description ?? "")
+            LabeledContent("Connection", value: setup.state.address?.transportName ?? "")
             if setup.state.activity == .observing {
                 Button(setup.state.connectionVerified ? "Stop readings" : "Cancel connection") {
                     setup.cancel()

@@ -9,12 +9,13 @@ from gi.repository import GLib
 import signal
 import time
 
-from .capture import Capture
+from .core import RelayCore
+from .network import TCPServer
+from .discovery import Publisher
 from .controller import clear_advertisements, disable_address_resolution
 from .notify import ready
-from .native import Native, ProtocolError
+from .native import ProtocolError
 from .transport import EchoChannel, Indications, SetupChannel, write_peer
-from .tablets import Tablets
 from .tablet_bluez import TabletBlueZ
 
 SERVICE_UUID = '462f3a10-7a31-4ab3-9e7f-c36af495ecf0'
@@ -128,30 +129,24 @@ class Server(dbus.service.Object):
         self.controller_workaround = args.disable_controller_address_resolution
         self.exclusive_adapter = getattr(args, 'exclusive_adapter', False)
         self.notify_systemd = getattr(args, 'notify_systemd', False)
-        self.native = None if args.transport_only else Native(args.library, args.state_dir)
-        self.capture = None if args.transport_only else Capture(args.tablet, self.button)
+        self.core = None if args.transport_only else RelayCore(args, TabletBlueZ(self.bus, self.adapter))
+        self.native = self.core.native if self.core else None
+        self.capture = self.core.capture if self.core else None
+        self.tablets = self.core.tablets if self.core else None
         self.peer = None
         self.notifying = False
         self.queue = Indications(self.emit)
         self.echo = EchoChannel(self.emit_echo, self.close_peer)
-        self.tablets = None
-        self.setup = None
-        if self.native:
-            backend = TabletBlueZ(self.bus, self.adapter)
-            def select_tablet(value):
-                self.capture.close_nodes()
-                self.capture.identity = None
-                self.capture.selected = value.lower() if value else None
-                self.capture.last_scan = 0
-            self.tablets = Tablets(backend, args.state_dir, lambda: self.native.has_clients,
-                select_tablet, lambda: self.capture.attached, args.tablet,
-                enroll_headset=self.enroll_headset)
-            self.native.on_management = lambda data: self.tablet_request(data, self.peer,
-                self.native.management_authorized, self.native.enrolling)
-            self.setup = SetupChannel(self.emit_setup, self.close_peer,
-                self.tablet_request, self.cancel_tablet_setup)
-        self.last_sample = 0
-        self.was_observing = False
+        self.setup = SetupChannel(self.emit_setup, self.close_peer,
+            self.tablet_request, self.cancel_tablet_setup) if self.core else None
+        self.network = self.publisher = None
+        self.tcp_enabled = getattr(args, 'tcp_enabled', False) and self.core is not None
+        self.tcp_port = getattr(args, 'tcp_port', 28991)
+        self.version = getattr(args, 'version', 'development')
+        self.next_registration = 0
+        self.registering = False
+        self.registration_generation = 0
+        self.notified = False
         self.failure = None
         self.service = Object(self.bus, BASE + '/service', SERVICE,
             {'UUID': SERVICE_UUID, 'Primary': dbus.Boolean(True)})
@@ -177,33 +172,14 @@ class Server(dbus.service.Object):
                 for obj in (self.service, self.rx, self.tx, self.echo_rx, self.echo_tx, self.setup_rx, self.setup_tx) if obj is not None}
 
     def cancel_tablet_setup(self, peer):
-        if self.tablets:
-            self.tablets.cancel(peer)
+        if self.core:
+            self.core.cancel_setup(peer)
             if self.controller_workaround and self.tablets.backend.scanned:
-                self.failure = 'Tablet discovery ended; restarting to restore controller address policy.'
-                self.loop.quit()
-
-    def enroll_headset(self, owner):
-        if owner != self.peer or not self.native.enrolling:
-            raise RuntimeError('The initiating encrypted setup session has ended.')
-        try:
-            self.native.finish_enrollment()
-        except ProtocolError as error:
-            raise RuntimeError('Could not save headset ownership.') from error
-        print('Tablet verified; initiating headset ownership saved.', flush=True)
+                self.tablets.backend.scanned = False
+                self.bluetooth_unavailable('Restoring controller policy after tablet discovery.')
 
     def tablet_request(self, data, peer, authenticated=False, enrolling=False):
-        response = json.loads(self.tablets.handle(data, peer, authenticated, enrolling))
-        if response.get('ok'):
-            response['enrollmentVersion'] = 1
-            response['relayKey'] = self.native.public_key
-        encoded = json.dumps(response, separators=(',', ':'), ensure_ascii=False).encode()
-        while len(encoded) > 4096 and response.get('candidates'):
-            response['candidates'].pop()
-            encoded = json.dumps(response, separators=(',', ':'), ensure_ascii=False).encode()
-        if len(encoded) > 4096:
-            raise ProtocolError('Tablet setup response exceeded its bound.')
-        return encoded
+        return self.core.request(data, peer, authenticated, enrolling)
 
     def emit_setup(self, data):
         if not self.setup.peer or not self.setup.notifying:
@@ -217,7 +193,7 @@ class Server(dbus.service.Object):
         except ValueError as error:
             raise Rejected(str(error))
         try:
-            self.setup.receive(data, options, self.adapter, self.peer or self.echo.peer)
+            self.setup.receive(data, options, self.adapter, (self.core.owner if self.core else None) or self.echo.peer)
         except (ValueError, ProtocolError, BufferError, TimeoutError) as error:
             self.setup.disconnect()
             raise Rejected(str(error))
@@ -229,7 +205,7 @@ class Server(dbus.service.Object):
 
     def receive_echo(self, data, options):
         try:
-            self.echo.receive(data, options, self.adapter, self.peer or (self.setup.peer if self.setup else None))
+            self.echo.receive(data, options, self.adapter, (self.core.owner if self.core else None) or (self.setup.peer if self.setup else None))
         except ValueError as error:
             raise Rejected(str(error))
         except (ProtocolError, BufferError, TimeoutError) as error:
@@ -242,49 +218,31 @@ class Server(dbus.service.Object):
         self.tx.PropertiesChanged(GATT, {'Value': dbus.Array(data, signature='y')}, [])
 
     def receive(self, data, options):
-        if not self.native or self.echo.peer or (self.setup and self.setup.peer):
-            raise Rejected('Bluetooth transport test is active; no pairing request accepted.')
+        if not self.core or self.echo.peer or (self.setup and self.setup.peer):
+            raise Rejected('Another relay operation is active.')
         try:
             peer = write_peer(data, options, self.adapter, self.notifying, self.peer)
+            if self.core.owner is not None and self.core.owner != peer:
+                raise ValueError('The relay already has an active headset connection.')
         except ValueError as error:
-            print('Relay write rejected before protocol processing.', flush=True)
             raise Rejected(str(error))
         self.queue.mtu_payload = max(20, min(512, int(options.get('mtu', 23)) - 3))
         try:
-            # Drain before every fragment, including the one completing START.
-            # Earlier physical events must not become approval for a new request.
-            self.capture.poll()
-            self.native.tablet(self.capture.attached)
             if not self.peer:
-                self.native.allow_enrollment(self.tablets.initial(self.tablets.backend.devices()))
+                self.core.claim(peer, 1, self.queue.append, lambda: self.queue.busy, self.disconnect)
                 self.peer = peer
-                print('Headset transport connected; authenticating.', flush=True)
-            was_pending = self.native.approval_pending
-            for reply in self.native.receive(data):
-                self.queue.append(reply)
-            if not was_pending and self.native.approval_pending:
-                kind = 'Existing' if self.native.approval_pending == 2 else 'New'
-                print(kind + ' headset pairing request; awaiting three tablet-button presses.', flush=True)
-                if not self.capture.attached:
-                    print('Pairing is waiting for the selected tablet to connect.', flush=True)
+            self.core.receive(peer, data)
         except (ProtocolError, BufferError, TimeoutError) as error:
-            print('Relay write failed: ' + str(error), flush=True)
             self.disconnect()
             raise Rejected('Protocol rejected; existing trust retained.')
-
-    def button(self, code, value):
-        self.native.tablet(self.capture.attached)
-        self.queue.append(self.native.button(code, value))
 
     def disconnect(self):
         peer, self.peer = self.peer, None
         self.queue.clear()
-        if self.native:
-            self.native.disconnect()
-        self.was_observing = False
+        if self.core:
+            self.core.release(peer)
         if peer:
             self.cancel_tablet_setup(peer)
-            print('Headset link closed; existing trust retained.', flush=True)
             self.close_peer(peer)
 
     def close_peer(self, peer):
@@ -306,8 +264,7 @@ class Server(dbus.service.Object):
         if self.setup and str(path) == self.setup.peer and 'org.bluez.Device1' in interfaces:
             self.setup.disconnect()
         if str(path) == self.adapter and 'org.bluez.Adapter1' in interfaces:
-            self.failure = 'Bluetooth adapter removed; service will retry.'
-            self.loop.quit()
+            self.bluetooth_unavailable('Bluetooth adapter removed.')
         if str(path) == self.peer and 'org.bluez.Device1' in interfaces:
             self.disconnect()
         if str(path) == self.echo.peer and 'org.bluez.Device1' in interfaces:
@@ -315,59 +272,60 @@ class Server(dbus.service.Object):
 
     def adapter_changed(self, interface, changed, invalidated):
         if 'Powered' in changed and not changed['Powered']:
-            self.failure = 'Bluetooth controller powered off; service will retry.'
-            self.loop.quit()
+            self.bluetooth_unavailable('Bluetooth controller powered off.')
 
     def bluez_changed(self, name, previous, current):
         if previous and previous != current:
-            self.failure = 'BlueZ restarted; service will register again.'
-            self.loop.quit()
+            self.bluetooth_unavailable('BlueZ restarted.')
+            if self.tablets:
+                self.tablets.backend.registered = False
+
+    def bluetooth_unavailable(self, reason):
+        print(reason + ' Network service remains available.', flush=True)
+        self.registration_generation += 1
+        self.registering = False
+        self.unregister_bluetooth()
+        self.disconnect()
+        self.echo.disconnect()
+        if self.setup:
+            self.setup.disconnect()
+        self.next_registration = time.monotonic() + 5
+
+    def unregister_bluetooth(self):
+        for enabled, kind, method, path in (
+            (self.advertising, 'org.bluez.LEAdvertisingManager1', 'UnregisterAdvertisement', self.advertisement.path),
+            (self.gatt_registered, 'org.bluez.GattManager1', 'UnregisterApplication', BASE)):
+            if enabled:
+                try:
+                    getattr(dbus.Interface(self.bus.get_object('org.bluez', self.adapter), kind), method)(path, timeout=2)
+                except dbus.exceptions.DBusException:
+                    pass
+        self.gatt_registered = self.advertising = False
 
     def tick(self):
+        if self.network:
+            self.network.poll()
+            self.publisher.tick()
+        if not self.advertising and not self.registering and time.monotonic() >= self.next_registration:
+            try:
+                self.register_bluetooth()
+            except (OSError, RuntimeError, dbus.exceptions.DBusException) as error:
+                self.bluetooth_unavailable(str(error))
+        for channel in (self.echo, self.setup):
+            if channel:
+                try:
+                    channel.tick()
+                except (ProtocolError, BufferError, TimeoutError):
+                    channel.disconnect()
         try:
-            if self.tablets:
-                self.tablets.tick()
-            if self.setup:
-                self.setup.tick()
-        except (ProtocolError, BufferError, TimeoutError) as error:
-            print(str(error), flush=True)
-            self.setup.disconnect()
-        except (OSError, RuntimeError, ValueError, dbus.exceptions.DBusException) as error:
-            self.failure = 'Tablet setup failed: ' + str(error)
-            self.loop.quit()
-            return False
-        try:
-            self.echo.tick()
-        except (ProtocolError, BufferError, TimeoutError) as error:
-            print(str(error), flush=True)
-            self.echo.disconnect()
-        if not self.native:
-            return True
-        try:
-            self.capture.poll()
-            self.native.tablet(self.capture.attached)
             self.queue.check_timeout()
-            self.queue.append(self.native.tick())
-            observing = self.native.observing
-            if observing and not self.was_observing:
-                self.capture.dirty = True
-                print('Authenticated input observer started.', flush=True)
-            self.was_observing = observing
-            now = time.monotonic()
-            if (observing and not self.queue.busy and now - self.last_sample >= 0.05 and
-                (self.capture.dirty or now - self.last_sample >= 1)):
-                self.queue.append(self.native.sample(self.capture.sample()))
-                self.last_sample = now
-        except (ProtocolError, BufferError, TimeoutError) as error:
-            print(str(error), flush=True)
+        except TimeoutError:
             self.disconnect()
-        except (OSError, RuntimeError, ValueError) as error:
-            self.failure = str(error)
-            self.loop.quit()
-            return False
+        if self.core:
+            self.core.tick()
         return True
 
-    def run(self):
+    def register_bluetooth(self):
         adapter = self.bus.get_object('org.bluez', self.adapter)
         gatt = dbus.Interface(adapter, 'org.bluez.GattManager1')
         advertising = dbus.Interface(adapter, 'org.bluez.LEAdvertisingManager1')
@@ -387,53 +345,66 @@ class Server(dbus.service.Object):
             disable_address_resolution(self.adapter.rsplit('/', 1)[1])
             print('Controller address-resolution workaround applied.', flush=True)
 
+        self.registering = True
+        self.registration_generation += 1
+        generation = self.registration_generation
         def failed(error):
-            self.failure = 'BlueZ registration failed: ' + str(error)
-            self.loop.quit()
+            if generation == self.registration_generation:
+                self.bluetooth_unavailable('BlueZ registration failed: ' + str(error))
 
         def advertised():
+            if generation != self.registration_generation:
+                return
             self.advertising = True
+            self.registering = False
             print('Bluetooth relay is advertising. Use the app to discover it.', flush=True)
-            if self.notify_systemd:
-                try:
-                    ready()
-                except OSError as error:
-                    failed(error)
+            self.notify_ready()
 
         def registered():
+            if generation != self.registration_generation:
+                return
             self.gatt_registered = True
             advertising.RegisterAdvertisement(self.advertisement.path, {},
                 reply_handler=advertised, error_handler=failed)
 
+        gatt.RegisterApplication(BASE, {}, reply_handler=registered, error_handler=failed)
+
+    def notify_ready(self):
+        if self.notify_systemd and not self.notified:
+            ready()
+            self.notified = True
+
+    def run(self):
         signal.signal(signal.SIGINT, lambda *_: self.loop.quit())
         signal.signal(signal.SIGTERM, lambda *_: self.loop.quit())
-        if self.capture:
-            self.capture.discover()
-        else:
-            print('Transport-only mode: no tablet capture, pairing or identity store is opened.', flush=True)
-        gatt.RegisterApplication(BASE, {}, reply_handler=registered, error_handler=failed)
-        GLib.timeout_add(10, self.tick)
         try:
+            if self.tcp_enabled:
+                self.network = TCPServer(self.core, self.tcp_port,
+                    busy=lambda: bool(self.echo.peer or (self.setup and self.setup.peer)))
+                self.publisher = Publisher(self.bus, self.network.port, self.native.public_key, self.version)
+                self.publisher.tick()
+                print('Network tablet relay listening on TCP ' + str(self.network.port) + '.', flush=True)
+                self.notify_ready()
+            if self.capture:
+                self.capture.discover()
+            self.tick()
+            GLib.timeout_add(10, self.tick)
             self.loop.run()
         finally:
+            if self.publisher:
+                self.publisher.close()
+            if self.network:
+                self.network.close()
             self.disconnect()
             self.echo.disconnect()
             if self.setup:
                 self.setup.disconnect()
                 if self.tablets.owner:
-                    self.tablets.cancel(self.tablets.owner)
-                self.tablets.backend.close()
-            for enabled, function, path in (
-                (self.advertising, advertising.UnregisterAdvertisement, self.advertisement.path),
-                (self.gatt_registered, gatt.UnregisterApplication, BASE)):
-                if enabled:
-                    try:
-                        function(path)
-                    except dbus.exceptions.DBusException:
-                        pass
-            if self.capture:
-                self.capture.close()
-            if self.native:
-                self.native.close()
-        if self.failure:
-            raise RuntimeError(self.failure)
+                    self.core.cancel_setup(self.tablets.owner)
+                try:
+                    self.tablets.backend.close()
+                except (RuntimeError, dbus.exceptions.DBusException):
+                    pass
+            self.unregister_bluetooth()
+            if self.core:
+                self.core.close()

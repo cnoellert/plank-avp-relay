@@ -4,6 +4,7 @@ if(NOT PLANK_RELEASE_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
     message(FATAL_ERROR "VERSION must contain Major.Minor.Ancillary")
 endif()
 project(PlankTabletSetup VERSION "${PLANK_RELEASE_VERSION}" LANGUAGES C Swift)
+add_compile_definitions("$<$<COMPILE_LANGUAGE:C>:PLTR_SOFTWARE_VERSION=\"${PROJECT_VERSION}\">")
 set(CMAKE_XCODE_ATTRIBUTE_SWIFT_VERSION 6.0)
 set(CMAKE_OSX_DEPLOYMENT_TARGET 27.0 CACHE STRING "Minimum Apple OS" FORCE)
 
@@ -39,13 +40,15 @@ add_library(RelaySetupKit STATIC
     "${RELAY_ROOT}/apple/RelaySetupKit/SetupCoordinator.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayBluetooth.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayBLEConnection.swift"
+    "${RELAY_ROOT}/apple/RelaySetupKit/RelayTCPConnection.swift"
+    "${RELAY_ROOT}/apple/RelaySetupKit/RelayScanner.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayDiscovery.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/TabletReadings.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/TabletManagement.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayPairingClient.swift")
 target_link_libraries(RelaySetupKit PUBLIC CRelayProtocol
     "-framework Foundation" "-framework Security" "-framework Combine"
-    "-framework CoreBluetooth")
+    "-framework CoreBluetooth" "-framework Network")
 target_compile_options(RelaySetupKit PRIVATE -strict-concurrency=complete)
 target_compile_options(RelaySetupKit PRIVATE "$<$<CONFIG:Debug>:-enable-testing>")
 set_target_properties(CRelayProtocol RelaySetupKit PROPERTIES

@@ -76,7 +76,7 @@ int main(void) {
     unused_size = to_relay(&relay, client_reply, client_size, unused,
                             sizeof(unused), &type);
     assert(type == 0 && unused_size == 0);
-    assert(strcmp(pltr_client_link_peer_version(client), "0.1.1") == 0);
+    assert(strcmp(pltr_client_link_peer_version(client), PLTR_SOFTWARE_VERSION) == 0);
 
     const uint8_t status[] = {1, 0x6a, 0x05, 0x57, 0x03, 1, 1, 0};
     assert(pltr_link_send(&relay, PLTR_STATUS, status, sizeof(status),

@@ -18,6 +18,7 @@ class Native:
         self.lib = C.CDLL(str(library))
         signatures = {
             'create': ([C.c_char_p], C.c_void_p),
+            'transport': ([C.c_void_p, C.c_uint8], C.c_int),
             'destroy': ([C.c_void_p], None),
             'open_pairing': ([C.c_void_p, C.c_uint64, C.c_uint64], C.c_int),
             'disconnect': ([C.c_void_p, C.c_uint64], None),
@@ -142,6 +143,10 @@ class Native:
 
     def disconnect(self):
         self.lib.pltr_ble_lab_disconnect(self.handle, now_ms())
+
+    def transport(self, value):
+        if self.lib.pltr_ble_lab_transport(self.handle, value):
+            raise ProtocolError('Transport can only change between sessions.')
 
     def close(self):
         if self.handle:

@@ -35,6 +35,7 @@ override_dh_auto_install:
 	install -D -m 0644 packaging/ble/bluetooth-relay.conf debian/plank-tablet-relay-ble/usr/lib/systemd/system/bluetooth.service.d/10-plank-tablet-relay-ble.conf
 	install -d debian/plank-tablet-relay-ble/usr/share/plank-tablet-relay-ble/firmware
 	install -m 0644 packaging/ble/firmware/* debian/plank-tablet-relay-ble/usr/share/plank-tablet-relay-ble/firmware/
+	install -m 0644 VERSION debian/plank-tablet-relay-ble/usr/share/plank-tablet-relay-ble/version
 	install -D -m 0644 packaging/ble/relay.conf debian/plank-tablet-relay-ble/etc/plank-tablet-relay-ble/relay.conf
 	install -D -m 0644 debian/sodium-source/LICENSE debian/plank-tablet-relay-ble/usr/share/doc/plank-tablet-relay-ble/libsodium-LICENSE
 

@@ -1,9 +1,7 @@
 [Unit]
-Description=PLANK Bluetooth Tablet Relay
-Wants=bluetooth.service
-Requires=plank-tablet-relay-hardware.service
-After=bluetooth.service plank-tablet-relay-hardware.service
-PartOf=bluetooth.service
+Description=PLANK Network and Bluetooth Tablet Relay
+Wants=bluetooth.service avahi-daemon.service plank-tablet-relay-hardware.service
+After=bluetooth.service avahi-daemon.service plank-tablet-relay-hardware.service
 StartLimitIntervalSec=0
 
 [Service]
@@ -29,7 +27,7 @@ ProtectKernelLogs=yes
 ProtectControlGroups=yes
 RestrictRealtime=yes
 RestrictNamespaces=yes
-RestrictAddressFamilies=AF_UNIX AF_BLUETOOTH
+RestrictAddressFamilies=AF_UNIX AF_BLUETOOTH AF_INET AF_INET6
 LockPersonality=yes
 DevicePolicy=closed
 DeviceAllow=char-input r

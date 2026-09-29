@@ -13,5 +13,8 @@
     <key>NSHighResolutionCapable</key><true/>
     <key>NSBluetoothAlwaysUsageDescription</key>
     <string>Find your tablet relay, approve this headset, and display live tablet readings.</string>
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>Find your tablet relay on the local network, set up your tablet, and receive encrypted pen readings.</string>
+    <key>NSBonjourServices</key><array><string>_plank-tablet._tcp</string></array>
     <key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>
 </dict></plist>

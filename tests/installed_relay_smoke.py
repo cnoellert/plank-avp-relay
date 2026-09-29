@@ -16,11 +16,18 @@ sys.path.insert(0, str(private))
 from ble_lab.config import read_settings
 from ble_lab.native import Native
 from ble_lab.bluez import Server  # Check installed imports and dependencies.
+from ble_lab.network import TCPServer
+from ble_lab.discovery import Publisher
 from ble_lab.hardware import prepare_firmware
 from ble_lab.host_setup import configure_armbian
 
 settings = read_settings(root / 'etc/plank-tablet-relay-ble/relay.conf')
 assert not settings.exclusive_adapter and not settings.disable_controller_address_resolution
+assert settings.tcp_enabled and settings.tcp_port == 28991
+assert (root / 'usr/share/plank-tablet-relay-ble/version').read_text().strip() == '0.3.0'
+unit = (root / 'usr/lib/systemd/system/plank-tablet-relay-ble.service').read_text()
+assert 'avahi-daemon.service' in unit and 'AF_INET AF_INET6' in unit
+assert 'PartOf=bluetooth.service' not in unit
 assert (private / 'plank-tablet-relay-hardware').is_file()
 assert (private / 'plank-tablet-relay-configure-host').is_file()
 assert (root / 'usr/lib/systemd/system/plank-tablet-relay-hardware.service').is_file()

@@ -23,6 +23,8 @@ class Settings:
     name: str = field(default_factory=hostname_name)
     exclusive_adapter: bool = False
     disable_controller_address_resolution: bool = False
+    tcp_enabled: bool = True
+    tcp_port: int = 28991
 
 
 def read_settings(path):
@@ -39,7 +41,11 @@ def read_settings(path):
         tablet=values.get('tablet', '').strip(),
         name=values.get('name', hostname_name()).strip(),
         exclusive_adapter=values.getboolean('exclusive_adapter', False),
-        disable_controller_address_resolution=values.getboolean('disable_controller_address_resolution', False))
+        disable_controller_address_resolution=values.getboolean('disable_controller_address_resolution', False),
+        tcp_enabled=values.getboolean('tcp_enabled', True),
+        tcp_port=values.getint('tcp_port', 28991))
+    if not 1024 <= settings.tcp_port <= 65535:
+        raise ValueError('tcp_port must be between 1024 and 65535')
     if not re.fullmatch(r'hci[0-9]+', settings.adapter):
         raise ValueError('adapter must be a Linux HCI name, such as hci0')
     if not 1 <= len(settings.name.encode('utf-8')) <= 26 or any(ord(c) < 32 for c in settings.name):

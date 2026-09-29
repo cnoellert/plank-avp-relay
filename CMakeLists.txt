@@ -1,5 +1,10 @@
 cmake_minimum_required(VERSION 3.20)
 project(plank_tablet_relay LANGUAGES C CXX)
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" PLANK_RELEASE_VERSION)
+if(NOT PLANK_RELEASE_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
+    message(FATAL_ERROR "VERSION must contain Major.Minor.Ancillary")
+endif()
+add_compile_definitions(PLTR_SOFTWARE_VERSION="${PLANK_RELEASE_VERSION}")
 
 enable_testing()
 add_library(plank_relay_protocol STATIC src/protocol.c src/session.c)
@@ -67,6 +72,11 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         target_compile_features(plank_ble_lab PRIVATE c_std_11)
         target_link_libraries(plank_ble_lab PRIVATE PkgConfig::SODIUM)
 
+        # Test-only initiator for real sockets against the new managed TCP path.
+        add_library(relay_network_test_client SHARED src/client_link.c)
+        target_link_libraries(relay_network_test_client PRIVATE plank_ble_lab PkgConfig::SODIUM)
+        target_include_directories(relay_network_test_client PRIVATE src)
+
         add_library(plank_relay_noise STATIC src/noise.c)
         target_include_directories(plank_relay_noise PUBLIC src)
         target_compile_features(plank_relay_noise PUBLIC c_std_11)
@@ -132,6 +142,9 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         target_link_libraries(button_pair_test PRIVATE plank_ble_lab plank_relay_client_pair plank_relay_client_link)
         add_test(NAME button_pair_test COMMAND button_pair_test)
         find_package(Python3 COMPONENTS Interpreter REQUIRED)
+        add_test(NAME network_relay_test COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/network_relay_test.py"
+            "$<TARGET_FILE:plank_ble_lab>" "$<TARGET_FILE:relay_network_test_client>")
         add_test(NAME ble_transport_test COMMAND "${Python3_EXECUTABLE}"
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/ble_transport_test.py")
         add_test(NAME ble_controller_test COMMAND "${Python3_EXECUTABLE}"

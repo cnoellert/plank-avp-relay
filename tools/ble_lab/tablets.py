@@ -134,7 +134,7 @@ class Tablets:
             if operation not in ('status', 'scan', 'pair', 'connect', 'select', 'remove', 'cancel'):
                 raise ValueError('Unknown tablet operation.')
             devices = self.backend.devices()
-            if self.owner and self.owner != owner:
+            if self.owner and self.owner != owner and operation != 'status':
                 raise ValueError('Tablet setup is already open on another connection.')
             if operation not in ('status', 'cancel') and not (authenticated or (enrolling and self.initial(devices))):
                 raise ValueError('Use an approved headset to manage tablets. Wake the saved tablet to approve a new headset, or use SSH recovery.')

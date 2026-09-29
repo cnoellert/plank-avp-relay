@@ -67,13 +67,15 @@ static int send_secure(PltrLink *link, uint16_t type, const uint8_t *payload,
 
 static int send_hello(PltrLink *link, uint8_t *out, size_t capacity,
                       size_t *written) {
-    uint8_t hello[18] = {0};
+    const char version[] = PLTR_SOFTWARE_VERSION;
+    _Static_assert(sizeof(version) <= 64, "Software version exceeds HELLO limit");
+    uint8_t hello[13 + sizeof(version) - 1] = {0};
     le16(hello, PLTR_VERSION);
     le16(hello + 2, PLTR_VERSION);
     hello[4] = link->role == PLTR_NOISE_INITIATOR ? 2 : 1;
     le32(hello + 8, link->local_features);
-    hello[12] = 5;
-    memcpy(hello + 13, "0.1.1", 5);
+    hello[12] = sizeof(version) - 1;
+    memcpy(hello + 13, version, sizeof(version) - 1);
     return send_secure(link, PLTR_HELLO, hello, sizeof(hello),
                        out, capacity, written);
 }

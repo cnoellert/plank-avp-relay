@@ -88,12 +88,11 @@ extension RelayPairingClient {
             onProgress(bootstrap.initialSetup ? "Opening secure tablet setup…" : "Restoring this headset’s saved authorization…")
         }
         guard privateKey.count == 32, identity.count == 32 else { throw RelaySetupError.invalidStoredKey }
-        let socket = RelayBLEConnection(identifier: address.bluetoothIdentifier,
-            channel: .relay, requireTabletSetup: true, onProgress: onProgress)
+        let socket = connection(address, onProgress: onProgress)
         let codec = privateKey.withUnsafeBytes { key in
             identity.withUnsafeBytes { relay in
                 pltr_client_link_create(key.bindMemory(to: UInt8.self).baseAddress,
-                    relay.bindMemory(to: UInt8.self).baseAddress, 1)
+                    relay.bindMemory(to: UInt8.self).baseAddress, address.linkType)
             }
         }
         guard let codec else { throw RelaySetupError.protocolError }
@@ -157,9 +156,8 @@ extension RelayPairingClient {
         }
     }
 
-    private func setupStatus(_ address: RelayAddress, onProgress: @escaping (String) -> Void) async throws -> TabletSetupStatus {
-        let socket = RelayBLEConnection(identifier: address.bluetoothIdentifier,
-            channel: .setup, requireTabletSetup: true, onProgress: onProgress)
+    func setupStatus(_ address: RelayAddress, onProgress: @escaping (String) -> Void) async throws -> TabletSetupStatus {
+        let socket = connection(address, channel: .setup, onProgress: onProgress)
         do {
             let status = try await bounded(socket: socket, seconds: 40) {
                 try await socket.connect()
@@ -188,7 +186,7 @@ extension RelayPairingClient {
         }
     }
 
-    private func managementFrames(_ socket: RelayBLEConnection, codec: OpaquePointer) async throws -> [Data] {
+    private func managementFrames(_ socket: any RelayByteConnection, codec: OpaquePointer) async throws -> [Data] {
         let data = try await receiveWithDeadline(socket)
         var frames: [Data] = [], offset = 0
         while offset < data.count {

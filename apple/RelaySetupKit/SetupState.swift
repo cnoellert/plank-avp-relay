@@ -20,17 +20,32 @@ public enum SetupActivity: Equatable, Sendable {
 public struct RelayAddress: Equatable, Sendable {
     public let bluetoothIdentifier: UUID
     public let bluetoothName: String
+    public let networkService: String?
+    public let networkDomain: String?
+    // Discovery is a hint. Every connection must prove the pinned identity.
+    public let advertisedKey: Data?
 
     public init(bluetoothIdentifier: UUID, name: String) {
         self.bluetoothIdentifier = bluetoothIdentifier
         bluetoothName = String(name.prefix(64))
+        networkService = nil; networkDomain = nil; advertisedKey = nil
     }
+
+    public init(service: String, domain: String, name: String, key: Data) {
+        bluetoothIdentifier = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
+        bluetoothName = String(name.prefix(64))
+        networkService = service; networkDomain = domain; advertisedKey = key
+    }
+
+    public var linkType: UInt8 { networkService == nil ? 1 : 2 }
+    public var transportName: String { networkService == nil ? "Bluetooth" : "Network" }
 
     public var description: String { bluetoothName }
 
     // Retain the existing account format so app updates preserve BLE trust.
     public var keychainAccount: String {
-        "relay-ble-v1:\(bluetoothIdentifier.uuidString.lowercased())"
+        if let advertisedKey { return "relay-network-v1:" + advertisedKey.map { String(format: "%02x", $0) }.joined() }
+        return "relay-ble-v1:\(bluetoothIdentifier.uuidString.lowercased())"
     }
 }
 
@@ -57,6 +72,11 @@ public struct SetupState: Equatable, Sendable {
         activity = trusted ? .paired : .idle
         step = trusted ? .complete : .tablet
         return true
+    }
+
+    public mutating func useAddress(_ address: RelayAddress, operation: UUID) {
+        guard self.operation == operation else { return }
+        self.address = address
     }
 
     public mutating func beginCheck() -> UUID? {

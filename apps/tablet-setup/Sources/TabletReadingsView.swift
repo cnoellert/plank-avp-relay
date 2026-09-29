@@ -2,14 +2,14 @@
 import SwiftUI
 import RelaySetupKit
 
-struct BluetoothRelayPicker: View {
-    @ObservedObject var scanner: RelayBLEScanner
+struct RelayPicker: View {
+    @ObservedObject var scanner: RelayScanner
     @Environment(\.scenePhase) private var scenePhase
-    let selected: (BluetoothRelay) -> Void
+    let selected: (AvailableRelay) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Find the relay beside your tablet.")
+            Text("Find a relay on your network or nearby over Bluetooth.")
             Button(scanner.scanning ? "Scan again" : "Scan for relays") { scanner.start() }
                 .buttonStyle(.borderedProminent)
             Text(scanner.message).font(.callout).foregroundStyle(.secondary)
@@ -17,7 +17,10 @@ struct BluetoothRelayPicker: View {
                 Button { selected(relay) } label: {
                     HStack {
                         Image(systemName: "antenna.radiowaves.left.and.right")
-                        Text(relay.name)
+                        VStack(alignment: .leading) {
+                            Text(relay.name)
+                            Text(relay.transports).font(.caption).foregroundStyle(.secondary)
+                        }
                         Spacer()
                         Image(systemName: "chevron.right")
                     }.padding(10)
