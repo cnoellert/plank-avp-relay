@@ -1,7 +1,8 @@
 [Unit]
 Description=PLANK Bluetooth Tablet Relay
 Wants=bluetooth.service
-After=bluetooth.service
+Requires=plank-tablet-relay-hardware.service
+After=bluetooth.service plank-tablet-relay-hardware.service
 PartOf=bluetooth.service
 StartLimitIntervalSec=0
 

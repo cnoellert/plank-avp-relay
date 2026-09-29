@@ -37,7 +37,7 @@ add_library(RelaySetupKit STATIC
     "${RELAY_ROOT}/apple/RelaySetupKit/TabletReadings.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayPairingClient.swift")
 target_link_libraries(RelaySetupKit PUBLIC CRelayProtocol
-    "-framework Foundation" "-framework Security" "-framework Network" "-framework Combine"
+    "-framework Foundation" "-framework Security" "-framework Combine"
     "-framework CoreBluetooth")
 target_compile_options(RelaySetupKit PRIVATE -strict-concurrency=complete)
 set_target_properties(CRelayProtocol RelaySetupKit PROPERTIES
@@ -107,16 +107,6 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     add_executable(setup-preview Sources/PreviewMain.swift Sources/TabletSetupView.swift Sources/TabletReadingsView.swift)
     target_include_directories(setup-preview PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
     target_link_libraries(setup-preview PRIVATE RelaySetupKit "-framework SwiftUI" "-framework AppKit")
-    add_executable(pairing-socket-fixture "${RELAY_ROOT}/apple/Tests/pairing_socket_fixture.c"
-        "${RELAY_ROOT}/src/pair_wire.c" "${RELAY_ROOT}/src/pairing.c" "${RELAY_ROOT}/src/identity.c")
-    target_include_directories(pairing-socket-fixture PRIVATE "${PLANK_SODIUM_PREFIX}/include")
-    target_compile_definitions(pairing-socket-fixture PRIVATE _DARWIN_C_SOURCE)
-    target_link_libraries(pairing-socket-fixture PRIVATE CRelayProtocol)
-    add_executable(setup-network-tests "${RELAY_ROOT}/apple/Tests/PairingNetworkTests.swift")
-    target_include_directories(setup-network-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
-    target_link_libraries(setup-network-tests PRIVATE RelaySetupKit)
-    add_test(NAME setup-network-tests COMMAND setup-network-tests $<TARGET_FILE:pairing-socket-fixture>)
-    set_tests_properties(setup-network-tests PROPERTIES TIMEOUT 40)
     add_executable(setup-state-tests
         "${RELAY_ROOT}/apple/RelaySetupKit/SetupState.swift"
         "${RELAY_ROOT}/apple/Tests/SetupStateTests.swift")

@@ -47,6 +47,36 @@ systemctl status plank-tablet-relay-ble
 journalctl -u plank-tablet-relay-ble -b
 ```
 
+### USB radio preparation
+
+The package installs `usb-modeswitch` and its udev rules. The dongle may be
+present during installation or plugged in later. Realtek `0bda:1a2b` driver
+CD-ROM devices switch into radio mode at installation/boot, and udev handles
+later hotplug. Bluetooth firmware is prepared before switching or starting the
+relay; no manual eject command or firmware download is needed.
+
+The package includes the unmodified RTL8851BU Bluetooth firmware and config
+from a pinned linux-firmware commit, with SHA-256 checks and its Realtek
+redistribution license. When the OS lacks a file, preparation creates a fallback
+link under `/lib/firmware/updates/rtl_bt/` to the bundled copy. Existing OS or
+administrator firmware, including compressed files, takes precedence. If an OS
+update later supplies a file, the next preparation removes its fallback link.
+Removal deletes only links still owned by this package; bonds, identities and
+other firmware remain untouched. It never downloads firmware during install.
+
+On the tested `3625:010b` RTL8851BU (and the Realtek `0bda:b851` identity), a
+previously failed firmware probe can be retried by rebinding just the Bluetooth
+interface. Initialized controllers are never rebound, even when powered off.
+Other Bluetooth adapters and the dongle's Wi-Fi interface are not reset. This
+requires an existing kernel `btusb`/`btrtl` driver supporting the chipset; the
+package does not install a replacement kernel or USB Wi-Fi driver.
+
+The helper runs as `plank-tablet-relay-hardware.service` before the relay. Inspect
+its journal if hardware preparation fails. Dedicated-adapter management also
+supports Python before 3.14 by using Linux's native HCI control-channel address.
+Ubuntu 26.04 remains the build/installation target; operation on the test
+Armbian/Debian image is an additional hardware check, not universal Debian support.
+
 Installation enables and starts the service. Defaults do not take ownership
 of the adapter or apply chipset workarounds. Power the adapter on before use,
 or explicitly set `exclusive_adapter = true` on a dedicated relay. That option

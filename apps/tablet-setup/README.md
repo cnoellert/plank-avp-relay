@@ -7,8 +7,8 @@ Rust media transport is required. The app is **not** a full PLANK Client.
 The app opens directly to relay discovery, with a shortcut to connect to a
 saved relay. There are no Local or Simulation tabs. Connection tests and
 pairing management are in expandable sections.
-Synthetic state and input remain available only to developer tests and the
-separate offscreen preview executable.
+Synthetic readout fixtures exist only in the separate offscreen preview executable.
+The shipping app has no simulation workflow or TCP client.
 
 ## Bluetooth pairing and readings
 
@@ -46,8 +46,7 @@ existing CPace exchange with an explicitly public constant and a local
 physical gate. The protocol and limits are documented in the lab guide.
 
 This is a coalesced diagnostic readout, not raw-HID forwarding to a workstation
-or a system-wide visionOS pointer. Legacy TCP pairing remains under
-**Advanced: network relay**.
+or a system-wide visionOS pointer. Discovery and setup use Bluetooth only.
 
 ## Direct tablet experiment
 
@@ -57,36 +56,23 @@ input reached the app, and the tablet was not found in its BLE scan. Build 6
 removes that unsuccessful experiment and focuses on the verified Linux relay
 path. Its source remains in Git history at `606d5bd`.
 
-## Existing network/USB pairing
+## Saved pairing
 
-Explicit Live mode uses the current relay's real C CPace/Noise protocol and OS
-Keychain. Enter the relay address/port. The existing daemon must already have
-its manual `pair` window open; follow the root README as the service owner.
-The existing daemon still selects PTH-660 for pairing. The app does not silently
-relax that or pretend to detect other models on this legacy TCP path. The BLE lab instead requires a pen and at least one supported tablet button.
+Pairing and readings use the existing C CPace/Noise implementation and the app's
+Keychain namespace. Updates retain the Bluetooth account identifiers and Client
+key. **Forget local pairing** removes this app's trust for the selected relay;
+it does not remove the relay's approved Client key. A subsequent pairing still
+requires fresh tablet-button approval and cryptographic confirmation.
 
-Use the **physical tablet** for the displayed sequence in Live mode. Trust is
-stored only after the final cryptographic confirmation and after verifying
-that the operation was not canceled. The test app uses a separate bundle ID
-and Keychain namespace: it does not reuse or overwrite full-Client identities.
-Pairing does not immediately create a tablet/Host session.
+Stop readings before using **Check saved pairing** or **Test Bluetooth
+connection**. Cancel, interruption and backgrounding preserve saved identities;
+returning to the app does not silently retry an operation. No sequence, private
+key or raw tablet report is logged.
 
-After pairing, the relay must return to `serve` mode for **Check connection**.
-The check authenticates the saved key through Noise, reads the verified version
-and closes. It never sends SESSION_READY, claims a tablet or invents Host
-feature bits. The relay has one connection slot; do not check while a full
-Client uses it. **Forget local pairing** removes only this app's local trust,
-not the relay's approved Client key. Relay-side revocation is a future feature.
-An already-approved Client can repeat the full pairing exchange after local
-forgetting, an interrupted final confirmation, or a changed Bluetooth discovery
-identifier. Fresh local approval and cryptographic confirmation are still
-required. The relay retains its identity and the existing Client approval;
-re-approval does not consume another allowlist slot. Do not forget working live
-trust merely to explore the UI; use the developer preview for that exercise.
-
-The app cancels an operation when it becomes inactive. Returning does not
-silently retry pairing; saved identities survive and the user may retry.
-No sequence, private key or raw tablet report is logged.
+The upstream TCP/raw-HID workstation relay remains a separate component. The
+Test app no longer includes its address/port controls, TCP client, manual
+five-key flow, or local-network permission request. Shared protocol and
+cryptographic code remain available to that upstream component.
 
 ## Build
 
@@ -106,9 +92,10 @@ fingerprint under `build/tablet-setup/dependencies`. Jobs default to4; override
 with positive `PLANK_BUILD_JOBS`. CMake/CTest paths may be supplied through
 `CMAKE_COMMAND`/`CTEST_COMMAND`. `PLANK_TABLET_BUILD_ROOT` relocates all output.
 The macOS build also runs pure Swift state and actual C protocol/crypto tests.
-Loopback tests exercise the real Swift networking adapter against the C pairing
-responder: fragmented records, saved-identity verification, wrong identity,
-wrong sequence and cancellation. They never access devices or the app Keychain.
+Workflow tests cover canceled/stale operations, retained Bluetooth Keychain account
+identifiers, observation and the distinction between byte echo and saved trust.
+Native C tests cover the shared pairing, framing and Noise implementation.
+These tests do not access the app Keychain or Bluetooth devices.
 Existing Linux daemon builds and service behavior are unchanged.
 
 Generated Xcode projects live in `build/tablet-setup/{simulator,device,macos}`.

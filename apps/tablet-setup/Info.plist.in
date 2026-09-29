@@ -10,8 +10,6 @@
     <key>CFBundleVersion</key><string>${PLANK_SETUP_BUILD_NUMBER}</string>
     <key>CFBundleDevelopmentRegion</key><string>en</string>
     <key>PLANKSetupVersion</key><string>${PLANK_SETUP_VERSION} (${PLANK_SETUP_BUILD_NUMBER})</string>
-    <key>NSLocalNetworkUsageDescription</key>
-    <string>Connect to the tablet relay you select by network address.</string>
     <key>NSHighResolutionCapable</key><true/>
     <key>NSBluetoothAlwaysUsageDescription</key>
     <string>Find your tablet relay, approve this headset, and display live tablet readings.</string>

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Offscreen macOS preview: simulation only, no capture/TCC or device access.
+// Offscreen macOS preview fixtures; no capture/TCC or device access.
 import AppKit
 import SwiftUI
 import RelaySetupKit
@@ -12,23 +12,12 @@ enum SetupPreview {
         _ = NSApplication.shared
         let directory = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        for page in ["relay", "usb", "bluetooth", "authorize", "complete", "readings", "offline"] {
-            let setup = SetupCoordinator(mode: .simulation)
-            if page != "relay" { setup.selectDemoRelay() }
-            if page == "bluetooth" {
-                setup.chooseConnection(.bluetooth)
-                setup.selectBluetoothTablet()
-            }
-            if page == "authorize" || page == "complete" {
-                setup.preparePairing()
-                setup.startPairing()
-            }
-            if page == "complete" {
-                for _ in 0..<3 { setup.pressPreviewButton() }
-            }
-            if page == "authorize" { setup.pressPreviewButton() }
+        for page in ["relay", "authorize", "readings", "offline"] {
             let content: AnyView
-            if page == "readings" || page == "offline" {
+            if page == "authorize" {
+                content = AnyView(ButtonApprovalView(approval:
+                    ButtonApproval(tabletReady: true, presses: 1, secondsRemaining: 45)).padding(30))
+            } else if page == "readings" || page == "offline" {
                 var sample = Data(repeating: 0, count: 80)
                 sample[0] = 1; sample[1] = page == "offline" ? 0 : 7
                 sample[2] = 4; sample[3] = 1 // Includes a ninth button.
@@ -41,7 +30,7 @@ enum SetupPreview {
                     Text("Input readout preview — synthetic data").font(.title2)
                     TabletReadingsView(readings: try! TabletReadings(data: sample), count: 120)
                 }.padding(30))
-            } else { content = AnyView(TabletSetupView(setup: setup)) }
+            } else { content = AnyView(TabletSetupView()) }
             let view = content
                 .frame(width: 820, height: 820)
                 .environment(\.colorScheme, .dark)

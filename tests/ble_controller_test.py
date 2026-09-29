@@ -1,4 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
+import ctypes
+import errno
 import socket
 import struct
 import sys
@@ -7,7 +9,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
-from ble_lab.controller import clear_advertisements, disable_address_resolution
+from ble_lab.controller import clear_advertisements, disable_address_resolution, bind_control, controller_indexes
 
 
 class ControllerTests(unittest.TestCase):
@@ -54,14 +56,16 @@ class ControllerTests(unittest.TestCase):
     def clear(self, events):
         channel = MagicMock()
         channel.recv.side_effect = events
-        with patch('ble_lab.controller.socket.socket') as factory:
+        with patch('ble_lab.controller.socket.socket') as factory, \
+                patch('ble_lab.controller.bind_control') as bind:
             factory.return_value.__enter__.return_value = channel
             clear_advertisements('hci2')
+            bind.assert_called_once_with(channel)
         return channel
 
     def test_fresh_controller_does_not_remove_nonexistent_advertisements(self):
         channel = self.clear([self.management_reply(0x3d, bytes.fromhex('ff0000001f1f0100'))])
-        channel.bind.assert_called_once_with((0xffff, 3))
+        channel.bind.assert_not_called()
         channel.sendall.assert_called_once_with(bytes.fromhex('3d0002000000'))
 
     def test_orphaned_instance_removed_after_valid_matching_reply(self):
@@ -80,6 +84,41 @@ class ControllerTests(unittest.TestCase):
                        [self.management_reply(0x3d, bytes.fromhex('ff0000001f1f0101'))]):
             with self.subTest(events=events), self.assertRaises((RuntimeError, TimeoutError)):
                 self.clear(events)
+
+    def test_native_control_bind_has_exact_linux_abi_on_older_python(self):
+        channel = MagicMock()
+        channel.fileno.return_value = 17
+        with patch('ble_lab.controller.ctypes.CDLL') as library:
+            bind = library.return_value.bind
+            def capture(fd, pointer, size):
+                self.assertEqual(fd, 17)
+                self.assertEqual(size, 6)
+                self.assertEqual(ctypes.string_at(pointer, size),
+                    struct.pack('=HHH', socket.AF_BLUETOOTH, 0xffff, 3))
+                return 0
+            bind.side_effect = capture
+            bind_control(channel)
+        channel.bind.assert_not_called()
+
+    def test_native_bind_failure_preserves_errno(self):
+        with patch('ble_lab.controller.ctypes.CDLL') as library, \
+                patch('ble_lab.controller.ctypes.get_errno', return_value=errno.EACCES):
+            library.return_value.bind.return_value = -1
+            with self.assertRaises(OSError) as raised:
+                bind_control(MagicMock())
+        self.assertEqual(raised.exception.errno, errno.EACCES)
+
+    def test_kernel_index_list_is_validated(self):
+        with patch('ble_lab.controller.socket.socket'), patch('ble_lab.controller.bind_control'), \
+                patch('ble_lab.controller.management_command') as command:
+            command.return_value = bytes.fromhex('020000000200')
+            self.assertEqual(controller_indexes(), {0, 2})
+            command.return_value = bytes.fromhex('0000')
+            self.assertEqual(controller_indexes(), set())
+            for invalid in (b'', bytes.fromhex('0100'), bytes.fromhex('00000000')):
+                command.return_value = invalid
+                with self.assertRaisesRegex(RuntimeError, 'Malformed'):
+                    controller_indexes()
 
 
 if __name__ == '__main__':

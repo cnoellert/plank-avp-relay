@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Explicit lab workaround for controller private-address resolution failures."""
+import ctypes
+import os
 import socket
 import struct
 import time
@@ -12,6 +14,40 @@ def adapter_index(adapter):
     if index >= 0xffff:
         raise ValueError('HCI adapter index is out of range')
     return index
+
+
+class _SockaddrHCI(ctypes.Structure):
+    _fields_ = [('family', ctypes.c_ushort), ('device', ctypes.c_ushort),
+                ('channel', ctypes.c_ushort)]
+
+
+def bind_control(channel):
+    """Bind Linux HCI_CHANNEL_CONTROL, including on Python before 3.14.
+
+    Older Python socket.bind only accepts a device, silently defaulting to the
+    raw channel. Use the kernel sockaddr_hci ABI explicitly; never fall back to
+    sending management commands on a raw HCI channel.
+    """
+    address = _SockaddrHCI(socket.AF_BLUETOOTH, 0xffff, 3)
+    bind = ctypes.CDLL(None, use_errno=True).bind
+    bind.argtypes = (ctypes.c_int, ctypes.POINTER(_SockaddrHCI), ctypes.c_uint)
+    bind.restype = ctypes.c_int
+    if bind(channel.fileno(), ctypes.byref(address), ctypes.sizeof(address)) != 0:
+        error = ctypes.get_errno()
+        raise OSError(error, os.strerror(error))
+
+
+def controller_indexes():
+    """Return initialized kernel controllers, without changing their state."""
+    with socket.socket(socket.AF_BLUETOOTH, socket.SOCK_RAW, socket.BTPROTO_HCI) as channel:
+        bind_control(channel)
+        result = management_command(channel, 0xffff, 0x0003)
+    if len(result) < 2:
+        raise RuntimeError('Malformed controller index list')
+    count, = struct.unpack_from('<H', result)
+    if len(result) != 2 + count * 2:
+        raise RuntimeError('Malformed controller index list')
+    return set(struct.unpack_from(f'<{count}H', result, 2))
 
 
 def management_command(channel, index, opcode, parameters=b''):
@@ -56,7 +92,7 @@ def clear_advertisements(adapter):
     # Avoid btmgmt's interactive shell: it can wait forever with stdin=/dev/null.
     # https://github.com/bluez/bluez/wiki/MGMT#read-advertising-features
     with socket.socket(socket.AF_BLUETOOTH, socket.SOCK_RAW, socket.BTPROTO_HCI) as channel:
-        channel.bind((0xffff, 3))  # HCI_DEV_NONE, HCI_CHANNEL_CONTROL.
+        bind_control(channel)
         features = management_command(channel, index, 0x003d)
         if len(features) < 8 or len(features) != 8 + features[7] or features[7] > features[6]:
             raise RuntimeError('Malformed advertising feature response')

@@ -21,7 +21,7 @@ struct TabletSetupView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     Text(setup.state.activity == .testingBluetooth ? "Test Bluetooth connection" :
-                         setup.state.step == .authorize && setup.state.usesButtonApproval &&
+                         setup.state.step == .authorize &&
                          setup.state.busy && setup.approval == nil ? "Connect to your relay" :
                          setup.state.step.title).font(.largeTitle.bold())
                     if setup.state.activity == .testingBluetooth {
@@ -35,7 +35,7 @@ struct TabletSetupView: View {
                         case .complete: completePage
                         }
                     }
-                    if setup.state.mode == .live && setup.state.address?.bluetoothIdentifier != nil &&
+                    if setup.state.address != nil &&
                         setup.state.activity != .testingBluetooth {
                         Divider()
                         DisclosureGroup("Connection diagnostics") {
@@ -78,7 +78,7 @@ struct TabletSetupView: View {
         .confirmationDialog("Forget this relay on this app?", isPresented: $confirmForget) {
             Button("Forget local pairing", role: .destructive) { setup.forget() }
         } message: {
-            Text("This removes this app's saved relay identity. The relay still retains its approval; it may need to be removed there before pairing again.")
+            Text("This removes this app's saved relay identity. Pairing again requires fresh approval on the tablet.")
         }
     }
 
@@ -96,60 +96,31 @@ struct TabletSetupView: View {
                 Divider()
             }
             BluetoothRelayPicker(scanner: setup.scanner, selected: setup.selectBluetoothRelay)
-            DisclosureGroup("Advanced: network relay") {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("For the legacy USB relay service.").font(.callout).foregroundStyle(.secondary)
-                    TextField("Relay hostname or IP address", text: $setup.host)
-                        .textFieldStyle(.roundedBorder).autocorrectionDisabled()
-                    TextField("TCP port", text: $setup.port).textFieldStyle(.roundedBorder).frame(width: 160)
-                    Button("Continue") { setup.selectRelay() }
-                }.padding(.top, 12)
-            }
+
         }
     }
 
     private var tabletPage: some View {
         VStack(alignment: .leading, spacing: 18) {
             LabeledContent("Relay", value: setup.state.address?.description ?? "")
-            if setup.state.usesButtonApproval {
-                Text("Keep your tablet connected to the relay. Tap Pair, then press and release its Home or center button three times.")
-                Text("If your tablet has no Home or center button, use the same tablet button for all three presses.")
-                    .font(.callout).foregroundStyle(.secondary)
-                Button("Pair") { setup.pairSelectedRelay() }.buttonStyle(.borderedProminent)
-            } else {
-                Text("Connect the tablet by USB. This network relay uses the existing five-ExpressKey pairing procedure; its operator must start pairing on the relay first.")
-                Button("Pair") { setup.pairSelectedRelay() }.buttonStyle(.borderedProminent)
-            }
+            Text("Keep your tablet connected to the relay. Tap Pair, then press and release its Home or center button three times.")
+            Text("If your tablet has no Home or center button, use the same tablet button for all three presses.")
+                .font(.callout).foregroundStyle(.secondary)
+            Button("Pair") { setup.pairSelectedRelay() }.buttonStyle(.borderedProminent)
         }
     }
 
     @ViewBuilder private var authorizePage: some View {
-        if setup.state.usesButtonApproval {
-            if setup.state.busy {
-                if let approval = setup.approval {
-                    ButtonApprovalView(approval: approval)
-                } else {
-                    ProgressView("Opening the relay connection…")
-                    Text("Wait for the three numbered circles before pressing the tablet button.")
-                }
+        if setup.state.busy {
+            if let approval = setup.approval {
+                ButtonApprovalView(approval: approval)
             } else {
-                Text("Tap Pair to start a new approval request.")
-                Button("Pair") { setup.startPairing() }.buttonStyle(.borderedProminent)
+                ProgressView("Opening the relay connection…")
+                Text("Wait for the three numbered circles before pressing the tablet button.")
             }
         } else {
-            if setup.state.code.isEmpty {
-                Button("Generate pairing sequence") { setup.startPairing() }.buttonStyle(.borderedProminent)
-            } else {
-                Text("Press and release the five displayed ExpressKeys on the tablet, in order.")
-                HStack(spacing: 16) {
-                    ForEach(Array(setup.state.code.enumerated()), id: \.offset) { _, digit in
-                        Text(String(digit)).font(.system(size: 38, weight: .semibold, design: .rounded))
-                            .frame(width: 68, height: 72)
-                            .background(.blue.opacity(0.18), in: RoundedRectangle(cornerRadius: 14))
-                    }
-                }
-                ProgressView("Waiting for the relay to verify the sequence…")
-            }
+            Text("Tap Pair to start a new approval request.")
+            Button("Pair") { setup.startButtonApproval() }.buttonStyle(.borderedProminent)
         }
     }
 
@@ -158,23 +129,19 @@ struct TabletSetupView: View {
             Label("Pairing saved", systemImage: "checkmark.shield.fill")
                 .font(.title2).foregroundStyle(.green)
             LabeledContent("Relay", value: setup.state.address?.description ?? "")
-            if setup.state.address?.bluetoothIdentifier != nil {
-                if setup.state.activity == .observing {
-                    Button(setup.state.connectionVerified ? "Stop readings" : "Cancel connection") {
-                        setup.cancel()
-                    }.buttonStyle(.borderedProminent)
-                } else {
-                    Button("Start live readings") { setup.startReadings() }
-                        .buttonStyle(.borderedProminent).disabled(setup.state.busy)
-                }
-                if let readings = setup.readings {
-                    TabletReadingsView(readings: readings, count: setup.readingCount)
-                } else if setup.state.activity == .observing {
-                    Text("Connecting and verifying the saved relay identity…")
-                        .font(.callout).foregroundStyle(.secondary)
-                }
+            if setup.state.activity == .observing {
+                Button(setup.state.connectionVerified ? "Stop readings" : "Cancel connection") {
+                    setup.cancel()
+                }.buttonStyle(.borderedProminent)
             } else {
-                Text("Start serve mode on the network relay, then check the saved connection.")
+                Button("Start live readings") { setup.startReadings() }
+                    .buttonStyle(.borderedProminent).disabled(setup.state.busy)
+            }
+            if let readings = setup.readings {
+                TabletReadingsView(readings: readings, count: setup.readingCount)
+            } else if setup.state.activity == .observing {
+                Text("Connecting and verifying the saved relay identity…")
+                    .font(.callout).foregroundStyle(.secondary)
             }
             DisclosureGroup("Manage pairing") {
                 HStack {

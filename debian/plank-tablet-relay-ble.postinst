@@ -1,0 +1,6 @@
+#!/bin/sh
+set -e
+if [ "$1" = configure ]; then
+    /usr/lib/plank-tablet-relay-ble/plank-tablet-relay-hardware --firmware-only
+fi
+#DEBHELPER#

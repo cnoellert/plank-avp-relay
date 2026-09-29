@@ -94,7 +94,7 @@ jobs:
           python3 tests/installed_relay_smoke.py /
           dpkg --verify plank-tablet-relay-ble
           readelf -h /usr/lib/plank-tablet-relay-ble/libplank_ble_lab.so | tee artifacts/logs/elf-header.log
-          systemd-analyze verify /lib/systemd/system/plank-tablet-relay-ble.service
+          systemd-analyze verify /lib/systemd/system/plank-tablet-relay-ble.service /lib/systemd/system/plank-tablet-relay-hardware.service
           cd "$(dirname "${package[0]}")"
           sha256sum -c SHA256SUMS
       - name: Save packages and build logs
@@ -151,7 +151,11 @@ jobs:
           plank-tablet-relay-ble --check-config
           python3 tests/installed_relay_smoke.py /
           dpkg --verify plank-tablet-relay-ble
-          systemd-analyze verify /lib/systemd/system/plank-tablet-relay-ble.service
+          systemd-analyze verify /lib/systemd/system/plank-tablet-relay-ble.service /lib/systemd/system/plank-tablet-relay-hardware.service
+          test -L /lib/firmware/updates/rtl_bt/rtl8851bu_fw.bin
+          /usr/lib/plank-tablet-relay-ble/plank-tablet-relay-hardware --firmware-only
           apt-get remove -y plank-tablet-relay-ble
+          test ! -L /lib/firmware/updates/rtl_bt/rtl8851bu_fw.bin
+          test ! -L /lib/firmware/updates/rtl_bt/rtl8851bu_config.bin
           test ! -e /usr/lib/plank-tablet-relay-ble/ble_lab
           test ! -e /usr/lib/plank-tablet-relay-ble/libplank_ble_lab.so

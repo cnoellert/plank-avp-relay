@@ -2,7 +2,6 @@
 // Uses the same C CPace/Noise implementation as the relay. The session framing
 // and Keychain approach follow cnoellert's Vision Pro prototype; see NOTICE.md.
 import Foundation
-import Network
 import Security
 import CRelayProtocol
 
@@ -24,11 +23,11 @@ public enum RelaySetupError: LocalizedError, Sendable {
 
     public var errorDescription: String? {
         switch self {
-        case .invalidState: "Choose a relay and prepare its pairing window first."
+        case .invalidState: "Choose a Bluetooth relay first."
         case .storage: "The app could not access its pairing keys in Keychain."
         case .invalidStoredKey: "The saved identity is invalid. It was not replaced."
-        case .random: "The system could not generate a secure pairing sequence."
-        case .protocolError: "Pairing was not verified. Check the key sequence and the relay's pairing window."
+        case .random: "The system could not generate secure random data."
+        case .protocolError: "The relay exchange could not be verified. Try connecting again."
         case let .network(message): "Relay connection failed: \(message)"
         case .timedOut: "The relay did not complete the operation in time. You can try again."
         case .identityChanged: "This address already has a different trusted relay. Forget it explicitly before pairing a replacement."
@@ -106,27 +105,8 @@ public final class RelayKeyStore {
         return Data(bytes)
     }
 
-    public static func newSequence() throws -> [UInt8] {
-        // Eight symbols divides 256 exactly, so this has no modulo bias.
-        try randomBytes(count: 5).map { ($0 & 7) + 1 }
-    }
 }
 
-private final class ConnectionWaiter: @unchecked Sendable {
-    private let lock = NSLock()
-    private var continuation: CheckedContinuation<Void, Error>?
-    init(_ continuation: CheckedContinuation<Void, Error>) { self.continuation = continuation }
-    func finish(_ result: Result<Void, Error>) {
-        lock.lock()
-        let pending = continuation
-        continuation = nil
-        lock.unlock()
-        pending?.resume(with: result)
-    }
-}
-
-// NWConnection supports calls from any thread; one consumer issues bounded,
-// sequential reads/writes. No mutable application state lives on its queue.
 @MainActor
 protocol RelayByteConnection: AnyObject, Sendable {
     func connect() async throws
@@ -135,77 +115,18 @@ protocol RelayByteConnection: AnyObject, Sendable {
     nonisolated func cancel()
 }
 
-private final class RelaySocket: RelayByteConnection, @unchecked Sendable {
-    private let connection: NWConnection
-    private let queue = DispatchQueue(label: "la.instinctual.PLANK.TabletSetup.socket")
-
-    init(_ address: RelayAddress) {
-        connection = NWConnection(host: .init(address.host),
-                                  port: .init(rawValue: address.port)!, using: .tcp)
-    }
-
-    func connect() async throws {
-        try Task.checkCancellation()
-        try await withCheckedThrowingContinuation { continuation in
-            let waiter = ConnectionWaiter(continuation)
-            connection.stateUpdateHandler = { state in
-                switch state {
-                case .ready: waiter.finish(.success(()))
-                case let .failed(error):
-                    waiter.finish(.failure(RelaySetupError.network(error.localizedDescription)))
-                case .cancelled: waiter.finish(.failure(CancellationError()))
-                default: break
-                }
-            }
-            connection.start(queue: queue)
-        }
-    }
-
-    func send(_ data: Data) async throws {
-        try Task.checkCancellation()
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            connection.send(content: data, completion: .contentProcessed { error in
-                if let error {
-                    continuation.resume(throwing: RelaySetupError.network(error.localizedDescription))
-                } else { continuation.resume() }
-            })
-        }
-    }
-
-    func receive() async throws -> Data {
-        try Task.checkCancellation()
-        return try await withCheckedThrowingContinuation { continuation in
-            connection.receive(minimumIncompleteLength: 1, maximumLength: 4096) { data, _, done, error in
-                if let error {
-                    continuation.resume(throwing: RelaySetupError.network(error.localizedDescription))
-                } else if let data, !data.isEmpty { continuation.resume(returning: data) }
-                else {
-                    continuation.resume(throwing: RelaySetupError.network(
-                        done ? "The relay closed the connection." : "No data was received."))
-                }
-            }
-        }
-    }
-
-    nonisolated func cancel() { connection.cancel() }
-}
-
 @MainActor
 public final class RelayPairingClient {
     public init() {}
 
-    private func connection(_ address: RelayAddress, onProgress: ((String) -> Void)? = nil) -> any RelayByteConnection {
-        if let identifier = address.bluetoothIdentifier {
-            return RelayBLEConnection(identifier: identifier, onProgress: onProgress)
-        }
-        return RelaySocket(address)
+    private func connection(_ address: RelayAddress, onProgress: ((String) -> Void)? = nil) -> RelayBLEConnection {
+        RelayBLEConnection(identifier: address.bluetoothIdentifier, onProgress: onProgress)
     }
 
     /// Tests only byte delivery over dedicated, unauthenticated echo channels.
     /// No pairing codec, Keychain access or tablet input is used or authorized.
     public func testBluetooth(address: RelayAddress, onProgress: @escaping (String) -> Void) async throws -> String {
-        guard let identifier = address.bluetoothIdentifier else { throw RelaySetupError.invalidState }
-        let socket = RelayBLEConnection(identifier: identifier, diagnostic: true, onProgress: onProgress)
+        let socket = RelayBLEConnection(identifier: address.bluetoothIdentifier, diagnostic: true, onProgress: onProgress)
         let result = try await bounded(socket: socket, seconds: 40) {
             try await socket.connect()
             var total = 0
@@ -239,37 +160,15 @@ public final class RelayPairingClient {
 
     /// Returns a verified key, but does not persist it. The caller checks its
     /// current operation token before committing trust, preventing stale success.
-    public func pair(address: RelayAddress, code: [UInt8], privateKey: Data) async throws -> Data {
-        guard code.count == 5, code.allSatisfy({ (1...8).contains($0) }) else {
-            throw RelaySetupError.invalidState
-        }
-        return try await pairExchange(address: address, code: code, privateKey: privateKey, onApproval: nil)
-    }
-
     public func pairByButton(address: RelayAddress, privateKey: Data,
                              onProgress: ((String) -> Void)? = nil,
                              onApproval: @escaping (ButtonApproval) -> Void) async throws -> Data {
-        guard address.bluetoothIdentifier != nil else { throw RelaySetupError.invalidState }
-        return try await pairExchange(address: address, code: nil, privateKey: privateKey,
-                                      onProgress: onProgress, onApproval: onApproval)
-    }
-
-    private func pairExchange(address: RelayAddress, code: [UInt8]?, privateKey: Data,
-                               onProgress: ((String) -> Void)? = nil,
-                               onApproval: ((ButtonApproval) -> Void)?) async throws -> Data {
         guard privateKey.count == 32 else { throw RelaySetupError.invalidState }
-        let digits = (code ?? []).map { $0 + 48 }
         let name = Array("PLANK Tablet Setup".utf8)
         let codec = privateKey.withUnsafeBytes { key in
-            digits.withUnsafeBufferPointer { sequence in
-                name.withUnsafeBufferPointer { label in
-                    if code == nil {
-                        return pltr_client_pair_create_button(key.bindMemory(to: UInt8.self).baseAddress,
-                            label.baseAddress, label.count)
-                    }
-                    return pltr_client_pair_create(key.bindMemory(to: UInt8.self).baseAddress,
-                                            sequence.baseAddress, label.baseAddress, label.count, address.linkType)
-                }
+            name.withUnsafeBufferPointer { label in
+                pltr_client_pair_create_button(key.bindMemory(to: UInt8.self).baseAddress,
+                    label.baseAddress, label.count)
             }
         }
         guard let codec else { throw RelaySetupError.protocolError }
@@ -296,7 +195,7 @@ public final class RelayPairingClient {
                             bytes.bindMemory(to: UInt8.self).baseAddress!.advanced(by: offset),
                             data.count - offset, &consumed, &output, output.count, &replySize, &relayKey)
                     }
-                    if result < 0 && code == nil { throw RelaySetupError.approvalFailed }
+                    if result < 0 { throw RelaySetupError.approvalFailed }
                     guard result >= 0, consumed > 0, consumed <= data.count - offset,
                           replySize <= output.count else { throw RelaySetupError.protocolError }
                     offset += consumed
@@ -306,7 +205,7 @@ public final class RelayPairingClient {
                         guard pltr_client_pair_approval_status(codec, &status) == 0 else {
                             throw RelaySetupError.protocolError
                         }
-                        onApproval?(ButtonApproval(tabletReady: status[1] == 1,
+                        onApproval(ButtonApproval(tabletReady: status[1] == 1,
                             presses: Int(status[2]), secondsRemaining: Int(status[4]) | Int(status[5]) << 8))
                     }
                     if result == 2 {
@@ -316,7 +215,7 @@ public final class RelayPairingClient {
                 }
             }
         }
-        if let bluetooth = socket as? RelayBLEConnection { await bluetooth.finishDisconnect() }
+        await socket.finishDisconnect()
         return result
     }
 
@@ -329,7 +228,7 @@ public final class RelayPairingClient {
         let codec = privateKey.withUnsafeBytes { client in
             relayKey.withUnsafeBytes { relay in
                 pltr_client_link_create(client.bindMemory(to: UInt8.self).baseAddress,
-                                        relay.bindMemory(to: UInt8.self).baseAddress, address.linkType)
+                                        relay.bindMemory(to: UInt8.self).baseAddress, 1)
             }
         }
         guard let codec else { throw RelaySetupError.protocolError }
@@ -381,7 +280,7 @@ public final class RelayPairingClient {
 
     public func observe(address: RelayAddress, privateKey: Data, relayKey: Data,
                         onSample: (TabletReadings) -> Void) async throws {
-        guard address.bluetoothIdentifier != nil, privateKey.count == 32, relayKey.count == 32 else {
+        guard privateKey.count == 32, relayKey.count == 32 else {
             throw RelaySetupError.invalidState
         }
         let codec = privateKey.withUnsafeBytes { client in

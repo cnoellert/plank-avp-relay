@@ -16,9 +16,18 @@ sys.path.insert(0, str(private))
 from ble_lab.config import read_settings
 from ble_lab.native import Native
 from ble_lab.bluez import Server  # Check installed imports and dependencies.
+from ble_lab.hardware import prepare_firmware
 
 settings = read_settings(root / 'etc/plank-tablet-relay-ble/relay.conf')
 assert not settings.exclusive_adapter and not settings.disable_controller_address_resolution
+assert (private / 'plank-tablet-relay-hardware').is_file()
+assert (root / 'usr/lib/systemd/system/plank-tablet-relay-hardware.service').is_file()
+with tempfile.TemporaryDirectory() as directory:
+    firmware = Path(directory)
+    prepare_firmware(firmware, root / 'usr/share/plank-tablet-relay-ble/firmware')
+    assert (firmware / 'updates/rtl_bt/rtl8851bu_fw.bin').stat().st_size == 49760
+    prepare_firmware(firmware, root / 'usr/share/plank-tablet-relay-ble/firmware', remove=True)
+    assert not (firmware / 'updates/rtl_bt/rtl8851bu_fw.bin').is_symlink()
 with tempfile.TemporaryDirectory() as directory:
     state = Path(directory)
     native = Native(library, state)

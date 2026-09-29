@@ -1,0 +1,10 @@
+{
+  "upstream": "https://gitlab.com/kernel-firmware/linux-firmware",
+  "commit": "d091548b0825f449581e4f58f94fb793d03cdf3e",
+  "firmware_version": "0x048ad230",
+  "config_source": "rtl_bt/rtl8761bu_config.bin (upstream WHENCE alias)",
+  "files": {
+    "rtl8851bu_fw.bin": "7fcf88c00b2548a5ff157102a35722db5e4be655dab1ce8d9bddb6df85f88f24",
+    "rtl8851bu_config.bin": "6c28a3f07c6a30ed208c4b64862a23f02b7d93543ea980edd24df16bab45095f"
+  }
+}

@@ -1,0 +1,10 @@
+[Unit]
+Description=Prepare PLANK Bluetooth relay hardware
+After=local-fs.target systemd-udevd.service
+Before=bluetooth.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/plank-tablet-relay-ble/plank-tablet-relay-hardware
+TimeoutStartSec=45
+RemainAfterExit=yes

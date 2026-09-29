@@ -15,6 +15,7 @@ with (contents / "Info.plist").open("rb") as source:
     info = plistlib.load(source)
 assert info["CFBundleIdentifier"] == "la.instinctual.PLANK.TabletSetup"
 assert info.get("NSBluetoothAlwaysUsageDescription")
+assert "NSLocalNetworkUsageDescription" not in info
 assert f'({info["CFBundleVersion"]})' in info["PLANKSetupVersion"]
 assert "visionos-tablet-setup" in info["PLANKSetupVersion"]
 with (resources / "PrivacyInfo.xcprivacy").open("rb") as source:
