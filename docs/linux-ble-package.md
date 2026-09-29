@@ -47,6 +47,15 @@ systemctl status plank-tablet-relay-ble
 journalctl -u plank-tablet-relay-ble -b
 ```
 
+On Armbian (detected by `/etc/armbian-release`), installation and upgrades set
+`GOVERNOR="powersave"` and `ENABLED="true"` in `/etc/default/cpufrequtils`.
+Other settings, including minimum/maximum frequency and boost, are preserved.
+The first changed file is backed up to
+`/var/backups/plank-tablet-relay/cpufrequtils.before-powersave`. Armbian applies
+the governor at boot; the installer does not restart its broader hardware
+optimization service. Package removal retains this host setting and backup.
+Non-Armbian hosts are unaffected.
+
 ### USB radio preparation
 
 The package installs `usb-modeswitch` and its udev rules. The dongle may be
@@ -156,7 +165,7 @@ The script snapshots that commit, verifies the pinned libsodium 1.0.22 archive,
 builds it statically with PIC, runs its tests and the relay's assertions-enabled
 tests, and creates `.deb`, `.buildinfo`, `.changes` and SHA-256 artifacts in
 `artifacts/deb/<software-version>/<distribution>-<version>/<architecture>/`,
-for example `artifacts/deb/0.2.0~visionos-tablet-setup.11/ubuntu-26.04/arm64/`.
+for example `artifacts/deb/0.2.0~visionos-tablet-setup.12/ubuntu-26.04/arm64/`.
 The software version comes from `debian/changelog`; the exact Git commit is
 retained in `source-commit.txt` and `provenance.json` with compiler/OS metadata.
 Build natively on the target architecture; the script

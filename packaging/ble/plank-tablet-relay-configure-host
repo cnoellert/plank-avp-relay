@@ -1,0 +1,7 @@
+#!/usr/bin/python3 -I
+# SPDX-License-Identifier: GPL-3.0-or-later
+import sys
+sys.dont_write_bytecode = True
+sys.path.insert(0, '/usr/lib/plank-tablet-relay-ble')
+from ble_lab.host_setup import main
+raise SystemExit(main())

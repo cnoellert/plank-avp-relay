@@ -154,8 +154,22 @@ jobs:
           systemd-analyze verify /lib/systemd/system/plank-tablet-relay-ble.service /lib/systemd/system/plank-tablet-relay-hardware.service
           test -L /lib/firmware/updates/rtl_bt/rtl8851bu_fw.bin
           /usr/lib/plank-tablet-relay-ble/plank-tablet-relay-hardware --firmware-only
+          # Exercise the actual postinst's Armbian-only branch without a board.
+          test ! -e /etc/armbian-release
+          printf 'GOVERNOR="performance"\nENABLED="false"\nMAX_SPEED=2016000\n' > /etc/default/cpufrequtils
+          cp /etc/default/cpufrequtils /tmp/cpufrequtils-before
+          apt-get install --reinstall -y "./${package[0]}"
+          cmp /etc/default/cpufrequtils /tmp/cpufrequtils-before
+          touch /etc/armbian-release
+          apt-get install --reinstall -y "./${package[0]}"
+          grep -qx 'GOVERNOR="powersave"' /etc/default/cpufrequtils
+          grep -qx 'ENABLED="true"' /etc/default/cpufrequtils
+          grep -qx 'MAX_SPEED=2016000' /etc/default/cpufrequtils
+          cmp /var/backups/plank-tablet-relay/cpufrequtils.before-powersave /tmp/cpufrequtils-before
           apt-get remove -y plank-tablet-relay-ble
           test ! -L /lib/firmware/updates/rtl_bt/rtl8851bu_fw.bin
           test ! -L /lib/firmware/updates/rtl_bt/rtl8851bu_config.bin
           test ! -e /usr/lib/plank-tablet-relay-ble/ble_lab
           test ! -e /usr/lib/plank-tablet-relay-ble/libplank_ble_lab.so
+          grep -qx 'GOVERNOR="powersave"' /etc/default/cpufrequtils
+          cmp /var/backups/plank-tablet-relay/cpufrequtils.before-powersave /tmp/cpufrequtils-before

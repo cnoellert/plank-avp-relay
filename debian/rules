@@ -30,6 +30,7 @@ override_dh_auto_install:
 	install -d debian/plank-tablet-relay-ble/usr/lib/plank-tablet-relay-ble/ble_lab
 	install -m 0644 tools/ble_lab/*.py debian/plank-tablet-relay-ble/usr/lib/plank-tablet-relay-ble/ble_lab/
 	install -m 0755 packaging/ble/plank-tablet-relay-hardware debian/plank-tablet-relay-ble/usr/lib/plank-tablet-relay-ble/
+	install -m 0755 packaging/ble/plank-tablet-relay-configure-host debian/plank-tablet-relay-ble/usr/lib/plank-tablet-relay-ble/
 	install -D -m 0644 packaging/ble/plank-tablet-relay-hardware.service debian/plank-tablet-relay-ble/usr/lib/systemd/system/plank-tablet-relay-hardware.service
 	install -d debian/plank-tablet-relay-ble/usr/share/plank-tablet-relay-ble/firmware
 	install -m 0644 packaging/ble/firmware/* debian/plank-tablet-relay-ble/usr/share/plank-tablet-relay-ble/firmware/

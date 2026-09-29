@@ -10,6 +10,55 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
 from ble_lab.hardware import prepare_firmware, switch_disks, recover_radios, initialized
+from ble_lab.host_setup import configure_armbian
+
+
+class ArmbianInstallationTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.config = self.root / 'etc/default/cpufrequtils'
+        self.config.parent.mkdir(parents=True)
+
+    def test_non_armbian_configuration_is_untouched(self):
+        self.assertFalse(configure_armbian(self.root))
+        self.assertFalse(self.config.exists())
+        self.config.write_text('GOVERNOR="performance"\nENABLED="false"\n')
+        original = self.config.read_bytes()
+        self.assertFalse(configure_armbian(self.root))
+        self.assertEqual(self.config.read_bytes(), original)
+        self.assertFalse((self.root / 'var').exists())
+
+    def test_armbian_preserves_other_settings_and_original_across_upgrades(self):
+        (self.root / 'etc/armbian-release').write_text('VENDOR="Armbian"\n')
+        original = ('# Board frequency limits\nMIN_SPEED=408000\nMAX_SPEED=2016000\n'
+                    'BOOST=false\nENABLE=true\nGOVERNOR=ondemand\n'
+                    'export GOVERNOR="performance"\nENABLED=false\n')
+        self.config.write_text(original)
+        self.config.chmod(0o640)
+        self.assertTrue(configure_armbian(self.root))
+        changed = self.config.read_bytes()
+        self.assertIn(b'MIN_SPEED=408000\nMAX_SPEED=2016000\nBOOST=false\nENABLE=true\n', changed)
+        self.assertIn(b'GOVERNOR="powersave"\nexport GOVERNOR="powersave"\nENABLED="true"\n', changed)
+        self.assertTrue(changed.startswith(b'# Board frequency limits\n'))
+        self.assertEqual(self.config.stat().st_mode & 0o777, 0o640)
+        backup = self.root / 'var/backups/plank-tablet-relay/cpufrequtils.before-powersave'
+        self.assertEqual(backup.read_text(), original)
+        self.assertEqual(backup.stat().st_mode & 0o777, 0o600)
+        self.assertFalse(configure_armbian(self.root))
+        self.assertEqual(self.config.read_bytes(), changed)
+        self.config.write_text('GOVERNOR=performance\n')
+        self.assertTrue(configure_armbian(self.root))
+        self.assertEqual(backup.read_text(), original)
+
+    def test_armbian_creates_missing_settings(self):
+        (self.root / 'etc/armbian-release').touch()
+        self.assertTrue(configure_armbian(self.root))
+        self.assertEqual(self.config.read_text(), 'GOVERNOR="powersave"\nENABLED="true"\n')
+        self.config.write_text('MAX_SPEED=2016000')  # No trailing newline.
+        self.assertTrue(configure_armbian(self.root))
+        self.assertEqual(self.config.read_text(), 'MAX_SPEED=2016000\nGOVERNOR="powersave"\nENABLED="true"\n')
 
 
 class HardwareTests(unittest.TestCase):

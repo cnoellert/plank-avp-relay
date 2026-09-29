@@ -1,3 +1,11 @@
+plank-tablet-relay-ble (0.2.0~visionos-tablet-setup.12) experimental; urgency=medium
+
+  * Configure GOVERNOR="powersave" and ENABLED="true" in Armbian's
+    cpufrequtils defaults at installation and upgrade, preserving other
+    settings and a backup of the original file.
+
+ -- PLANK contributors <625982+alatteri@users.noreply.github.com>  Tue, 29 Sep 2026 05:04:00 +0000
+
 plank-tablet-relay-ble (0.2.0~visionos-tablet-setup.11) experimental; urgency=medium
 
   * Add bounded, app-driven Bluetooth tablet discovery, enrollment and removal.

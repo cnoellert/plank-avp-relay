@@ -17,10 +17,12 @@ from ble_lab.config import read_settings
 from ble_lab.native import Native
 from ble_lab.bluez import Server  # Check installed imports and dependencies.
 from ble_lab.hardware import prepare_firmware
+from ble_lab.host_setup import configure_armbian
 
 settings = read_settings(root / 'etc/plank-tablet-relay-ble/relay.conf')
 assert not settings.exclusive_adapter and not settings.disable_controller_address_resolution
 assert (private / 'plank-tablet-relay-hardware').is_file()
+assert (private / 'plank-tablet-relay-configure-host').is_file()
 assert (root / 'usr/lib/systemd/system/plank-tablet-relay-hardware.service').is_file()
 with tempfile.TemporaryDirectory() as directory:
     firmware = Path(directory)
