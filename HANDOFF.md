@@ -8,6 +8,18 @@ requested pull/rebase completed without replay. No merge or public release.
 Root PLANK and its unrelated work remain untouched. Machine access, signing
 jobs and deployment details belong in the operator's private notes.
 
+Session closed at the operator's request on 2026-09-29 at 07:52 UTC. App and
+relay release 0.2.1 are delivered; there is no pending build, upload or install.
+The relay service remains running. Interactive SSH connections and the relay
+SSH control master are closed; no log captures or signing jobs remain active.
+
+On the next session, start with the delivered 0.2.1 app and relay. Confirm the
+tablet MAC stays visible after pairing and while offline, then confirm live
+pen position and pressure on the AVP. Reconnect and sleep/wake qualification
+still need physical testing. Keep the saved tablet bond and headset ownership;
+do not reset them as routine preparation. Advance the shared VERSION only for
+the next delivered code change, and use Apple upload identifier 15 next.
+
 The operator authorized autonomous relay refinement, Debian packaging and app
 cleanup. The working BLE readings path now has a managed Linux service and a
 simpler TestFlight app. This remains a diagnostic setup component, separate
@@ -93,8 +105,8 @@ arm64 dSYM UUID: `678F33A8-D10A-38A3-B3E3-0D0A29E388A1`.
 This delivery is superseded by the shared-release work above.
 
 Package source `1f14bd26b995f5188ae9ad421dd085fee7f46e1c` adds only a changelog
-line-wrap fix to that implementation. Revision 14 is installed on the NanoPi;
-the service is advertising, and the extracted stock-package smoke passed on
+line-wrap fix to that implementation. Revision 14 was installed on the NanoPi;
+the service was advertising, and the extracted stock-package smoke passed on
 that board. Identity, headset approvals, tablet metadata, pairing budget and
 live relay configuration are byte-identical to the private pre-upgrade backup.
 The active BlueZ daemon still excludes the battery plugin. Only the expected
@@ -106,7 +118,7 @@ Checksummed packages and CI logs are retained under
 `artifacts/deb/0.2.0~visionos-tablet-setup.14/`.
 [Revision 14 build](https://github.com/instinctual/plank-tablet-relay/actions/runs/36535681897).
 The original build passed functional tests but failed lintian on long changelog
-lines; the corrected source above is the installed package.
+lines; the corrected source above was the package installed for that delivery.
 
 ## Linux package
 
