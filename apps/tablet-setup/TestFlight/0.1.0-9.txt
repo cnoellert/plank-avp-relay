@@ -1,0 +1,8 @@
+The relay list now shows only currently detected, connectable relays.
+
+- Scanning starts when the relay list opens. Results appear as soon as advertisements arrive.
+- The old saved-relay shortcut is removed. Saved pairing credentials remain available when that relay is discovered again.
+- A relay disappears about five seconds after its last advertisement. Scanning stops and clears the list when leaving the screen or switching away from the app.
+- Current advertised names replace old cached names.
+
+Test with an available relay, then stop its advertising and check that it disappears. Restore advertising and confirm that it reappears and reconnects using its saved approval. Confirm live pen position and pressure still update.

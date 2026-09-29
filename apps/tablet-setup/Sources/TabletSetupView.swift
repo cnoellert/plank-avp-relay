@@ -98,21 +98,7 @@ struct TabletSetupView: View {
     }
 
     private var relayPage: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            if let saved = setup.savedBluetoothRelay {
-                Button {
-                    setup.selectBluetoothRelay(saved)
-                    if setup.state.hasTrust && setup.state.address?.bluetoothIdentifier == saved.id {
-                        setup.startReadings()
-                    }
-                } label: {
-                    Label("Connect to \(saved.name)", systemImage: "arrow.triangle.2.circlepath")
-                }.buttonStyle(.borderedProminent)
-                Divider()
-            }
-            BluetoothRelayPicker(scanner: setup.scanner, selected: setup.selectBluetoothRelay)
-
-        }
+        BluetoothRelayPicker(scanner: setup.scanner, selected: setup.selectBluetoothRelay)
     }
 
     private var tabletPage: some View {

@@ -23,8 +23,8 @@ this document changes no runtime code or deployed host configuration.
 
 The x86-64 host OS is **Ubuntu Server 26.04**. Packages use Ubuntu 26.04 as
 the native **amd64 and arm64** build baseline; the current NanoPi hardware
-check uses Armbian/Debian 13. Revision `0.2.0~visionos-tablet-setup.12`, source
-`3625d6cf4240a2e8ce958bf10c4fd9846343d980`, is installed on the NanoPi.
+check uses Armbian/Debian 13. Revision `0.2.0~visionos-tablet-setup.13`, source
+`155eb0db4d0268b6bac8bd8c652c51cca379417b`, is installed on the NanoPi.
 See [package documentation](docs/linux-ble-package.md).
 
 - Revision 11 adds tablet enrollment from the headset app, explicit SSH
@@ -32,18 +32,21 @@ See [package documentation](docs/linux-ble-package.md).
 - Revision 12 sets `GOVERNOR="powersave"` and `ENABLED="true"` in
   `/etc/default/cpufrequtils` on Armbian only. It preserves other settings and
   backs up the original file. Ubuntu Server CPU settings are unaffected.
+- Revision 13 packages the required BlueZ battery-plugin exclusion, reloads
+  active Bluetooth services during installation/upgrade, and removes its own
+  vendor drop-in on uninstall. Manual host preparation is no longer required.
 - Automatic Realtek driver-disk switching, offline RTL8851BU Bluetooth firmware,
   Python 3.13 HCI management, and removal cleanup remain included. Firmware
   runs on the radio and is identical for ARM64 and x86-64; the native relay
   library must match the host architecture. USB Wi-Fi is not qualified.
 
 Both native builds pass 24 relay suites, 101 libsodium tests, lintian,
-installed-library checks and package checksums. Revision 12's fresh Ubuntu
+installed-library checks and package checksums. Revision 13's fresh Ubuntu
 installation/reinstallation/removal checks also pass on both architectures,
 including an Armbian marker fixture to exercise the actual postinst and verify
 non-Armbian settings remain unchanged. Revision 11 passed both native and
 fresh-install jobs.
-[Revision 12 build and artifacts](https://github.com/instinctual/plank-tablet-relay/actions/runs/36523992017).
+[Revision 13 build and artifacts](https://github.com/instinctual/plank-tablet-relay/actions/runs/36524993167).
 Artifacts use `artifacts/deb/<software-version>/ubuntu-26.04/{arm64,amd64}/`,
 with the Git commit in `source-commit.txt` and `provenance.json`.
 
@@ -102,10 +105,22 @@ manual `--noplugin=battery` override had not been packaged. A captured AVP
 connection on the Realtek radio completed the diagnostic exchange, then BlueZ
 read Battery Level, received Insufficient Authentication, initiated SMP and
 locally disconnected. The same failure was captured on a second connection.
-A persistent host override now disables the battery plugin on the NanoPi.
-Revision 13 packages that policy for installation/upgrade and removes only its
-own vendor drop-in during uninstall. Build and qualification are in progress;
-revision 12 plus the manual override is currently running.
+A temporary host override disabled the battery plugin on the NanoPi. Revision
+13 then installed the packaged policy; the temporary override was removed, and
+the running daemon's actual command line confirms `--noplugin=battery`.
+The package's native/extracted smoke checks pass on the NanoPi. Identity and
+tablet bonds are retained.
+
+Some later live-readings reconnects still failed. Testing the Intel-specific
+controller command returned unsupported-feature status `0x1a` on this Realtek
+radio; the option was restored to false. A trace also showed the headset
+requesting a previous GATT handle range after relay restarts; possible cache
+interaction is not yet a proven cause. No speculative handle-layout or app
+transport change was deployed. After installing revision 13, three-press
+approval and a saved-key authenticated input observer completed. The operator
+reported it working; explicit pen-position/pressure acceptance is still being
+confirmed, since the read-only monitor so far showed button/touch reports but
+no changing pen axes. Do not equate connection with pen delivery.
 
 Live AVP position/pressure acceptance is requested and remains pending.
 A temporary read-only pen monitor is prepared; input-node creation, an active

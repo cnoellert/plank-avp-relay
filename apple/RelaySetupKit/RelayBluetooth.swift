@@ -15,46 +15,45 @@ private let setupTX = CBUUID(string: "462F3A16-7A31-4AB3-9E7F-C36AF495ECF0")
 
 enum RelayBLEChannel { case relay, echo, setup }
 
-public struct BluetoothRelay: Identifiable, Equatable, Sendable {
-    public let id: UUID
-    public let name: String
-    public let signal: Int
-}
-
 @MainActor
 public final class RelayBLEScanner: NSObject, ObservableObject, @preconcurrency CBCentralManagerDelegate {
     @Published public private(set) var relays: [BluetoothRelay] = []
     @Published public private(set) var message = "Scan for a nearby tablet relay."
     @Published public private(set) var scanning = false
     private var central: CBCentralManager?
-    private var deadline: Task<Void, Never>?
+    private var expiryTask: Task<Void, Never>?
+    private var discovery = RelayDiscovery()
 
     public func start() {
         stop()
-        relays = []
         scanning = true
         message = "Looking for nearby tablet relays…"
         if central == nil { central = CBCentralManager(delegate: self, queue: .main) }
         else { centralManagerDidUpdateState(central!) }
-        deadline = Task { [weak self] in
-            do { try await Task.sleep(for: .seconds(15)) } catch { return }
-            guard let self else { return }
-            self.stop()
-            self.message = self.relays.isEmpty ? "No relay found. Check that it is advertising, then scan again." : "Choose your relay."
+        expiryTask = Task { [weak self] in
+            while !Task.isCancelled {
+                do { try await Task.sleep(for: .seconds(1)) } catch { return }
+                guard let self, self.scanning else { return }
+                self.discovery.expire(now: ProcessInfo.processInfo.systemUptime)
+                self.publishDiscovery()
+            }
         }
     }
 
     public func stop() {
-        deadline?.cancel()
-        deadline = nil
+        expiryTask?.cancel()
+        expiryTask = nil
         if central?.state == .poweredOn { central?.stopScan() }
         scanning = false
+        discovery = RelayDiscovery()
+        relays = []
     }
 
     public func centralManagerDidUpdateState(_ central: CBCentralManager) {
         guard scanning else { return }
         if central.state == .poweredOn {
-            central.scanForPeripherals(withServices: [relayService])
+            central.scanForPeripherals(withServices: [relayService],
+                options: [CBCentralManagerScanOptionAllowDuplicatesKey: true])
         } else if central.state != .unknown && central.state != .resetting {
             message = bluetoothStateMessage(central.state)
             stop()
@@ -64,10 +63,16 @@ public final class RelayBLEScanner: NSObject, ObservableObject, @preconcurrency 
     public func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral,
         advertisementData: [String: Any], rssi RSSI: NSNumber) {
         guard scanning else { return }
-        let name = advertisementData[CBAdvertisementDataLocalNameKey] as? String ?? peripheral.name ?? "Tablet relay"
-        let candidate = BluetoothRelay(id: peripheral.identifier, name: String(name.prefix(64)), signal: RSSI.intValue)
-        if let index = relays.firstIndex(where: { $0.id == candidate.id }) { relays[index] = candidate }
-        else if relays.count < 32 { relays.append(candidate) }
+        let connectable = (advertisementData[CBAdvertisementDataIsConnectable] as? NSNumber)?.boolValue ?? true
+        discovery.observe(id: peripheral.identifier,
+            advertisedName: advertisementData[CBAdvertisementDataLocalNameKey] as? String,
+            signal: RSSI.intValue, connectable: connectable, now: ProcessInfo.processInfo.systemUptime)
+        publishDiscovery()
+    }
+
+    private func publishDiscovery() {
+        if relays != discovery.relays { relays = discovery.relays }
+        message = relays.isEmpty ? "Looking for nearby tablet relays…" : "Choose an available relay."
     }
 }
 

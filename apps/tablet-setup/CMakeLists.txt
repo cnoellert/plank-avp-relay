@@ -34,6 +34,7 @@ add_library(RelaySetupKit STATIC
     "${RELAY_ROOT}/apple/RelaySetupKit/SetupState.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/SetupCoordinator.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayBluetooth.swift"
+    "${RELAY_ROOT}/apple/RelaySetupKit/RelayDiscovery.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/TabletReadings.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/TabletManagement.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayPairingClient.swift")
@@ -113,6 +114,11 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
         "${RELAY_ROOT}/apple/Tests/SetupStateTests.swift")
     target_link_libraries(setup-state-tests PRIVATE "-framework Foundation")
     add_test(NAME setup-state-tests COMMAND setup-state-tests)
+    add_executable(relay-discovery-tests
+        "${RELAY_ROOT}/apple/RelaySetupKit/RelayDiscovery.swift"
+        "${RELAY_ROOT}/apple/Tests/RelayDiscoveryTests.swift")
+    target_link_libraries(relay-discovery-tests PRIVATE "-framework Foundation")
+    add_test(NAME relay-discovery-tests COMMAND relay-discovery-tests)
     add_executable(tablet-readings-tests "${RELAY_ROOT}/apple/Tests/TabletReadingsTests.swift")
     target_include_directories(tablet-readings-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
     target_link_libraries(tablet-readings-tests PRIVATE RelaySetupKit)

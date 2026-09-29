@@ -4,8 +4,10 @@ A standalone SwiftUI visionOS app for reviewing tablet-relay onboarding. Also
 builds as a macOS UI preview. No workstation, remote desktop, Qt, SDL, FFmpeg or
 Rust media transport is required. The app is **not** a full PLANK Client.
 
-The app opens directly to relay discovery, with a shortcut to connect to a
-saved relay. There are no Local or Simulation tabs. Connection tests and
+The app opens directly to a live relay scan. It shows connectable relays from
+current advertisements and removes entries about five seconds after the last
+advertisement. Saved credentials are retained for reconnection, but offline
+saved relays are not listed. There are no Local or Simulation tabs. Connection tests and
 pairing management are in expandable sections.
 Synthetic readout fixtures exist only in the separate offscreen preview executable.
 The shipping app has no simulation workflow or TCP client.

@@ -124,8 +124,12 @@ the relay through the initialization sequence described here.
 
 This is a BlueZ daemon configuration change, not a GATT callback fix. It
 affects optional battery reporting across that BlueZ instance. Make it an
-explicit, documented host compatibility option, with removal of this drop-in
-as its rollback. Our `.deb` does not silently install this global override.
+explicit, documented deployment policy, with removal of this drop-in as its
+rollback. The reference snapshot required a manual override. Package revision
+13 now includes a vendor drop-in and service reload/restart during installation
+and upgrade, after the same failure was reproduced on the RTL8851BU/Armbian
+relay. Removal restores the remaining host policy. See the current
+[package compatibility policy](linux-ble-package.md#avp-bluetooth-compatibility).
 
 The headset's PLANK authorization is an application protocol; it does not
 require an OS-level AVP bond. Retain the Wacom's existing Classic Bluetooth

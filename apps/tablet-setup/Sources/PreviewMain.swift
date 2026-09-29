@@ -49,6 +49,7 @@ enum SetupPreview {
             let view = content
                 .frame(width: 820, height: 820)
                 .environment(\.colorScheme, .dark)
+                .environment(\.scenePhase, .inactive) // Never scan in offscreen previews.
                 .background(Color(red: 0.10, green: 0.12, blue: 0.15))
             // ImageRenderer substitutes placeholders for AppKit-backed controls
             // and scroll views. Render the actual native hierarchy offscreen.

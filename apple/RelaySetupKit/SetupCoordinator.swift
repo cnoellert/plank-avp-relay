@@ -22,13 +22,6 @@ public final class SetupCoordinator: ObservableObject {
 
     public init() {}
 
-    public var savedBluetoothRelay: BluetoothRelay? {
-        guard let value = UserDefaults.standard.string(forKey: "setup.lastBluetoothRelay"),
-              let id = UUID(uuidString: value) else { return nil }
-        return BluetoothRelay(id: id,
-            name: UserDefaults.standard.string(forKey: "setup.lastBluetoothRelayName") ?? "Saved relay", signal: 0)
-    }
-
     public func selectBluetoothRelay(_ relay: BluetoothRelay) {
         guard !state.busy else { return }
         scanner.stop()
@@ -131,8 +124,6 @@ public final class SetupCoordinator: ObservableObject {
                 guard self.state.operation == id else { return }
                 try self.keys.saveRelay(relayKey, address: address)
                 guard self.state.succeed(id) else { return }
-                UserDefaults.standard.set(address.bluetoothIdentifier.uuidString, forKey: "setup.lastBluetoothRelay")
-                UserDefaults.standard.set(address.description, forKey: "setup.lastBluetoothRelayName")
                 self.approval = nil
                 self.task = nil
                 self.startReadings()

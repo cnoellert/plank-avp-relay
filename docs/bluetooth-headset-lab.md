@@ -179,6 +179,12 @@ before clearing orphans; the foreground lab still requires manual recovery.
 
 ### Unrelated BlueZ battery polling during authorization
 
+Deployment update: this failure was also captured on the RTL8851BU radio with
+BlueZ 5.82 on Armbian. It is not specific to the older Intel controller.
+Package revision 13 includes the required battery-plugin exclusion for relay
+hosts; installation no longer relies on remembering a manual host override.
+See [the packaged policy and removal behavior](linux-ble-package.md#avp-bluetooth-compatibility).
+
 After resolving the early link failure, longer authorization attempts exposed
 a second interaction. BlueZ acts as a GATT client of the connected headset and
 its [battery plugin](https://github.com/bluez/bluez/blob/master/profiles/battery/battery.c)

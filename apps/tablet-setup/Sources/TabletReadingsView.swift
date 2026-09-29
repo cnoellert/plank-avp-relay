@@ -4,6 +4,7 @@ import RelaySetupKit
 
 struct BluetoothRelayPicker: View {
     @ObservedObject var scanner: RelayBLEScanner
+    @Environment(\.scenePhase) private var scenePhase
     let selected: (BluetoothRelay) -> Void
 
     var body: some View {
@@ -22,6 +23,11 @@ struct BluetoothRelayPicker: View {
                     }.padding(10)
                 }
             }
+        }
+        .onAppear { if scenePhase == .active { scanner.start() } }
+        .onDisappear { scanner.stop() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { scanner.start() } else { scanner.stop() }
         }
     }
 }
