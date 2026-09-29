@@ -8,14 +8,39 @@ requested pull/rebase completed without replay. No merge or public release.
 Root PLANK and its unrelated work remain untouched. Machine access, signing
 jobs and deployment details belong in the operator's private notes.
 
-Source now targets shared release **0.5.4**: Router mode uses the fixed
-`10.20.30.0/24` subnet, relay/gateway `10.20.30.1`, DHCP and wired-only NAT.
-There is no subnet override. Package upgrade removes the previous
-`router_address` option, backs up customized configuration privately and
-retains other settings and saved Bridge/Router choice. Bridge addressing is
-unchanged. All 30 local Linux suites pass, including fixed-subnet overlap,
-upgrade retention and real-kernel firewall checks. Native package builds,
-live installation and matching Apple upload **21** are being prepared.
+Shared release **0.5.4** uses the fixed Router subnet `10.20.30.0/24`, with
+relay/gateway `10.20.30.1`, DHCP and wired-only NAT. There is no subnet override.
+Bridge addressing is unchanged. Source is
+`f03a367958fee4680b32056c3821650641a9c5e0`. All 30 Linux suites and all four
+native package / clean-install jobs passed in
+[CI 36640704105](https://github.com/instinctual/plank-tablet-relay/actions/runs/36640704105).
+Both installers are directly in `artifacts/`, with versioned metadata under
+`artifacts/deb/0.5.4/<platform>/<arch>/`; root checksums pass. The previous
+0.5.3 installers are retained under `artifacts/superseded/0.5.3/`.
+
+The exact 0.5.4 arm64 package is installed on the live Zero2 and passes package
+verification and all three service configuration checks. All main / USB /
+Wi-Fi / Bluetooth services are active. Router mode is idle/supported, physical
+Ethernet and USB are connected, and the USB interface has only the new IPv4
+address `10.20.30.1/24`. networkd offered the connected USB client a DHCP lease
+of `10.20.30.69`. Identity, saved headsets/tablets and USB mode were retained
+byte-for-byte. Package upgrades also remove the retired `router_address` option
+from customized configuration after a private backup, preserving other settings.
+Clean-install CI exercises the actual postinst upgrade of that older option.
+
+The matching app passed all 17 Apple suites, macOS build, visionOS device build,
+signed archive/export, privacy/bundle checks and matching executable/dSYM UUID.
+Simulator compilation was last checked in 0.5.3; there are no app behavior changes
+in this release. Apple upload **21** is **VALID / IN_BETA_TESTING**, with notes and
+Standard / No France compliance saved and read back. Signing/export/upload jobs
+are unloaded. Artifacts: `artifacts/testflight/0.5.4/build-21/`.
+Next Apple upload identifier: **22**. A two-packet ICMP probe to the offered
+USB client address received no reply; it does not establish end-to-end data
+forwarding. USB data forwarding and physical cable removal/restoration remain
+operator acceptance checks. Access details and the
+private pre-install backup belong in operator notes.
+
+## Previous delivery snapshot — 0.5.3
 
 Previously delivered shared release **0.5.3** fixes background Network refresh blocking, independent
 Ethernet status, missing combo-dongle WLAN firmware and Zero2 USB startup /
