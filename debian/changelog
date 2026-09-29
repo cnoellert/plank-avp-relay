@@ -1,8 +1,9 @@
 plank-avp-relay (0.5.2) experimental; urgency=medium
 
   * Keep Ethernet status available when USB setup fails or is unsupported.
-  * Configure deferred USB netdev registration before binding, and attach USB
-    only with Ethernet carrier present.
+  * Configure deferred USB netdev registration before binding, use the required
+    numbered interface pattern and readable networkd configuration files, and
+    attach USB only with Ethernet carrier present.
   * Bundle pinned RTL8851BU WLAN firmware and retry only failed Wi-Fi probes,
     preserving active Bluetooth connections and OS-supplied firmware.
   * Match the Setup app's nonblocking, cancellable Network status refresh.

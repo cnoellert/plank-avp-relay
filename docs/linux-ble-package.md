@@ -377,8 +377,9 @@ Existing pins are checked, provisional sessions cannot read input, and owned
 relays require an approved headset key. See the enrollment guide for recovery
 and the distinction between tablet bonds and persistent headset ownership.
 
-USB interface preparation on newer kernels reserves `plankusb0` through the
-function's configfs `ifname` before controller binding. Networkd configuration
+USB interface preparation on newer kernels requests `plankusb%d` through the
+function's configfs `ifname` (the kernel requires a numeric pattern), checking
+that `plankusb0` is free before controller binding. Networkd configuration
 and the wired-only firewall are installed first. With no Ethernet carrier the
 controller stays unbound; binding when carrier is present creates the netdev
 and its owned networkd configuration is verified. Ethernet carrier is still

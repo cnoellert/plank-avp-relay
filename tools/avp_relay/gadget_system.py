@@ -83,6 +83,23 @@ def network_files(mode, wired, mac, device_mac, address, baseline):
     }
 
 
+def install_network_files(files, directory=NETDIR):
+    directory = Path(directory)
+    directory.mkdir(parents=True, exist_ok=True)
+    for name in FILES:
+        path = directory / name
+        if path.exists() and not path.read_text().startswith(MARKER):
+            raise RuntimeError('A USB network configuration filename is already in use.')
+        if name in files:
+            temporary = path.with_suffix(path.suffix + '.tmp')
+            temporary.write_text(files[name])
+            # networkd runs as systemd-network; these files contain no secrets.
+            temporary.chmod(0o644)
+            temporary.replace(path)
+        elif path.exists():
+            path.unlink()
+
+
 def firewall(mode, wired, usb, subnet):
     # The inet guard covers both IP families. In router mode, forwarded IPv6
     # is intentionally unavailable until there is an explicit IPv6 design.
@@ -333,7 +350,7 @@ class LinuxGadget:
             # Reserve the name before binding: newer kernels register the
             # network device only when UDC is bound. Configuration and the
             # wired-only firewall must be ready before that attachment.
-            write(self.function_path / 'ifname', 'plankusb0')
+            write(self.function_path / 'ifname', 'plankusb%d')
             (config / 'network').symlink_to(self.function_path)
         except Exception:
             self.teardown()
@@ -348,10 +365,10 @@ class LinuxGadget:
             if read(path / 'address') == self.device_mac:
                 return path.name
         name = read(self.function_path / 'ifname')
-        if name == 'plankusb0':
-            if (Path('/sys/class/net') / name).exists():
+        if name in ('plankusb%d', 'plankusb0'):
+            if (Path('/sys/class/net') / 'plankusb0').exists():
                 raise RuntimeError('The reserved USB network interface name is already in use.')
-            return name
+            return 'plankusb0'
         raise RuntimeError('USB network interface has not appeared.')
 
     def unbind(self):
@@ -406,17 +423,7 @@ class LinuxGadget:
         self.clear_routes()
         files = network_files(mode, self.wired, self.baseline['mac'], self.device_mac,
                               self.settings.router_address, self.baseline)
-        NETDIR.mkdir(parents=True, exist_ok=True)
-        for name in FILES:
-            path = NETDIR / name
-            if path.exists() and not path.read_text().startswith(MARKER):
-                raise RuntimeError('A USB network configuration filename is already in use.')
-            if name in files:
-                temporary = path.with_suffix(path.suffix + '.tmp')
-                temporary.write_text(files[name])
-                temporary.replace(path)
-            elif path.exists():
-                path.unlink()
+        install_network_files(files)
         run('networkctl', 'reload')
         if mode == 'bridge':
             for attempt in range(15):

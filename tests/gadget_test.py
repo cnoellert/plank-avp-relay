@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Exercise durable changes, lost replies, restart recovery and authorization."""
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -12,7 +13,7 @@ import uuid
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
 from avp_relay.gadget import GadgetController
 from avp_relay.gadget_config import GadgetSettings, read_settings
-from avp_relay.gadget_system import LinuxGadget, firewall, network_files
+from avp_relay.gadget_system import LinuxGadget, firewall, network_files, install_network_files
 from avp_relay.core import RelayCore
 
 
@@ -165,10 +166,10 @@ class GadgetTests(unittest.TestCase):
 
     def test_deferred_interface_can_be_used_for_prebind_configuration(self):
         backend = LinuxGadget(GadgetSettings())
-        with patch('avp_relay.gadget_system.read', side_effect=lambda path: 'plankusb0' if str(path).endswith('ifname') else ''), \
+        with patch('avp_relay.gadget_system.read', side_effect=lambda path: 'plankusb%d' if str(path).endswith('ifname') else ''), \
              patch.object(Path, 'iterdir', return_value=iter([])), patch.object(Path, 'exists', return_value=False):
             self.assertEqual(backend.usb_interface(), 'plankusb0')
-        with patch('avp_relay.gadget_system.read', side_effect=lambda path: 'plankusb0' if str(path).endswith('ifname') else ''), \
+        with patch('avp_relay.gadget_system.read', side_effect=lambda path: 'plankusb%d' if str(path).endswith('ifname') else ''), \
              patch.object(Path, 'iterdir', return_value=iter([])), patch.object(Path, 'exists', return_value=True):
             with self.assertRaisesRegex(RuntimeError, 'already in use'):
                 backend.usb_interface()
@@ -206,6 +207,24 @@ class GadgetTests(unittest.TestCase):
         text = next(iter(files.values()))
         self.assertIn('PoolSize=0', text)
         self.assertNotIn('PoolSize=20', text)
+
+    def test_networkd_config_is_readable_under_private_service_umask(self):
+        directory = self.path / 'networkd'
+        files = network_files('bridge', 'end0', '02:01:02:03:04:05', '02:06:07:08:09:10',
+                              '10.55.0.1/24', dict(dhcp=True, addresses=[], dns=[], routes=[]))
+        previous = os.umask(0o077)
+        try:
+            install_network_files(files, directory)
+            for name, contents in files.items():
+                self.assertEqual((directory / name).stat().st_mode & 0o777, 0o644)
+                self.assertEqual((directory / name).read_text(), contents)
+            foreign = directory / '04-plank-usb-device.network'
+            foreign.write_text('Administrator-owned config')
+            with self.assertRaisesRegex(RuntimeError, 'already in use'):
+                install_network_files(files, directory)
+            self.assertEqual(foreign.read_text(), 'Administrator-owned config')
+        finally:
+            os.umask(previous)
 
     def test_config_rejects_bad_addresses_and_shell_values(self):
         path = self.path / 'settings'
