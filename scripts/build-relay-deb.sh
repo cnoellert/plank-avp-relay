@@ -23,6 +23,12 @@ jobs=${PLANK_BUILD_JOBS:-4}
 [[ $jobs =~ ^[1-9][0-9]*$ ]] || { echo 'Invalid PLANK_BUILD_JOBS' >&2; exit 2; }
 source_commit=$(git rev-parse HEAD)
 package_version=$(dpkg-parsechangelog -SVersion)
+release_version=$(cat VERSION)
+if [[ ! $release_version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ||
+      $package_version != "$release_version~visionos-tablet-setup" ]]; then
+    echo 'debian/changelog must match VERSION with the branch suffix and no build counter.' >&2
+    exit 2
+fi
 build_root=${PLANK_DEB_BUILD_ROOT:-"$relay_root/build/deb"}
 mkdir -p "$build_root/dependencies" "$relay_root/artifacts/deb"
 build_root=$(cd "$build_root" && pwd)

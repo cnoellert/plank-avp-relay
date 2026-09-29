@@ -1,0 +1,7 @@
+Matching app and relay versions, with clear tablet identification.
+
+- The app and relay now share release version 0.2.1. The app retains the branch description without a trailing build number; Apple's upload identifier remains internal.
+- The tablet's Bluetooth MAC address stays visible below its name after pairing, whether connected or offline.
+- The removal confirmation includes both the tablet name and MAC address. Discovery continues to show the address of each tablet found.
+
+Please check that your tablet's address remains visible in Manage tablets after pairing and after it goes offline. Existing pairing and live readings behavior is unchanged.

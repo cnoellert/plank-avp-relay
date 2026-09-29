@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/relay-deb.yml'
       - 'CMakeLists.txt'
+      - 'VERSION'
       - 'src/**'
       - 'include/**'
       - 'tools/**'
@@ -19,6 +20,7 @@ on:
     paths:
       - '.github/workflows/relay-deb.yml'
       - 'CMakeLists.txt'
+      - 'VERSION'
       - 'src/**'
       - 'include/**'
       - 'tools/**'

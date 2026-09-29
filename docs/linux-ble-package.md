@@ -164,6 +164,14 @@ administrator BlueZ overrides remain under administrator control.
 
 ## Build and validation
 
+The app and relay share the `Major.Minor.Ancillary` release in `VERSION` and
+advance together. The package retains the branch description using Debian's
+prerelease separator, for example `0.2.1~visionos-tablet-setup`, with no trailing
+build counter. `debian/changelog` must match that shared release; the builder
+rejects a mismatch. Apple keeps its required upload identifier separately.
+This version sorts after the earlier `0.2.0~visionos-tablet-setup.14` package,
+so upgrades do not need a downgrade override.
+
 Install `build-essential cmake ninja-build pkg-config libudev-dev python3
 python3-dbus python3-gi debhelper dh-python curl ca-certificates git` in an Ubuntu 26.04
 builder. From a clean committed checkout run `scripts/build-relay-deb.sh`.
@@ -171,8 +179,9 @@ The script snapshots that commit, verifies the pinned libsodium 1.0.22 archive,
 builds it statically with PIC, runs its tests and the relay's assertions-enabled
 tests, and creates `.deb`, `.buildinfo`, `.changes` and SHA-256 artifacts in
 `artifacts/deb/<software-version>/<distribution>-<version>/<architecture>/`,
-for example `artifacts/deb/0.2.0~visionos-tablet-setup.13/ubuntu-26.04/arm64/`.
-The software version comes from `debian/changelog`; the exact Git commit is
+for example `artifacts/deb/0.2.1~visionos-tablet-setup/ubuntu-26.04/arm64/`.
+The package version comes from `debian/changelog`, checked against `VERSION`;
+the exact Git commit is
 retained in `source-commit.txt` and `provenance.json` with compiler/OS metadata.
 Build natively on the target architecture; the script
 rejects cross-builds because the packaged library and its tests must execute.

@@ -13,12 +13,13 @@ Synthetic readout fixtures exist only in the separate offscreen preview executab
 The shipping app has no simulation workflow or TCP client.
 
 The visible version uses `Major.Minor.Ancillary` followed by the branch
-description, for example `0.1.1-visionos-tablet-setup`. The numeric version is
-defined once by the CMake project. Increment Ancillary for delivered fixes and
+description, for example `0.2.1-visionos-tablet-setup`. The numeric version is
+defined once in the repository's `VERSION` file and shared with the relay
+package. Increment Ancillary for delivered fixes and
 small refinements, Minor for features, and Major for substantial or incompatible
 changes. Apple’s separate, increasing upload build number stays in bundle
 metadata and build records; it is not appended to the app’s visible version.
-App and Linux package versions advance independently.
+App and Linux package versions advance together, including app-only fixes.
 
 ## Bluetooth pairing and readings
 

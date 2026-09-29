@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.30)
-project(PlankTabletSetup VERSION 0.1.1 LANGUAGES C Swift)
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/../../VERSION" PLANK_RELEASE_VERSION)
+if(NOT PLANK_RELEASE_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
+    message(FATAL_ERROR "VERSION must contain Major.Minor.Ancillary")
+endif()
+project(PlankTabletSetup VERSION "${PLANK_RELEASE_VERSION}" LANGUAGES C Swift)
 set(CMAKE_XCODE_ATTRIBUTE_SWIFT_VERSION 6.0)
 set(CMAKE_OSX_DEPLOYMENT_TARGET 27.0 CACHE STRING "Minimum Apple OS" FORCE)
 
