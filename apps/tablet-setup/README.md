@@ -65,13 +65,13 @@ path. Its source remains in Git history at `606d5bd`.
 
 ## Saved pairing
 
-Pairing and readings use the existing C CPace/Noise implementation and the app's
-Keychain namespace. Updates retain the Bluetooth account identifiers and Client
-key. **Forget local pairing** removes this app's trust for the selected relay;
-it does not remove the relay's approved Client key. A subsequent pairing still
-requires fresh tablet-button approval and cryptographic confirmation.
+Setup and readings use the existing C Noise implementation and the app's
+Keychain namespace. Updates retain Bluetooth account identifiers and the Client
+key. A provisional relay pin is stored before tablet changes, so interruption
+after relay-side approval can recover using the same headset identity. The
+local-forget control is removed; an explicit SSH reset transfers ownership.
 
-Stop readings before using **Check saved pairing** or **Test Bluetooth
+Stop readings before using **Check authorization** or **Test Bluetooth
 connection**. Cancel, interruption and backgrounding preserve saved identities;
 returning to the app does not silently retry an operation. No sequence, private
 key or raw tablet report is logged.
@@ -253,20 +253,20 @@ and [export compliance](https://developer.apple.com/help/app-store-connect/manag
 - No stale callback can save trust after cancellation or mode/relay changes.
 - Existing trust survives failed reconnect; identity mismatch does not replace it.
 - Readings start after pairing, using saved-key authentication and no workstation session.
-- Test the actual authorization button on each supported physical layout.
+- Verify pen position, pressure and tablet buttons after combined enrollment.
 
 See `docs/visionos-tablet-setup.plan` for the subsequent daemon/Bluetooth work.
 
 ## Headless tablet enrollment
 
 Select the relay hostname to view its tablet setup status. On an unconfigured
-relay, **Add tablet** starts bounded discovery; select the intended tablet in
-pairing mode. After Linux verifies the bond and input capabilities, continue
-to the separate three-press headset approval. An approved headset can stop
-readings and use **Manage pairing → Manage tablets** to reconnect, select or
+relay, **Find tablets to pair** starts bounded discovery; select the intended
+tablet in pairing mode. Linux verifies the bond and input capabilities, saves
+the initiating headset and allows the app to start readings. An approved
+headset can stop readings and use **Manage tablets** to reconnect, select or
 remove saved tablets. Sleeping tablets remain saved.
 
-Use package revision 11 or later for this UI. Older relays remain usable for
-existing pairing/readings but show an update message for tablet management.
+Use package revision 14 or later for combined setup. Older relays remain usable
+for saved-key readings but cannot perform the new automatic enrollment.
 No hardware button or web UI is required; explicit SSH recovery commands are
 in [the tablet enrollment guide](../../docs/bluetooth-tablet-pairing.md).

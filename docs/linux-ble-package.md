@@ -193,6 +193,8 @@ reboot/recovery; those checks remain part of hardware qualification.
 The service runs as root for BlueZ administration, raw controller setup and
 read-only input access, with only `CAP_NET_ADMIN` and `CAP_NET_RAW`, restricted
 device/address-family access and filesystem protections. It opens no TCP port.
-Tablet data uses the existing CPace/Noise implementation. The three-press
-initial approval scheme retains its documented nearby-attacker enrollment
-tradeoff; it is not equivalent to comparing a random authentication code.
+Setup and tablet data use Noise. Initial relay identity pinning is trust on
+first use, not out-of-band authentication against a nearby active impersonator.
+Existing pins are checked, provisional sessions cannot read input, and owned
+relays require an approved headset key. See the enrollment guide for recovery
+and the distinction between tablet bonds and persistent headset ownership.

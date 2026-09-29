@@ -19,7 +19,7 @@ for the verified address-resolution and battery-plugin fixes, fixed reference
 snapshot, implementation/recovery requirements and acceptance tests. Creating
 this document changes no runtime code or deployed host configuration.
 
-## Combined setup update (delivery in progress)
+## Combined setup — build 12 and package revision 14
 
 The operator approved combining initial tablet pairing and headset ownership.
 Build 12 and package revision 14 implement a restricted encrypted Noise setup
@@ -30,14 +30,46 @@ allowlist; unknown keys cannot take over an owned relay. App-side local forget
 and the three-circle UI are removed. SSH ownership reset retains tablet bonds.
 See [current enrollment design](docs/bluetooth-tablet-pairing.md). Earlier
 three-press descriptions below document prior builds, not the new normal flow.
-No live ownership reset has been run; the user's current approved key is retained.
+The user confirmed that they removed the tablet and also used the old local-
+forget control. The relay retained one approved headset and no tablets. No
+ownership reset was needed or run: the new app can recover with its retained
+headset private key, then add the tablet again. Live recovery/enrollment and
+pen-position/pressure acceptance remain pending.
+
+App source `d8fc638977706f73c805360e6163481246e078ea` passed all 12 Apple suites
+and macOS/visionOS device/simulator SDK builds. The simulator was compiled,
+not executed. Empty/replacement tablet pages were inspected in offscreen
+previews. Signed archive/export, bundle/privacy and dSYM checks passed.
+Apple accepted build 12 at 2026-09-29T07:16:18Z; final API readback is
+**VALID / IN_BETA_TESTING** with notes and Standard / No France compliance
+saved/read back. All GUI signing jobs are unloaded. Artifacts are retained at
+`artifacts/testflight/0.1.0/build-12/`.
+IPA SHA-256: `dc232f23095103814b57d0510988371fed6b54a989e49f6c8dcc395bb013f368`.
+arm64 dSYM UUID: `678F33A8-D10A-38A3-B3E3-0D0A29E388A1`.
+Next TestFlight upload: **13**.
+
+Package source `1f14bd26b995f5188ae9ad421dd085fee7f46e1c` adds only a changelog
+line-wrap fix to that implementation. Revision 14 is installed on the NanoPi;
+the service is advertising, and the extracted stock-package smoke passed on
+that board. Identity, headset approvals, tablet metadata, pairing budget and
+live relay configuration are byte-identical to the private pre-upgrade backup.
+The active BlueZ daemon still excludes the battery plugin. Only the expected
+administrator-modified config differs from the packaged checksums.
+All four Ubuntu 26.04 CI jobs pass: native amd64/arm64 builds and fresh
+installation/reinstallation/removal checks on both architectures. Both native
+builds pass 24 relay suites and 101 libsodium tests; lintian is clean.
+Checksummed packages and CI logs are retained under
+`artifacts/deb/0.2.0~visionos-tablet-setup.14/`.
+[Revision 14 build](https://github.com/instinctual/plank-tablet-relay/actions/runs/36535681897).
+The original build passed functional tests but failed lintian on long changelog
+lines; the corrected source above is the installed package.
 
 ## Linux package
 
 The x86-64 host OS is **Ubuntu Server 26.04**. Packages use Ubuntu 26.04 as
 the native **amd64 and arm64** build baseline; the current NanoPi hardware
-check uses Armbian/Debian 13. Revision `0.2.0~visionos-tablet-setup.13`, source
-`155eb0db4d0268b6bac8bd8c652c51cca379417b`, is installed on the NanoPi.
+check uses Armbian/Debian 13. Revision `0.2.0~visionos-tablet-setup.14`, source
+`1f14bd26b995f5188ae9ad421dd085fee7f46e1c`, is installed on the NanoPi.
 See [package documentation](docs/linux-ble-package.md).
 
 - Revision 11 adds tablet enrollment from the headset app, explicit SSH
@@ -263,7 +295,7 @@ Artifacts and provenance are retained under
 `artifacts/testflight/0.1.0/build-11/`.
 IPA SHA-256: `6b7bf7d80f51ea2ea2653affce1f012738fc909a74d1c87a2b8224ba4efbc89e`.
 arm64 dSYM UUID: `14698049-DDE6-3C3F-8523-132164FCD34C`.
-The next upload must use build 12.
+Build 12 supersedes this build; the next upload must use build 13.
 
 ## TestFlight build 10
 
@@ -325,7 +357,7 @@ of changing pen X/Y and pressure remains pending.
 Apple accepted upload at 2026-09-29T05:32:37Z. Processing completed as VALID;
 notes and saved compliance were written and read back. The exact build is
 **VALID / IN_BETA_TESTING**. All GUI signing jobs are unloaded. The next
-upload after build 11 must use build 12. Physical availability-list acceptance remains pending.
+upload after build 12 must use build 13. Physical availability-list acceptance remains pending.
 
 ## TestFlight build 8
 
