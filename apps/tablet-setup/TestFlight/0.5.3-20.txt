@@ -7,3 +7,5 @@ Relay 0.5.3 includes the missing Wi-Fi firmware for the tested Realtek combo don
 Please test Network controls while status refreshes, Wi-Fi discovery and joining, and Ethernet/USB status with the cable connected and disconnected. Tablet and headset pairings are retained by the relay update.
 
 Relay 0.5.3 also keeps USB network setup working after package upgrades and repeated service starts. App and relay use the identical release number.
+
+The Wi-Fi switch shows the requested state and progress immediately. Authorization and operation messages appear beside it. Returning to relay discovery clears settings from the deselected relay.

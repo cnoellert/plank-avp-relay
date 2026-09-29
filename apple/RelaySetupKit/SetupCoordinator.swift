@@ -15,6 +15,7 @@ public final class SetupCoordinator: ObservableObject {
     @Published public private(set) var relayIdentityChanged = false
     @Published public private(set) var networkStatus: RelayNetworkStatus?
     @Published public private(set) var networkMessage = "Select and authorize a relay to manage its network mode."
+    @Published public private(set) var wifiEnablePending: Bool?
     @Published public private(set) var wifiStatus: RelayWifiStatus?
     @Published public private(set) var wifiAvailable: [RelayWifiNetwork] = []
     @Published public private(set) var wifiSaved: [RelayWifiNetwork] = []
@@ -273,6 +274,7 @@ public final class SetupCoordinator: ObservableObject {
 
     public func cancel() {
         networkRefresh.cancel()
+        wifiEnablePending = nil
         if state.activity == .managingTablets {
             finishTabletSetup()
             return
@@ -469,7 +471,10 @@ public final class SetupCoordinator: ObservableObject {
     }
 
     public func performWifi(_ action: RelayWifiAction) {
-        guard wifiStatus?.canChange == true else { return }
+        guard wifiStatus?.canChange == true else {
+            wifiMessage = wifiStatus?.message ?? "Select an authorized relay and refresh its Wi-Fi status."
+            return
+        }
         wifiOperation(action: action)
     }
 
@@ -479,7 +484,12 @@ public final class SetupCoordinator: ObservableObject {
     }
 
     private func wifiOperation(action: RelayWifiAction? = nil, page: (String, Int, String)? = nil) {
-        guard let address = state.address, let id = state.beginNetworkSettings() else { return }
+        guard let address = state.address, let id = state.beginNetworkSettings() else {
+            wifiMessage = state.busy ? "Finish the current relay operation before changing Wi-Fi." :
+                "Select a relay and finish tablet setup to authorize Wi-Fi controls."
+            return
+        }
+        if case .enable(let enabled)? = action { wifiEnablePending = enabled }
         let request = UUID().uuidString.lowercased()
         wifiMessage = action == nil ? "Reading networks…" : "Applying Wi-Fi settings…"
         task = Task { [weak self] in
@@ -569,6 +579,7 @@ public final class SetupCoordinator: ObservableObject {
                 self.state.fail(id, message: error.localizedDescription)
             }
             guard self.state.operation == nil else { return }
+            self.wifiEnablePending = nil
             self.task = nil
         }
     }
@@ -646,8 +657,18 @@ public final class SetupCoordinator: ObservableObject {
     }
 
     public func back() {
+        guard !state.busy else { return }
         networkRefresh.cancel()
         state.back()
+        // The Network tab must not display controls from a deselected relay.
+        networkStatus = nil
+        wifiStatus = nil
+        wifiEnablePending = nil
+        wifiAvailable = []; wifiSaved = []
+        wifiAvailableNext = nil; wifiSavedNext = nil
+        wifiAvailableGeneration = ""; wifiSavedGeneration = ""
+        networkMessage = "Select and authorize a relay to manage its network."
+        wifiMessage = "Select and authorize a relay to manage its Wi-Fi."
         relayIdentityChanged = false
         bluetoothTestResult = nil
         message = "Choose the next setup step."

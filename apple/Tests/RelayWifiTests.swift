@@ -40,6 +40,11 @@ enum RelayWifiTests {
         let serialized = try JSONSerialization.jsonObject(with: JSONEncoder().encode(command)) as! [String: Any]
         precondition(serialized["network"] is NSNull && serialized["ssid"] as? String == "Hidden")
         precondition(serialized["password"] as? String == "test password")
+        for enabled in [true, false] {
+            let command = try JSONSerialization.jsonObject(with: JSONEncoder().encode(WifiCommand.action(.enable(enabled), request: receipt))) as! [String: Any]
+            precondition(Set(command.keys) == Set(["version", "id", "op", "requestID", "enabled"]))
+            precondition(command["op"] as? String == "wifi-enable" && command["enabled"] as? Bool == enabled)
+        }
         let scan = try JSONSerialization.jsonObject(with: JSONEncoder().encode(WifiCommand.action(.scan, request: receipt))) as! [String: Any]
         precondition(Set(scan.keys) == Set(["version", "id", "op", "requestID"]))
         print("PASS: Wi-Fi receipts, stale replies, bounded pages, security flags and strict command encoding")

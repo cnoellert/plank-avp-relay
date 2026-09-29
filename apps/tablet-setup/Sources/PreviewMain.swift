@@ -28,7 +28,7 @@ enum SetupPreview {
                     ["id": String(repeating: "b", count: 32), "name": "Guest", "secured": false, "supported": true, "saved": false, "hidden": false, "signal": 60]]
                 let networks = try RelayWifiPage.decode(JSONSerialization.data(withJSONObject: ["version": 1, "id": 1, "ok": true,
                     "networks": rows, "generation": UUID().uuidString, "next": NSNull()]), request: 1).networks
-                content = AnyView(RelayWifiView(status: status, available: networks, saved: [networks[0]],
+                content = AnyView(RelayWifiView(status: status, enablePending: nil, available: networks, saved: [networks[0]],
                     moreAvailable: false, moreSaved: false, authorized: true, busy: page == "wifi-joining",
                     message: status.message, action: { _ in }, more: { _ in }, editing: { _ in }).padding(30))
             } else if page.hasPrefix("network-") {

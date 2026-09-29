@@ -81,7 +81,7 @@ struct TabletSetupView: View {
                           busy: setup.state.busy, message: setup.networkMessage,
                           refresh: setup.refreshNetworkSettings, apply: setup.applyNetworkMode)
                       Divider()
-                      RelayWifiView(status: setup.wifiStatus, available: setup.wifiAvailable, saved: setup.wifiSaved,
+                      RelayWifiView(status: setup.wifiStatus, enablePending: setup.wifiEnablePending, available: setup.wifiAvailable, saved: setup.wifiSaved,
                           moreAvailable: setup.wifiAvailableNext != nil, moreSaved: setup.wifiSavedNext != nil,
                           authorized: setup.state.hasTrust, busy: setup.state.busy, message: setup.wifiMessage,
                           action: setup.performWifi, more: { setup.moreWifiNetworks(saved: $0) },

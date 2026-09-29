@@ -4,6 +4,7 @@ import RelaySetupKit
 
 struct RelayWifiView: View {
     let status: RelayWifiStatus?
+    let enablePending: Bool?
     let available: [RelayWifiNetwork]
     let saved: [RelayWifiNetwork]
     let moreAvailable: Bool
@@ -27,9 +28,20 @@ struct RelayWifiView: View {
         VStack(alignment: .leading, spacing: 20) {
             GroupBox {
                 VStack(alignment: .leading, spacing: 14) {
-                    Toggle("Enable Wi-Fi", isOn: Binding(get: { status?.enabled ?? false }, set: { action(.enable($0)) }))
+                    Toggle("Enable Wi-Fi", isOn: Binding(get: { enablePending ?? status?.enabled ?? false }, set: { action(.enable($0)) }))
                         .disabled(!editable)
                         .accessibilityIdentifier("wifi-enable-control")
+                    if let enablePending {
+                        ProgressView(enablePending ? "Enabling Wi-Fi…" : "Disabling Wi-Fi…")
+                    } else if !authorized {
+                        Text("Select a relay and finish tablet setup to authorize Wi-Fi controls.")
+                            .font(.callout).foregroundStyle(.secondary)
+                    } else if busy {
+                        Text("Finish the current relay operation before changing Wi-Fi.")
+                            .font(.callout).foregroundStyle(.secondary)
+                    } else {
+                        Text(message).font(.callout).textSelection(.enabled)
+                    }
                     Text("Disabling Wi-Fi keeps saved networks. Bluetooth remains available.")
                         .font(.caption).foregroundStyle(.secondary)
                     if status?.enabled == true {
