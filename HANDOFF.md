@@ -193,6 +193,40 @@ then confirmed an existing-headset approval request and authenticated input
 observation. User confirmation of displayed position/pressure/button updates
 remains pending; do not confuse connection evidence with input acceptance.
 
+## TestFlight build 9
+
+Version `0.1.0 (9)`, app source
+`b739f2cc81d76b82cc69f772e71518e1f3101351`, shows only relays advertising during
+the current foreground scan. Scanning starts when the relay list opens; the
+first advertisement is displayed immediately. Repeated advertisements refresh
+presence, and an entry expires about five seconds after its last advertisement.
+That is a removal grace period, not a startup delay; actual AVP discovery
+latency has not been measured. Nonconnectable advertisements are excluded.
+Leaving the list or backgrounding the app stops scanning and clears results.
+
+The old saved-relay shortcut and last-relay-name lookup are removed. Current
+advertisement names are used instead of CoreBluetooth's cached peripheral name.
+Saved Keychain credentials remain available when the relay is rediscovered.
+No relay protocol, controller policy or tablet-reading changes are included.
+The operator reported build 8 working with revision 13; a specific confirmation
+of changing pen X/Y and pressure remains pending.
+
+- Apple 11/11 CTest suites pass, including deterministic discovery refresh,
+  expiry, rename, capacity and reset checks.
+- Native macOS and visionOS simulator/device SDK builds pass. Simulator was
+  compiled, not executed. The relay-page offscreen preview was inspected with
+  scanning disabled by its inactive scene environment.
+- Signed archive/export, bundle/privacy resources and executable/dSYM matching
+  pass. IPA and symbols are retained under ignored
+  `artifacts/testflight/0.1.0/build-9/` with previews and provenance.
+- IPA SHA-256: `71804bac85102e5583a84b0e84bd84d759343e0457082f147270b59e3e304845`.
+- arm64 dSYM UUID: `DF75E104-D169-3F26-9B9A-0D509C7155E1`.
+
+Apple accepted upload at 2026-09-29T05:32:37Z. Processing completed as VALID;
+notes and saved compliance were written and read back. The exact build is
+**VALID / IN_BETA_TESTING**. All GUI signing jobs are unloaded. The next
+upload must use build 10. Physical availability-list acceptance remains pending.
+
 ## TestFlight build 8
 
 Version `0.1.0 (8)`, app source
@@ -220,8 +254,8 @@ are development tools, not an app simulation mode.
 
 Apple accepted upload at 2026-09-29T04:56:55Z. The exact build is
 **VALID / IN_BETA_TESTING**; notes and the saved compliance baseline were
-written and read back. GUI archive/export/upload jobs are unloaded. The next
-upload must use build 9. Physical AVP acceptance remains pending.
+written and read back. GUI archive/export/upload jobs are unloaded. Build 9 supersedes this app
+release. Physical pen-position/pressure acceptance remains pending.
 
 ## Established hardware findings
 
