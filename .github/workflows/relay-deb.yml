@@ -204,6 +204,10 @@ jobs:
           test -x /usr/sbin/avahi-daemon
           grep -qx 'GOVERNOR="powersave"' /etc/default/cpufrequtils
           cmp /var/backups/plank-avp-relay/cpufrequtils.before-powersave /tmp/cpufrequtils-before
+          # The next fixture requires an empty new namespace. Retention was
+          # checked above; move only our known Wi-Fi fixture out of its way.
+          mv /var/lib/plank-avp-relay/wifi/wpa.conf /tmp/wifi-retained-after-removal
+          rmdir /var/lib/plank-avp-relay/wifi /var/lib/plank-avp-relay
           python3 tests/package_upgrade_fixture.py prepare "${package[0]}"
           apt-get install -y "./${package[0]}"
           python3 tests/package_upgrade_fixture.py verify
