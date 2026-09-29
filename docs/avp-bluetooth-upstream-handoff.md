@@ -40,8 +40,9 @@ The app-side recovery is in
 make one fresh connection attempt only for a disconnect before the reply
 subscription is ready, with separate delegates and the original startup
 deadline. Complete cleanup first and respect cancellation. Never replay an
-established authorization/input stream. Fake-transport tests cover this race;
-physical acceptance of build 10 remains pending. See the
+established authorization/input stream. Fake-transport tests cover this race.
+The operator reports that build 10 seems to fix the issue; repeated cold-start
+and pen-position/pressure acceptance remain pending. See the
 [detailed trace interpretation](bluetooth-headset-lab.md#closing-link-reuse-during-app-transitions).
 This does not replace the two Linux compatibility fixes below.
 

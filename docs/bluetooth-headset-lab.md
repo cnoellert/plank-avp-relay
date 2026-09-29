@@ -198,8 +198,10 @@ subscription is ready. Attempts have separate delegates and share the original
 20-second startup deadline. Cancellation, missing services, other failures and
 established protocol streams are not automatically retried. No authorization
 bytes are replayed. Tests cover this ordering, cleanup, deadline retention and
-cancellation; physical build-10 acceptance remains pending. Earlier radio
-link-establishment failures remain a separate qualification item.
+cancellation. After trying build 10, the operator reported that it seems to fix
+the connection issue. Repeated cold-start and pen-position/pressure acceptance
+remain pending. Earlier radio link-establishment failures remain a separate
+qualification item.
 
 ### Unrelated BlueZ battery polling during authorization
 

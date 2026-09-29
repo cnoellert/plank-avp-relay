@@ -225,6 +225,33 @@ then confirmed an existing-headset approval request and authenticated input
 observation. User confirmation of displayed position/pressure/button updates
 remains pending; do not confuse connection evidence with input acceptance.
 
+## TestFlight build 11
+
+App source `aa12336118445e9035e29ed7fe1dc5c6f700fb92` waits for a nonempty
+advertised name before publishing a new relay row. The operator reported that
+build 10 briefly showed "Tablet relay" before changing to the hostname; that
+was the app's fallback for an advertisement received without LocalName.
+There is no added startup timer. A name learned during the current scan is
+retained across later nameless advertisements. Expiry, nonconnectable removal,
+capacity limits and clearing the list on scan reset remain unchanged. Cached
+CoreBluetooth names and saved/offline relays are not used.
+
+All 12 Apple suites pass, including missing/empty/whitespace names, subsequent
+name delivery, retained names, current signal, rename, expiry and scan reset.
+macOS and visionOS device/simulator SDK builds pass; the simulator was compiled,
+not executed. Signed archive/export, bundle/privacy and executable/dSYM checks
+pass. The hostname-only startup display still needs physical AVP acceptance.
+The build includes build 10's startup connection recovery; no Linux changes.
+
+Apple accepted build 11 at 2026-09-29T06:43:33Z. Exact API readback is
+**VALID / IN_BETA_TESTING**; notes and saved Standard / No France compliance
+were saved and read back. All GUI signing jobs are unloaded.
+Artifacts and provenance are retained under
+`artifacts/testflight/0.1.0/build-11/`.
+IPA SHA-256: `6b7bf7d80f51ea2ea2653affce1f012738fc909a74d1c87a2b8224ba4efbc89e`.
+arm64 dSYM UUID: `14698049-DDE6-3C3F-8523-132164FCD34C`.
+The next upload must use build 12.
+
 ## TestFlight build 10
 
 App source `c2cb8550acd1e76ce88bdcec59f00114048c1d44` recovers once from a
@@ -240,7 +267,9 @@ All 12 Apple suites pass, including a fake-transport reproduction of the early
 disconnect, deadline retention, retry limit, cancellation during cleanup and
 no replay after startup. Native macOS and both visionOS SDK builds pass;
 the simulator was compiled, not executed. Signed archive/export and bundle,
-privacy and executable/dSYM checks pass. Physical AVP acceptance is pending.
+privacy and executable/dSYM checks pass. After trying build 10, the operator
+reported that it seems to fix the connection issue. Repeated cold-start and
+specific pen-position/pressure acceptance remain pending.
 
 Apple accepted build 10 at 2026-09-29T06:26:55Z. Exact API readback is
 **VALID / IN_BETA_TESTING**; notes and saved Standard / No France compliance
@@ -248,7 +277,7 @@ were saved and read back. All GUI signing jobs are unloaded. Artifacts and
 provenance are retained under `artifacts/testflight/0.1.0/build-10/`.
 IPA SHA-256: `6c1c1a79b287433cd42dd4a14e7960a65bbe905b178a2cf73f18a3c039ff0798`.
 arm64 dSYM UUID: `F305AAA7-D1AD-3CA7-9C87-209B07CCB890`.
-The next upload must use build 11. Test build 10 after a fresh relay reboot,
+Build 11 supersedes this app build. Repeat testing after a fresh relay reboot,
 through tablet setup, three-press approval and live pen position/pressure.
 
 ## TestFlight build 9
@@ -283,7 +312,7 @@ of changing pen X/Y and pressure remains pending.
 Apple accepted upload at 2026-09-29T05:32:37Z. Processing completed as VALID;
 notes and saved compliance were written and read back. The exact build is
 **VALID / IN_BETA_TESTING**. All GUI signing jobs are unloaded. The next
-upload after build 10 must use build 11. Physical availability-list acceptance remains pending.
+upload after build 11 must use build 12. Physical availability-list acceptance remains pending.
 
 ## TestFlight build 8
 
