@@ -151,7 +151,7 @@ The script snapshots that commit, verifies the pinned libsodium 1.0.22 archive,
 builds it statically with PIC, runs its tests and the relay's assertions-enabled
 tests, and creates `.deb`, `.buildinfo`, `.changes` and SHA-256 artifacts in
 `artifacts/deb/<software-version>/<distribution>-<version>/<architecture>/`,
-for example `artifacts/deb/0.2.0~visionos-tablet-setup.8/ubuntu-26.04/arm64/`.
+for example `artifacts/deb/0.2.0~visionos-tablet-setup.10/ubuntu-26.04/arm64/`.
 The software version comes from `debian/changelog`; the exact Git commit is
 retained in `source-commit.txt` and `provenance.json` with compiler/OS metadata.
 Build natively on the target architecture; the script

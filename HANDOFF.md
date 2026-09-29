@@ -1,6 +1,6 @@
 # Tablet relay and setup app
 
-## Current state — 2026-09-28 UTC
+## Current state — 2026-09-29 UTC
 
 Work is on `visionos-tablet-setup`; parent main
 `465c11a9708bfce0c155502844ca8d53e4370390` is already included. The earlier
@@ -21,37 +21,53 @@ this document changes no runtime code or deployed host configuration.
 
 ## Linux package
 
-The target OS is **Ubuntu 26.04** for both **arm64 and amd64**, as requested by
-the operator. New-install packages are version `0.2.0~visionos-tablet-setup.8`,
-source `4f572e1fc8ef3c0addbc265171f9ad8353f3bc7f`, built natively in Ubuntu 26.04
-containers. Both pass 22 relay suites, 101 libsodium tests, binary lintian,
-extracted/installed native-library smoke checks, configuration and systemd unit
-validation. Both also pass install/smoke/remove checks in fresh Ubuntu 26.04
-containers, including Python bytecode cleanup.
-The ctypes library is excluded from CPython extension inference, so dependencies
-use generic Python 3 instead of requiring the builder's Python minor version.
+The target OS remains **Ubuntu 26.04**, with native **arm64 and amd64** builds.
+Revision `0.2.0~visionos-tablet-setup.10`, source
+`02ec24ceb7cd2325aa05b708e52422c7cb973ef5`, adds automatic Realtek USB driver-disk
+switching, offline fallback RTL8851BU firmware, and Python 3.13-compatible HCI
+management. See [package documentation](docs/linux-ble-package.md).
+The helper preserves OS/admin firmware and initialized controllers, retries
+only the supported dongle's failed Bluetooth interface, and removes only its
+own fallback links. The USB Wi-Fi function is outside this change.
 
-[Successful build and artifacts](https://github.com/instinctual/plank-tablet-relay/actions/runs/36387217564).
-Downloaded packages, symbols, metadata, provenance and checksums are retained in
-`artifacts/deb/0.2.0~visionos-tablet-setup.8/ubuntu-26.04/{arm64,amd64}/`.
-The folder uses the version from `debian/changelog`; the source commit remains
-in `source-commit.txt` and `provenance.json`. Existing artifact folders were also
-renamed to software versions, with file contents verified unchanged.
-Package SHA-256:
+Revision 9 passed both native builds and installation checks, but fresh removal
+exposed a helper import recreating bytecode after Debian cleanup. Revision 10
+fixes that. Both architectures pass 23 relay suites, 101 libsodium tests,
+lintian, installed-library checks and fresh Ubuntu 26.04 install/remove checks.
+The same cleanup fix was independently reproduced and verified locally.
 
-- arm64: `46f7536ca1c070c16731ab9d1d7a1ff5df5d2b72de30994de47816c350c814ac`
-- amd64: `d0ffd7032d67e8b9bb72848fe7098e0313147f4089ded08d2c222004068643ac`
+[Build and artifacts](https://github.com/instinctual/plank-tablet-relay/actions/runs/36520677972).
+Artifacts use `artifacts/deb/<software-version>/ubuntu-26.04/{arm64,amd64}/`,
+with the Git commit in `source-commit.txt` and `provenance.json`.
+The library remains a private ctypes library with generic Python 3 dependencies.
 
-Earlier revision 7 Debian 12 packages remain under the version 7 directory for
-history. Its superseded Python 3.11-dependent candidate is under
-`superseded/python311-dependency/`. Use revision 8 for new installations.
+### NanoPi hardware check
 
-There is no physical ARM board qualification yet. Use a 64-bit Ubuntu 26.04
-image with the board's Bluetooth firmware and Linux input support, then qualify
-concurrent Wacom/AVP operation, pairing, reconnect, sleep/wake and reboot.
-The operator canceled the proposed AP and web UI work; neither was implemented.
-The later R28S Wi-Fi capability question did not authorize restarting that work.
-The live Intel host and TestFlight build remain at the versions below.
+A NanoPi Zero2 on Armbian/Debian 13 with kernel 6.18 recognizes the tested
+RTL8851BU Bluetooth 5.3 radio (`3625:010b`) after its Realtek driver-disk identity
+(`0bda:1a2b`) is ejected and the two Bluetooth firmware files are supplied.
+These manual preparation steps motivated the package automation. The board's
+existing PCIe Wi-Fi remains the network connection; USB Wi-Fi is not qualified.
+Ubuntu 26.04 remains the product target, independent of this board's test image.
+
+The Wacom is paired, bonded and trusted over Bluetooth Classic. Linux exposes
+pen, finger and pad input nodes and the relay attaches to pen/button input.
+Concurrent AVP readings, new-board sleep/wake and reboot qualification remain
+pending; input-node creation is not proof of physical pen events or AVP delivery.
+Revision 10 is installed on the NanoPi. To qualify recovery, the manually
+supplied firmware was moved into a private backup and just the Bluetooth
+interface reprobed: the kernel reported zero initialized controllers. Package
+installation supplied the fallback links, retried that failed interface and
+started advertising automatically. The installed-library smoke test passed;
+relay identity and tablet bond bytes were unchanged. Repeating preparation
+preserved the initialized controller. Dedicated-adapter startup now works with
+Python 3.13, and the tablet reattached using its saved bond. Address-resolution
+and global battery-plugin workarounds are not enabled on this radio.
+Physical dongle unplug/replug, reboot and AVP acceptance remain pending.
+The tablet selection logic remains model independent.
+
+The operator canceled the proposed AP and web UI work; neither is implemented.
+The qualified Intel host is unchanged by these new-board tests.
 
 ### Qualified Intel host
 
@@ -117,32 +133,36 @@ then confirmed an existing-headset approval request and authenticated input
 observation. User confirmation of displayed position/pressure/button updates
 remains pending; do not confuse connection evidence with input acceptance.
 
-## TestFlight build 6
+## TestFlight build 7
 
-Version `0.1.0 (6)`, app source `d476aa7`, is **VALID / IN_BETA_TESTING**.
-Apple accepted upload at 2026-09-28T02:46:30Z. Build-specific notes and the
-operator's confirmed compliance baseline were saved and read back. One-shot
-GUI archive/export/upload jobs are unloaded; the next upload must use build 7.
+Version `0.1.0 (7)`, app source
+`5c62b275f6208c9060e475014d60e48dc3ce0919`, removes the obsolete TCP host/port
+setup, five-key enrollment workflow, Network framework dependency, local-network
+permission, and simulation coordinator. The app now uses only Bluetooth relay
+discovery, three-button approval, live readings and diagnostics. Offscreen
+preview fixtures remain development tools, not a runtime app mode.
 
-The app opens directly to relay discovery, with a saved-relay connection
-shortcut. Connection diagnostics and pairing management are expandable.
-The unsuccessful Local experiment is removed; no Simulation tab is exposed.
-Live readings display active input slots across the 16-bit snapshot mask rather
-than assuming eight tablet buttons. The protocol and Keychain identities are
-unchanged. Once live readings arrive, the footer no longer shows a connection
-spinner. Stop readings before running a diagnostic; backgrounding cancels the
-active operation and returning requires starting it again.
+The current `relay-ble-v1:<peripheral UUID>` Keychain accounts and
+`client-private-v1` identity are retained for secure reconnect. The old TCP
+account lookup is gone; no legacy account migration is needed. Shared C
+protocol/crypto and the standalone upstream TCP/raw-HID daemon remain intact.
 
-- Apple 10/10 CTest suites and metadata-helper 8/8 offline tests pass.
+- Apple 9/9 CTest suites pass; the obsolete TCP fixture suite was removed.
 - Native macOS and visionOS simulator/device SDK builds pass with SDK27.
   Simulator compilation is not simulator execution.
 - Signed archive/export, bundle/privacy resources and executable/dSYM matching
-  pass. Relay, authorization, readings and offline layouts were inspected in
-  the macOS offscreen preview.
-- IPA SHA-256: `7b873b806611ef67aadb80f485b26672f05fc4d90ae584a583cc26f3e6e69a40`.
-- arm64 dSYM UUID: `98143214-499F-3FE8-AE0A-026239BCA3DF`.
-- IPA and provenance are retained under ignored
-  `artifacts/testflight/0.1.0/build-6/`.
+  pass. Relay, authorization and readings layouts were inspected using the
+  macOS offscreen preview.
+- IPA SHA-256: `e18ca03a7b42bc070b0555e8a860849e79830ceec7357459f24c183f20ba976c`.
+- arm64 dSYM UUID: `0D5794D9-1E77-335A-9982-762FC7C698DE`.
+- IPA, symbols, previews and provenance are retained under ignored
+  `artifacts/testflight/0.1.0/build-7/`.
+
+Apple accepted upload at 2026-09-29T04:15:23Z. The exact build is
+**VALID / IN_BETA_TESTING**; notes and the saved compliance baseline were
+written and read back. GUI archive/export/upload jobs are unloaded. The next
+upload must use build 8. Physical AVP acceptance remains pending. Build 6
+remains documented in Git history.
 
 ## Established hardware findings
 
