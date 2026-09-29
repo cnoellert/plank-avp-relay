@@ -13,7 +13,7 @@ import re
 import subprocess
 import time
 
-from .gadget_config import STATE, atomic_json
+from .gadget_config import ROUTER_ADDRESS, ROUTER_NETWORK, STATE, atomic_json
 
 BRIDGE = 'plankbr0'
 GADGET = Path('/sys/kernel/config/usb_gadget/plank_network')
@@ -49,12 +49,12 @@ def write(path, value):
     Path(path).write_text(str(value) + '\n')
 
 
-def network_files(mode, wired, mac, device_mac, address, baseline):
+def network_files(mode, wired, mac, device_mac, baseline):
     """Pure rendering: each interface is managed by exactly one owned file."""
     common = '\n[Link]\nRequiredForOnline=no\n\n[Network]\n'
     if mode == 'router':
         return {FILES[3]: MARKER + '[Match]\nMACAddress=' + device_mac + common +
-                f'Address={address}\nDHCPServer=yes\nConfigureWithoutCarrier=yes\n'
+                f'Address={ROUTER_ADDRESS}\nDHCPServer=yes\nConfigureWithoutCarrier=yes\n'
                 'IPv6AcceptRA=no\n\n[DHCPServer]\n'
                 f'UplinkInterface={wired}\nEmitDNS=yes\nPoolOffset=0\nPoolSize=0\n'}
     bridge = MARKER + f'[Match]\nName={BRIDGE}\n\n[Network]\n'
@@ -100,7 +100,7 @@ def install_network_files(files, directory=NETDIR):
             path.unlink()
 
 
-def firewall(mode, wired, usb, subnet):
+def firewall(mode, wired, usb):
     # The inet guard covers both IP families. In router mode, forwarded IPv6
     # is intentionally unavailable until there is an explicit IPv6 design.
     guard = (f'iifname "{usb}" meta nfproto ipv6 drop\n'
@@ -108,7 +108,7 @@ def firewall(mode, wired, usb, subnet):
              f'oifname "{usb}" ct state established,related accept\n'
              f'oifname "{usb}" drop\n') if mode == 'router' else (
              f'iifname "{BRIDGE}" oifname != "{BRIDGE}" drop\n')
-    nat = f'ip saddr {subnet} oifname "{wired}" masquerade\n' if mode == 'router' else ''
+    nat = f'ip saddr {ROUTER_NETWORK} oifname "{wired}" masquerade\n' if mode == 'router' else ''
     return ('add table inet plank_usb\ndelete table inet plank_usb\n'
             'add table ip plank_usb\ndelete table ip plank_usb\n'
             'table inet plank_usb { chain forward { type filter hook forward priority -10; policy accept;\n' +
@@ -404,15 +404,14 @@ class LinuxGadget:
         self.gateway = None
 
     def check_subnet(self):
-        target = ipaddress.IPv4Interface(self.settings.router_address).network
         for interface in json.loads(run('ip', '-j', 'address', 'show')):
             if interface['ifname'] == self.usb_interface():
                 continue
             for address in interface.get('addr_info', []):
                 if address['family'] == 'inet' and address['scope'] == 'global':
                     other = ipaddress.IPv4Interface(f"{address['local']}/{address['prefixlen']}").network
-                    if target.overlaps(other):
-                        raise RuntimeError('The Router subnet overlaps another network. Change router_address in usb-network.conf.')
+                    if ROUTER_NETWORK.overlaps(other):
+                        raise RuntimeError('The Router subnet 10.20.30.0/24 overlaps another network. Use Bridge mode or a different network.')
 
     def apply(self, mode):
         if self.restart_required:
@@ -423,11 +422,9 @@ class LinuxGadget:
         self.guard_ready = False
         usb = self.usb_interface()
         # Apply the wired-only guard before enabling forwarding or exposing USB.
-        run('nft', '-f', '-', input=firewall(mode, self.wired, usb,
-                                           ipaddress.IPv4Interface(self.settings.router_address).network))
+        run('nft', '-f', '-', input=firewall(mode, self.wired, usb))
         self.clear_routes()
-        files = network_files(mode, self.wired, self.baseline['mac'], self.device_mac,
-                              self.settings.router_address, self.baseline)
+        files = network_files(mode, self.wired, self.baseline['mac'], self.device_mac, self.baseline)
         install_network_files(files)
         run('networkctl', 'reload')
         if mode == 'bridge':
@@ -483,8 +480,7 @@ class LinuxGadget:
                 'nft', 'list', 'table', 'ip', 'plank_usb', check=False):
             self.unbind()
             self.guard_ready = False
-            run('nft', '-f', '-', input=firewall(self.current, self.wired, self.usb_interface(),
-                                               ipaddress.IPv4Interface(self.settings.router_address).network))
+            run('nft', '-f', '-', input=firewall(self.current, self.wired, self.usb_interface()))
             self.guard_ready = True
         if self.current == 'router':
             routes = json.loads(run('ip', '-4', '-j', 'route', 'show', 'default', 'dev', self.wired))

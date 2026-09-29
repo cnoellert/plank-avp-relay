@@ -100,7 +100,8 @@ does not change the USB wired-uplink policy below.
 
 The dedicated relay can present its USB device port as an Ethernet adapter.
 **Bridge is the default**, joining USB and wired Ethernet on `plankbr0`. Router
-mode supplies a private USB subnet (default `10.55.0.1/24`) and IPv4 NAT through
+mode supplies the fixed private USB subnet `10.20.30.0/24`, with the relay at
+`10.20.30.1` and DHCP addresses for the headset, and IPv4 NAT through
 the wired port. Neither mode checks Internet access. Ethernet carrier gates
 USB attachment; removing the cable withdraws the USB adapter. Router mode
 still provides its local USB address when Ethernet has link but no upstream
@@ -115,9 +116,12 @@ only on Armbian NanoPi Zero2 hardware; x86 Ubuntu Server hosts are unaffected.
 The board must use systemd-networkd. Explicit enablement on another board
 requires USB peripheral support and hardware qualification. Settings are in
 `/etc/plank-avp-relay/usb-network.conf`; ambiguous Ethernet/controller
-selection requires explicit names there. A validated private `router_address`
-can be changed there to avoid an overlapping subnet. DHCP pool sizing follows
-the subnet rather than a fixed 20-address pool.
+selection requires explicit names there. The Router subnet has no override.
+Overlapping connected networks prevent Router mode from being applied; use
+Bridge mode or a different network. Package upgrades remove the retired
+`router_address` setting while retaining other configuration and saved mode.
+Customized configuration is backed up privately before that setting is removed.
+DHCP uses the available addresses within the fixed /24 subnet.
 
 If the supported board has no active USB device controller, the service can
 install an Armbian peripheral-mode overlay. It reports that a relay restart is
@@ -134,8 +138,8 @@ backend. A recognized installation is backed up to `standalone-before.json`,
 its Bridge/Router selection is retained, and its service/configuration is
 retired before the new controller takes over. Unknown gadget installations
 are left untouched and reported as unavailable. The original supplied script
-outside this repository is unchanged. Custom settings such as a non-default
-private USB subnet should be set in the new configuration before migration.
+outside this repository is unchanged. Router mode uses the fixed
+`10.20.30.0/24` subnet after migration.
 
 The app's **Network** tab has an editable **Network mode** section and a
 separate **Connection status** section. Ethernet/USB rows are read-only text

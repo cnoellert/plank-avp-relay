@@ -22,6 +22,7 @@ from avp_relay.discovery import Publisher
 from avp_relay.hardware import prepare_firmware
 from avp_relay.host_setup import configure_armbian
 from avp_relay.gadget_config import read_settings as read_gadget_settings
+from avp_relay.gadget_system import firewall, network_files
 from avp_relay.gadget import GadgetController
 from avp_relay.wifi import WifiController
 from avp_relay.wifi_system import read_settings as read_wifi_settings
@@ -30,6 +31,9 @@ settings = read_settings(root / 'etc/plank-avp-relay/relay.conf')
 assert not settings.exclusive_adapter and not settings.disable_controller_address_resolution
 assert settings.tcp_enabled and settings.tcp_port == 28991
 assert read_gadget_settings(root / 'etc/plank-avp-relay/usb-network.conf').enabled == 'auto'
+assert 'router_address' not in (root / 'etc/plank-avp-relay/usb-network.conf').read_text()
+assert 'Address=10.20.30.1/24' in next(iter(network_files('router', 'end0', '', '02:00:00:00:00:01', {}).values()))
+assert 'ip saddr 10.20.30.0/24' in firewall('router', 'end0', 'plankusb0')
 assert (private / 'plank-avp-relay-usb').is_file()
 assert (root / 'usr/lib/systemd/system/plank-avp-relay-usb.service').is_file()
 assert read_wifi_settings(root / 'etc/plank-avp-relay/wifi.conf') == ''

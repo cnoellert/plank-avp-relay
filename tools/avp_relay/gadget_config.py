@@ -10,6 +10,8 @@ import re
 import tempfile
 
 MODES = ('bridge', 'router')
+ROUTER_ADDRESS = '10.20.30.1/24'
+ROUTER_NETWORK = ipaddress.IPv4Interface(ROUTER_ADDRESS).network
 STATE = Path('/var/lib/plank-avp-relay/usb')
 CONFIG = Path('/etc/plank-avp-relay/usb-network.conf')
 
@@ -21,7 +23,6 @@ class GadgetSettings:
     controller: str = ''
     otg_node: str = ''
     function: str = 'ncm'
-    router_address: str = '10.55.0.1/24'
 
 
 def read_settings(path=CONFIG):
@@ -42,13 +43,6 @@ def read_settings(path=CONFIG):
         raise ValueError('Invalid USB controller name.')
     if result.otg_node and not re.fullmatch(r'/[a-zA-Z0-9_/@.,+-]{1,200}', result.otg_node):
         raise ValueError('Invalid OTG device-tree node.')
-    address = ipaddress.IPv4Interface(result.router_address)
-    if not 8 <= address.network.prefixlen <= 30 or address.ip in (
-            address.network.network_address, address.network.broadcast_address):
-        raise ValueError('Router address must be a usable IPv4 host address with prefix /8 through /30.')
-    if not any(address.network.subnet_of(ipaddress.IPv4Network(network))
-               for network in ('10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16')):
-        raise ValueError('Use a private, non-link-local router subnet.')
     return result
 
 

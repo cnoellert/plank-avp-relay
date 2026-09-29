@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
 from avp_relay.gadget import GadgetController
 from avp_relay.gadget_config import GadgetSettings, read_settings
 from avp_relay.gadget_system import LinuxGadget, firewall, network_files, install_network_files
+from avp_relay.host_setup import configure_usb_subnet
 from avp_relay.core import RelayCore
 
 
@@ -33,7 +34,7 @@ class Backend:
         if mode == self.fail: raise RuntimeError('simulated configuration failure')
     def sync(self): pass
     def unbind(self): self.detached = True
-    def status(self): return dict(ethernet='connected', usb='connected', addresses=['10.55.0.1'])
+    def status(self): return dict(ethernet='connected', usb='connected', addresses=['10.20.30.1'])
 
 
 class GadgetTests(unittest.TestCase):
@@ -195,16 +196,18 @@ class GadgetTests(unittest.TestCase):
             run.assert_not_called()
             self.assertNotIn('udc0', [call.args[1] for call in write.call_args_list])
 
-    def test_firewall_blocks_wifi_and_ipv6_forwarding_and_no_tiny_pool(self):
-        router = firewall('router', 'end0', 'usb0', '10.55.0.0/24')
+    def test_fixed_router_subnet_dhcp_nat_and_wired_only_forwarding(self):
+        router = firewall('router', 'end0', 'usb0')
+        self.assertIn('ip saddr 10.20.30.0/24 oifname "end0" masquerade', router)
         self.assertIn('iifname "usb0" oifname != "end0" drop', router)
         self.assertIn('iifname "usb0" meta nfproto ipv6 drop', router)
         self.assertIn('table inet plank_usb', router)
-        bridge = firewall('bridge', 'end0', 'usb0', '10.55.0.0/24')
+        bridge = firewall('bridge', 'end0', 'usb0')
         self.assertIn('iifname "plankbr0" oifname != "plankbr0" drop', bridge)
         self.assertNotIn('masquerade', bridge)
-        files = network_files('router', 'end0', '', '02:00:00:00:00:01', '10.55.0.1/30', {})
+        files = network_files('router', 'end0', '', '02:00:00:00:00:01', {})
         text = next(iter(files.values()))
+        self.assertIn('Address=10.20.30.1/24\nDHCPServer=yes', text)
         self.assertIn('PoolSize=0', text)
         self.assertNotIn('PoolSize=20', text)
 
@@ -229,7 +232,7 @@ class GadgetTests(unittest.TestCase):
     def test_networkd_config_is_readable_under_private_service_umask(self):
         directory = self.path / 'networkd'
         files = network_files('bridge', 'end0', '02:01:02:03:04:05', '02:06:07:08:09:10',
-                              '10.55.0.1/24', dict(dhcp=True, addresses=[], dns=[], routes=[]))
+                              dict(dhcp=True, addresses=[], dns=[], routes=[]))
         previous = os.umask(0o077)
         try:
             install_network_files(files, directory)
@@ -244,13 +247,47 @@ class GadgetTests(unittest.TestCase):
         finally:
             os.umask(previous)
 
-    def test_config_rejects_bad_addresses_and_shell_values(self):
+    def test_fixed_subnet_rejects_overlap_but_allows_own_usb_address(self):
+        backend = LinuxGadget(GadgetSettings())
+        backend.usb_interface = Mock(return_value='plankusb0')
+        own = dict(ifname='plankusb0', addr_info=[dict(family='inet', scope='global', local='10.20.30.1', prefixlen=24)])
+        for address, prefix, overlaps in [('10.55.118.104', 24, False), ('172.25.103.102', 22, False),
+                                          ('10.20.30.42', 24, True), ('10.20.5.1', 16, True)]:
+            other = dict(ifname='end0', addr_info=[dict(family='inet', scope='global', local=address, prefixlen=prefix)])
+            with self.subTest(address=address, prefix=prefix), \
+                 patch('avp_relay.gadget_system.run', return_value=json.dumps([own, other])):
+                if overlaps:
+                    with self.assertRaisesRegex(RuntimeError, '10.20.30.0/24 overlaps'):
+                        backend.check_subnet()
+                else:
+                    backend.check_subnet()
+
+    def test_upgrade_removes_retired_subnet_and_retains_custom_settings(self):
+        self.controller.request(self.command())
+        saved = self.controller.path.read_bytes()
+        config = self.path / 'etc/plank-avp-relay/usb-network.conf'
+        config.parent.mkdir(parents=True)
+        retained = '[usb-network]\nenabled = true\nwired_interface = end0\n'
+        original = retained + 'router_address = 10.55.0.1/24\n'
+        config.write_text(original)
+        config.chmod(0o640)
+        self.assertTrue(configure_usb_subnet(self.path))
+        self.assertEqual(config.read_text(), retained)
+        self.assertEqual(config.stat().st_mode & 0o777, 0o640)
+        settings = read_settings(config)
+        self.assertEqual((settings.enabled, settings.wired_interface), ('true', 'end0'))
+        backup = self.path / 'var/backups/plank-avp-relay/usb-network.before-fixed-subnet'
+        self.assertEqual(backup.read_text(), original)
+        self.assertEqual(backup.stat().st_mode & 0o777, 0o600)
+        self.assertFalse(configure_usb_subnet(self.path))
+        self.assertEqual(backup.read_text(), original)
+        self.assertEqual(self.controller.path.read_bytes(), saved)
+
+    def test_config_rejects_subnet_override_and_shell_values(self):
         path = self.path / 'settings'
         path.write_text('[usb-network]\n')
         self.assertEqual(read_settings(path).enabled, 'auto')
-        for key, value in [('router_address','999.1.1.1/24'), ('router_address','10.0.0.0/24'),
-                           ('router_address','10.0.0.1/31'), ('router_address','127.0.0.1/24'),
-                           ('router_address','172.16.0.1/8'), ('wired_interface','eth0;id'),
+        for key, value in [('router_address','10.55.0.1/24'), ('wired_interface','eth0;id'),
                            ('otg_node','/a";'), ('unknown','value')]:
             path.write_text(f'[usb-network]\n{key}={value}\n')
             with self.assertRaises(ValueError): read_settings(path)

@@ -189,7 +189,13 @@ jobs:
           test ! -e /etc/armbian-release
           printf 'GOVERNOR="performance"\nENABLED="false"\nMAX_SPEED=2016000\n' > /etc/default/cpufrequtils
           cp /etc/default/cpufrequtils /tmp/cpufrequtils-before
+          # Upgrade an earlier customized conffile: remove only its retired
+          # Router subnet option before starting the strict USB helper.
+          printf '\nrouter_address = 10.55.0.1/24\n' >> /etc/plank-avp-relay/usb-network.conf
           apt-get install --reinstall -y "./${package[0]}"
+          ! grep -q '^router_address' /etc/plank-avp-relay/usb-network.conf
+          grep -qx 'router_address = 10.55.0.1/24' /var/backups/plank-avp-relay/usb-network.before-fixed-subnet
+          /usr/lib/plank-avp-relay/plank-avp-relay-usb --check-config
           cmp /etc/default/cpufrequtils /tmp/cpufrequtils-before
           touch /etc/armbian-release
           # Reinstall and removal must retain private Wi-Fi enrollment. No

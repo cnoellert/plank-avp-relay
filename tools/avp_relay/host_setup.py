@@ -61,10 +61,47 @@ def configure_armbian(root=Path('/')):
     return True
 
 
+def configure_usb_subnet(root=Path('/')):
+    """Remove the retired subnet option without changing appliance settings."""
+    config = root / 'etc/plank-avp-relay/usb-network.conf'
+    if not config.is_file():
+        return False
+    original = config.read_text()
+    updated = re.sub(r'^[ \t]*router_address[ \t]*[=:][^\n]*(?:\n|$)', '',
+                     original, flags=re.MULTILINE | re.IGNORECASE)
+    if updated == original:
+        return False
+    backup = root / 'var/backups/plank-avp-relay/usb-network.before-fixed-subnet'
+    backup.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    try:
+        descriptor = os.open(backup, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        pass
+    else:
+        with os.fdopen(descriptor, 'wb') as destination, config.open('rb') as source:
+            shutil.copyfileobj(source, destination)
+    previous = config.stat()
+    descriptor, temporary = tempfile.mkstemp(prefix='.usb-network.', dir=config.parent)
+    try:
+        with os.fdopen(descriptor, 'w') as output:
+            os.fchown(output.fileno(), previous.st_uid, previous.st_gid)
+            os.fchmod(output.fileno(), stat.S_IMODE(previous.st_mode))
+            output.write(updated)
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary, config)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+    print('Router mode uses 10.20.30.0/24 (relay 10.20.30.1)', flush=True)
+    return True
+
+
 def main():
     try:
         from .migration import migrate_namespace
         migrate_namespace()
+        configure_usb_subnet()
         configure_armbian()
         return 0
     except (OSError, ValueError) as error:

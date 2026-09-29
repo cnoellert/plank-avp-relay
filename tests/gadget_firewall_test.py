@@ -17,10 +17,12 @@ def inside():
         return result.stdout
     nft('add', 'table', 'inet', 'unrelated')
     for mode in ('router', 'bridge', 'router'):
-        nft('-f', '-', input=firewall(mode, 'end0', 'usb0', '10.55.0.0/24'))
+        nft('-f', '-', input=firewall(mode, 'end0', 'usb0'))
         rules = nft('list', 'table', 'inet', 'plank_usb')
         assert ('meta nfproto ipv6 drop' in rules) == (mode == 'router')
         assert ('oifname != "end0" drop' in rules) == (mode == 'router')
+        nat = nft('list', 'table', 'ip', 'plank_usb')
+        assert ('ip saddr 10.20.30.0/24' in nat) == (mode == 'router')
         assert 'unrelated' in nft('list', 'tables')
     nft('delete', 'table', 'inet', 'plank_usb')
     nft('delete', 'table', 'ip', 'plank_usb')

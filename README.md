@@ -12,8 +12,8 @@ in the Network tab. Wi-Fi may carry relay TCP traffic; USB continues to use
 only wired Ethernet. Secured Wi-Fi rows show a lock and open rows no security label.
 The Ubuntu 26.04 amd64 and Debian 13 arm64 `plank-avp-relay` packages install dependencies,
 configure startup, and migrate saved state from the previous package name.
-Installers are named `plank-avp-relay_0.5.3_amd64.deb` and
-`plank-avp-relay_0.5.3_arm64.deb` and are placed directly in `artifacts/`.
+Installers are named `plank-avp-relay_0.5.4_amd64.deb` and
+`plank-avp-relay_0.5.4_arm64.deb` and are placed directly in `artifacts/`.
 Package versions use the shared release number without a branch suffix.
 See [installation and network behavior](docs/linux-ble-package.md) and
 [the current app workflow](apps/tablet-setup/README.md).

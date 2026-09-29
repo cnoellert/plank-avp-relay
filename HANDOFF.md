@@ -8,7 +8,16 @@ requested pull/rebase completed without replay. No merge or public release.
 Root PLANK and its unrelated work remain untouched. Machine access, signing
 jobs and deployment details belong in the operator's private notes.
 
-Shared release **0.5.3** fixes background Network refresh blocking, independent
+Source now targets shared release **0.5.4**: Router mode uses the fixed
+`10.20.30.0/24` subnet, relay/gateway `10.20.30.1`, DHCP and wired-only NAT.
+There is no subnet override. Package upgrade removes the previous
+`router_address` option, backs up customized configuration privately and
+retains other settings and saved Bridge/Router choice. Bridge addressing is
+unchanged. All 30 local Linux suites pass, including fixed-subnet overlap,
+upgrade retention and real-kernel firewall checks. Native package builds,
+live installation and matching Apple upload **21** are being prepared.
+
+Previously delivered shared release **0.5.3** fixes background Network refresh blocking, independent
 Ethernet status, missing combo-dongle WLAN firmware and Zero2 USB startup /
 warm-start configuration. Relay source
 `3f353bc264e8de835d7c8048c9e603645ba49e6b` passed all four native package and

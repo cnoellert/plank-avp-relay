@@ -1,0 +1,7 @@
+PLANK AVP Relay Setup 0.5.4
+
+- Matches relay release 0.5.4. Router mode now uses 10.20.30.0/24, with relay gateway 10.20.30.1 and automatic headset addressing.
+- Bridge mode continues to use the wired network's addresses. Ethernet carrier is required for USB networking in either mode.
+- Retains the responsive Network tab, Wi-Fi switch feedback and tablet pairing/live-readings workflow from 0.5.3.
+
+Test with relay 0.5.4: select Router mode and confirm USB Ethernet gives the headset a 10.20.30.x address and gateway 10.20.30.1. Verify wired network access, Bridge/Router switching and withdrawal of USB Ethernet when the cable is removed.

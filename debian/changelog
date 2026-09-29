@@ -1,3 +1,13 @@
+plank-avp-relay (0.5.4) experimental; urgency=medium
+
+  * Use 10.20.30.0/24 for Router mode, with relay gateway 10.20.30.1,
+    DHCP and wired-only NAT. Remove the subnet configuration override.
+  * Retire the previous subnet option on upgrade while retaining appliance
+    settings, saved Bridge/Router choice and pairing state.
+  * Match the Setup app release number.
+
+ -- PLANK contributors <625982+alatteri@users.noreply.github.com>  Wed, 30 Sep 2026 00:45:00 +0000
+
 plank-avp-relay (0.5.3) experimental; urgency=medium
 
   * Exclude the relay's own USB gadget from physical Ethernet uplink discovery
