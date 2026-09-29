@@ -12,10 +12,10 @@ import unittest
 from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
-from ble_lab.core import RelayCore
-from ble_lab.network import TCPServer, PREFACE, MAX_PENDING
-from ble_lab.native import ProtocolError
-from ble_lab.discovery import Publisher
+from avp_relay.core import RelayCore
+from avp_relay.network import TCPServer, PREFACE, MAX_PENDING
+from avp_relay.native import ProtocolError
+from avp_relay.discovery import Publisher
 from tablet_enrollment_test import Backend, FIRST, UUID
 
 LIBRARY, CLIENT = sys.argv[1:3]
@@ -60,7 +60,7 @@ class NetworkTests(unittest.TestCase):
         self.core.native.close()
         (self.path / 'paired-clients.json').write_text(json.dumps({'version': 1, 'clients': [self.client_public]}, separators=(',', ':')))
         (self.path / 'paired-clients.json').chmod(0o600)
-        self.core.native = __import__('ble_lab.native', fromlist=['Native']).Native(LIBRARY, self.path)
+        self.core.native = __import__('avp_relay.native', fromlist=['Native']).Native(LIBRARY, self.path)
         self.core.native.on_management = lambda data: self.core.request(data, self.core.owner,
             self.core.native.management_authorized, self.core.native.enrolling)
 
@@ -179,7 +179,7 @@ class NetworkTests(unittest.TestCase):
         self.assertIsNone(self.core.owner)
 
     def test_network_mode_requires_approved_noise_identity(self):
-        from ble_lab.gadget_client import unavailable
+        from avp_relay.gadget_client import unavailable
         self.core.gadget = MagicMock()
         self.core.gadget.request.return_value = dict(unavailable(), supported=True, phase='applying')
         sock, client, connected = self.connect()
@@ -237,7 +237,7 @@ class NetworkTests(unittest.TestCase):
         bus, server, group = MagicMock(), MagicMock(), MagicMock()
         server.EntryGroupNew.return_value = '/group'
         group.GetState.return_value = 2
-        with patch('ble_lab.discovery.dbus.Interface', side_effect=lambda _, name: server if name.endswith('.Server') else group):
+        with patch('avp_relay.discovery.dbus.Interface', side_effect=lambda _, name: server if name.endswith('.Server') else group):
             publisher = Publisher(bus, 28991, 'ab'*32, '0.3.0')
             publisher.tick(); group.Commit.assert_called_once()
             publisher.changed('', ':old', ':new'); publisher.tick()

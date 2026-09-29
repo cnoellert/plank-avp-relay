@@ -1,5 +1,6 @@
-USB Ethernet settings for the dedicated relay box.
+PLANK AVP Relay Setup: USB Ethernet settings for the dedicated relay box.
 
+- The product is now PLANK AVP Relay. The Linux package migration preserves saved identity and pairings.
 - The new Network tab separates editable Network mode from read-only Connection status. Choose Bridge (default) or Router, then Apply changes.
 - Ethernet and USB indicators are status labels, not configuration switches. USB status reflects the controller connection, not just a running service.
 - Mode changes use the existing authorized headset connection. Bluetooth control is preferred; the app reconnects and confirms the saved result if the network changes.

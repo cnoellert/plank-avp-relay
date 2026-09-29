@@ -9,7 +9,7 @@ import time
 from .native import ProtocolError
 
 PREFACE = b'PLTRTCP1'
-SERVICE_TYPE = '_plank-tablet._tcp'
+SERVICE_TYPE = '_plank-avp-relay._tcp'
 MAX_PENDING = 16384
 
 

@@ -10,10 +10,10 @@ from unittest.mock import Mock, patch
 import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
-from ble_lab.gadget import GadgetController
-from ble_lab.gadget_config import GadgetSettings, read_settings
-from ble_lab.gadget_system import LinuxGadget, firewall, network_files
-from ble_lab.core import RelayCore
+from avp_relay.gadget import GadgetController
+from avp_relay.gadget_config import GadgetSettings, read_settings
+from avp_relay.gadget_system import LinuxGadget, firewall, network_files
+from avp_relay.core import RelayCore
 
 
 class Backend:
@@ -121,8 +121,8 @@ class GadgetTests(unittest.TestCase):
         backend.current = 'router'
         backend.wired = 'end0'
         backend.controller = 'udc0'
-        with patch('ble_lab.gadget_system.read', side_effect=lambda p, *a: '0' if str(p).endswith('carrier') else 'udc0'), \
-             patch('ble_lab.gadget_system.write') as write, patch('ble_lab.gadget_system.run') as run:
+        with patch('avp_relay.gadget_system.read', side_effect=lambda p, *a: '0' if str(p).endswith('carrier') else 'udc0'), \
+             patch('avp_relay.gadget_system.write') as write, patch('avp_relay.gadget_system.run') as run:
             backend.sync()
             write.assert_called_once()
             self.assertEqual(write.call_args.args[1], '')
@@ -137,7 +137,7 @@ class GadgetTests(unittest.TestCase):
             if path.endswith('/UDC'): return 'udc0'
             if path.endswith('/state'): return 'not attached'
             return ''
-        with patch('ble_lab.gadget_system.read', side_effect=value):
+        with patch('avp_relay.gadget_system.read', side_effect=value):
             self.assertEqual(backend.status()['usb'], 'disconnected')
 
     def test_firewall_blocks_wifi_and_ipv6_forwarding_and_no_tiny_pool(self):

@@ -83,7 +83,7 @@ jobs:
         run: |
           set -o pipefail
           package_version=$(dpkg-parsechangelog -SVersion)
-          package=(artifacts/deb/"$package_version"/ubuntu-26.04/${{ matrix.arch }}/plank-tablet-relay-ble_*.deb)
+          package=(artifacts/deb/"$package_version"/ubuntu-26.04/${{ matrix.arch }}/plank-avp-relay_*.deb)
           test "${#package[@]}" = 1
           test "$(dpkg-deb -f "${package[0]}" Version)" = "$package_version"
           test "$(dpkg-deb -f "${package[0]}" Architecture)" = '${{ matrix.arch }}'
@@ -92,13 +92,13 @@ jobs:
           [[ ! $dependencies =~ python3\.[0-9] ]]
           lintian --fail-on error,warning "${package[0]}" 2>&1 | tee artifacts/logs/lintian.log
           apt-get install -y "./${package[0]}"
-          plank-tablet-relay-ble --check-config
+          plank-avp-relay --check-config
           python3 tests/installed_relay_smoke.py /
-          dpkg --verify plank-tablet-relay-ble
-          readelf -h /usr/lib/plank-tablet-relay-ble/libplank_ble_lab.so | tee artifacts/logs/elf-header.log
-          systemd-analyze verify /lib/systemd/system/plank-tablet-relay-ble.service /lib/systemd/system/plank-tablet-relay-hardware.service
-          systemd-analyze verify /lib/systemd/system/plank-tablet-relay-gadget.service
-          /usr/lib/plank-tablet-relay-ble/plank-tablet-relay-gadget --check-config
+          dpkg --verify plank-avp-relay
+          readelf -h /usr/lib/plank-avp-relay/libplank_avp_relay.so | tee artifacts/logs/elf-header.log
+          systemd-analyze verify /lib/systemd/system/plank-avp-relay.service /lib/systemd/system/plank-avp-relay-hardware.service
+          systemd-analyze verify /lib/systemd/system/plank-avp-relay-usb.service
+          /usr/lib/plank-avp-relay/plank-avp-relay-usb --check-config
           test -x /usr/libexec/bluetooth/bluetoothd
           test -x /usr/sbin/avahi-daemon
           dpkg-query -W -f='${Status}\n' avahi-daemon | grep -q 'install ok installed'
@@ -151,22 +151,22 @@ jobs:
           path: artifacts
       - name: Install, exercise and remove package
         run: |
-          package=(artifacts/deb/*/ubuntu-26.04/${{ matrix.arch }}/plank-tablet-relay-ble_*.deb)
+          package=(artifacts/deb/*/ubuntu-26.04/${{ matrix.arch }}/plank-avp-relay_*.deb)
           test "${#package[@]}" = 1
           package_version=$(dpkg-deb -f "${package[0]}" Version)
           test "$(dirname "${package[0]}")" = "artifacts/deb/$package_version/ubuntu-26.04/${{ matrix.arch }}"
           (cd "$(dirname "${package[0]}")" && sha256sum -c SHA256SUMS)
           apt-get install -y "./${package[0]}"
-          plank-tablet-relay-ble --check-config
+          plank-avp-relay --check-config
           python3 tests/installed_relay_smoke.py /
-          dpkg --verify plank-tablet-relay-ble
-          systemd-analyze verify /lib/systemd/system/plank-tablet-relay-ble.service /lib/systemd/system/plank-tablet-relay-hardware.service
-          systemd-analyze verify /lib/systemd/system/plank-tablet-relay-gadget.service
-          /usr/lib/plank-tablet-relay-ble/plank-tablet-relay-gadget --check-config
+          dpkg --verify plank-avp-relay
+          systemd-analyze verify /lib/systemd/system/plank-avp-relay.service /lib/systemd/system/plank-avp-relay-hardware.service
+          systemd-analyze verify /lib/systemd/system/plank-avp-relay-usb.service
+          /usr/lib/plank-avp-relay/plank-avp-relay-usb --check-config
           test -L /lib/firmware/updates/rtl_bt/rtl8851bu_fw.bin
           test -x /usr/sbin/avahi-daemon
           dpkg-query -W -f='${Status}\n' avahi-daemon | grep -q 'install ok installed'
-          /usr/lib/plank-tablet-relay-ble/plank-tablet-relay-hardware --firmware-only
+          /usr/lib/plank-avp-relay/plank-avp-relay-hardware --firmware-only
           # Exercise the actual postinst's Armbian-only branch without a board.
           test ! -e /etc/armbian-release
           printf 'GOVERNOR="performance"\nENABLED="false"\nMAX_SPEED=2016000\n' > /etc/default/cpufrequtils
@@ -178,13 +178,17 @@ jobs:
           grep -qx 'GOVERNOR="powersave"' /etc/default/cpufrequtils
           grep -qx 'ENABLED="true"' /etc/default/cpufrequtils
           grep -qx 'MAX_SPEED=2016000' /etc/default/cpufrequtils
-          cmp /var/backups/plank-tablet-relay/cpufrequtils.before-powersave /tmp/cpufrequtils-before
-          apt-get remove -y plank-tablet-relay-ble
+          cmp /var/backups/plank-avp-relay/cpufrequtils.before-powersave /tmp/cpufrequtils-before
+          apt-get remove -y plank-avp-relay
           test ! -L /lib/firmware/updates/rtl_bt/rtl8851bu_fw.bin
           test ! -L /lib/firmware/updates/rtl_bt/rtl8851bu_config.bin
-          test ! -e /usr/lib/plank-tablet-relay-ble/ble_lab
-          test ! -e /usr/lib/plank-tablet-relay-ble/libplank_ble_lab.so
-          test ! -e /usr/lib/systemd/system/bluetooth.service.d/10-plank-tablet-relay-ble.conf
+          test ! -e /usr/lib/plank-avp-relay/avp_relay
+          test ! -e /usr/lib/plank-avp-relay/libplank_avp_relay.so
+          test ! -e /usr/lib/systemd/system/bluetooth.service.d/10-plank-avp-relay.conf
           test -x /usr/sbin/avahi-daemon
           grep -qx 'GOVERNOR="powersave"' /etc/default/cpufrequtils
-          cmp /var/backups/plank-tablet-relay/cpufrequtils.before-powersave /tmp/cpufrequtils-before
+          cmp /var/backups/plank-avp-relay/cpufrequtils.before-powersave /tmp/cpufrequtils-before
+          python3 tests/package_upgrade_fixture.py prepare "${package[0]}"
+          apt-get install -y "./${package[0]}"
+          python3 tests/package_upgrade_fixture.py verify
+          plank-avp-relay --check-config

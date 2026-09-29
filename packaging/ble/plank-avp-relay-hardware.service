@@ -5,6 +5,6 @@ Before=bluetooth.service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/lib/plank-tablet-relay-ble/plank-tablet-relay-hardware
+ExecStart=/usr/lib/plank-avp-relay/plank-avp-relay-hardware
 TimeoutStartSec=45
 RemainAfterExit=yes

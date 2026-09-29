@@ -20,7 +20,7 @@ GADGET = Path('/sys/kernel/config/usb_gadget/plank_network')
 NETDIR = Path('/etc/systemd/network')
 FILES = ('04-plank-usb.netdev', '04-plank-usb-bridge.network',
          '04-plank-usb-wired.network', '04-plank-usb-device.network')
-MARKER = '# Managed by plank-tablet-relay-gadget\n'
+MARKER = '# Managed by plank-avp-relay-usb\n'
 
 
 def run(*args, check=True, input=None):
@@ -315,7 +315,7 @@ class LinuxGadget:
             strings = GADGET / 'strings/0x409'
             strings.mkdir()
             for name, value in {'serialnumber': self.digest[10:26], 'manufacturer': 'PLANK',
-                                'product': 'PLANK Relay Ethernet'}.items():
+                                'product': 'PLANK AVP Relay Ethernet'}.items():
                 write(strings / name, value)
             config = GADGET / 'configs/c.1'
             (config / 'strings/0x409').mkdir(parents=True)

@@ -15,7 +15,7 @@ struct TabletSetupView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             VStack(alignment: .leading, spacing: 5) {
-                Text("PLANK Tablet Setup").font(.title2.bold())
+                Text("PLANK AVP Relay Setup").font(.title2.bold())
                 Text(Bundle.main.object(forInfoDictionaryKey: "PLANKSetupVersion") as? String ?? "development")
                     .font(.caption).foregroundStyle(.secondary)
             }
@@ -176,7 +176,7 @@ struct OwnershipRecoveryView: View {
         DisclosureGroup("Lost or replaced headset?") {
             VStack(alignment: .leading, spacing: 10) {
                 Text("An existing headset can restore access using its saved identity. To transfer the relay to a replacement headset, run this command over SSH on the relay:")
-                Text("sudo plank-tablet-relay-admin reset-headsets --yes")
+                Text("sudo plank-avp-relay-admin reset-headsets --yes")
                     .font(.system(.callout, design: .monospaced)).textSelection(.enabled)
                 Text("This clears headset approvals and keeps the relay identity and tablet bonds. Then reopen tablet setup and select the tablet to finish setup with the replacement headset.")
             }.font(.callout).padding(.top, 10)

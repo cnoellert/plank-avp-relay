@@ -17,7 +17,7 @@ with (contents / "Info.plist").open("rb") as source:
 assert info["CFBundleIdentifier"] == "la.instinctual.PLANK.TabletSetup"
 assert info.get("NSBluetoothAlwaysUsageDescription")
 assert info.get("NSLocalNetworkUsageDescription")
-assert info["NSBonjourServices"] == ["_plank-tablet._tcp"]
+assert info["NSBonjourServices"] == ["_plank-avp-relay._tcp"]
 assert re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", info["CFBundleShortVersionString"])
 assert re.fullmatch(r"[1-9][0-9]*", info["CFBundleVersion"])
 assert info["PLANKSetupVersion"] == f'{info["CFBundleShortVersionString"]}-visionos-tablet-setup'

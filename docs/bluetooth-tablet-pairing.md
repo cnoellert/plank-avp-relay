@@ -57,9 +57,9 @@ A lost/replaced headset requires an explicit ownership reset:
 
 ```sh
 # Revoke headset approvals; retain relay identity and tablet bonds.
-sudo plank-tablet-relay-admin reset-headsets --yes
+sudo plank-avp-relay-admin reset-headsets --yes
 # Optional: remove only a chosen obsolete tablet bond.
-sudo plank-tablet-relay-admin remove-tablet AA:BB:CC:DD:EE:FF --yes
+sudo plank-avp-relay-admin remove-tablet AA:BB:CC:DD:EE:FF --yes
 ```
 
 The replacement headset can then select the retained tablet or pair a new one;

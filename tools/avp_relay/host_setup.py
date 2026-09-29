@@ -33,7 +33,7 @@ def configure_armbian(root=Path('/')):
     if updated == original:
         return False
     if config.exists():
-        backup = root / 'var/backups/plank-tablet-relay/cpufrequtils.before-powersave'
+        backup = root / 'var/backups/plank-avp-relay/cpufrequtils.before-powersave'
         backup.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         try:
             descriptor = os.open(backup, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
@@ -63,8 +63,10 @@ def configure_armbian(root=Path('/')):
 
 def main():
     try:
+        from .migration import migrate_namespace
+        migrate_namespace()
         configure_armbian()
         return 0
     except (OSError, ValueError) as error:
-        print('Armbian host configuration failed: ' + str(error), file=sys.stderr)
+        print('Relay host configuration failed: ' + str(error), file=sys.stderr)
         return 1

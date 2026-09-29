@@ -3,8 +3,8 @@ import sys
 from pathlib import Path
 import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
-from ble_lab.transport import EchoChannel, Indications
-from ble_lab.capture import Capture, SAMPLE
+from avp_relay.transport import EchoChannel, Indications
+from avp_relay.capture import Capture, SAMPLE
 
 
 class TransportTests(unittest.TestCase):

@@ -1,10 +1,14 @@
-# PLANK tablet Relay
+# PLANK AVP Relay
 
 The current managed Linux relay reads USB or Bluetooth Wacom tablets and
-provides encrypted tablet setup and readings to the PLANK Tablet Setup AVP app.
-Release 0.3.0 supports automatic LAN discovery and a newly written TCP transport
-alongside Bluetooth LE, with shared identity and headset authorization. The
-Ubuntu 26.04 amd64/arm64 `.deb` installs Avahi and configures service startup.
+provides encrypted tablet setup and readings to the PLANK AVP Relay Setup app.
+Release 0.4.0 also manages USB Ethernet on a supported dedicated relay box,
+with Bridge/Router selection and separate connection statuses in the app's
+Network tab. Physical Ethernet carrier gates USB attachment; relay Wi-Fi is
+never an uplink for the headset. Automatic LAN discovery and TCP communication
+run alongside Bluetooth LE with shared identity and headset authorization.
+The Ubuntu 26.04 amd64/arm64 `plank-avp-relay` package installs dependencies,
+configures startup, and migrates saved state from the previous package name.
 See [installation and network behavior](docs/linux-ble-package.md) and
 [the current app workflow](apps/tablet-setup/README.md).
 
@@ -13,9 +17,9 @@ below for reference. The new managed TCP path does not reuse its transport,
 pairing commands or worker. The Client owns the authenticated Host session;
 the Relay has no Host credentials.
 
-A separate [PLANK Tablet Setup workflow lab](apps/tablet-setup/README.md) on the
+A separate [PLANK AVP Relay Setup workflow lab](apps/tablet-setup/README.md) on the
 `visionos-tablet-setup` branch exercises onboarding without remote desktop.
-It opens directly to relay discovery and retains legacy network/USB pairing. An explicit
+It opens directly to relay discovery. An explicit
 [Bluetooth headset input lab](docs/bluetooth-headset-lab.md) adds authenticated
 BLE relay discovery/pairing and a live diagnostic readout. The working readings path is available as a separate
 [managed Debian package](docs/linux-ble-package.md); the production raw-HID

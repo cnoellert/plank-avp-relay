@@ -1,4 +1,4 @@
-# PLANK Tablet Setup — workflow lab
+# PLANK AVP Relay Setup — workflow lab
 
 A standalone SwiftUI visionOS app for reviewing tablet-relay onboarding. Also
 builds as a macOS UI preview. No workstation, remote desktop, Qt, SDL, FFmpeg or
@@ -42,7 +42,7 @@ App and Linux package versions advance together, including app-only fixes.
 
 ## Network and Bluetooth pairing and readings
 
-Allow Local Network access to discover `_plank-tablet._tcp` services. A relay
+Allow Local Network access to discover `_plank-avp-relay._tcp` services. A relay
 on Ethernet and a headset on Wi-Fi can connect when the LAN permits discovery
 and device-to-device traffic. The app prefers reachable TCP endpoints. A known
 relay public key joins its network and Bluetooth entries; a unique matching
@@ -160,12 +160,12 @@ Existing Linux daemon builds and service behavior are unchanged.
 
 Generated Xcode projects live in `build/tablet-setup/{simulator,device,macos}`.
 The app is under the configuration's output directory; Xcode may add a platform
-suffix, e.g. `Debug-xrsimulator/PLANK Tablet Setup.app`. The simulator requires
+suffix, e.g. `Debug-xrsimulator/PLANK AVP Relay Setup.app`. The simulator requires
 an installed compatible visionOS runtime; compilation alone does not install
 one. Keep the simulator runtime separate from product dependencies.
 
 For a physical headset, open the generated device Xcode project and select
-the PLANK Tablet Setup target, your Apple development team, and the paired
+the PLANK AVP Relay Setup target, your Apple development team, and the paired
 headset. Enable signing for the app target, or reconfigure with
 `-DPLANK_DEVELOPMENT_TEAM=YOUR_TEAM_ID` and build with Xcode's automatic
 development provisioning. Device registration/provisioning must be available

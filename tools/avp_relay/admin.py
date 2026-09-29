@@ -12,9 +12,9 @@ from .config import read_settings
 from .native import Native
 from .tablets import address, hid, save, wacom
 
-STATE = Path('/var/lib/plank-tablet-relay-ble')
-CONFIG = Path('/etc/plank-tablet-relay-ble/relay.conf')
-LIBRARY = Path('/usr/lib/plank-tablet-relay-ble/libplank_ble_lab.so')
+STATE = Path('/var/lib/plank-avp-relay')
+CONFIG = Path('/etc/plank-avp-relay/relay.conf')
+LIBRARY = Path('/usr/lib/plank-avp-relay/libplank_avp_relay.so')
 
 
 def remove_tablet(backend, target, state):
@@ -48,12 +48,12 @@ def main():
     if (args.operation == 'remove-tablet') != bool(args.tablet):
         parser.error('remove-tablet requires a Bluetooth address; reset-headsets takes no address.')
     target = address(args.tablet) if args.tablet else None
-    was_active = subprocess.run(['systemctl', 'is-active', '--quiet', 'plank-tablet-relay-ble']).returncode == 0
-    subprocess.run(['systemctl', 'stop', 'plank-tablet-relay-ble'], check=True, timeout=20)
+    was_active = subprocess.run(['systemctl', 'is-active', '--quiet', 'plank-avp-relay']).returncode == 0
+    subprocess.run(['systemctl', 'stop', 'plank-avp-relay'], check=True, timeout=20)
     native = None
     try:
         native = Native(LIBRARY, STATE)  # Hold the same exclusive store lock as the service.
-        backup = Path('/var/backups/plank-tablet-relay') / datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')
+        backup = Path('/var/backups/plank-avp-relay') / datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')
         backup.mkdir(parents=True, mode=0o700)
         for name in ('paired-clients.json', 'tablets.json'):
             if (STATE / name).exists():
@@ -81,7 +81,7 @@ def main():
         if native:
             native.close()
         if was_active:
-            subprocess.run(['systemctl', 'start', 'plank-tablet-relay-ble'], check=True, timeout=40)
+            subprocess.run(['systemctl', 'start', 'plank-avp-relay'], check=True, timeout=40)
 
 
 if __name__ == '__main__':

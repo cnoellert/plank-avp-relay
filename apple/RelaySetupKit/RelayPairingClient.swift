@@ -164,7 +164,7 @@ public final class RelayPairingClient {
                     onProgress: ((String) -> Void)? = nil) -> any RelayByteConnection {
         if let service = address.networkService, let domain = address.networkDomain {
             onProgress?("Connecting to your relay over the local network…")
-            return RelayTCPConnection(endpoint: .service(name: service, type: "_plank-tablet._tcp", domain: domain, interface: nil),
+            return RelayTCPConnection(endpoint: .service(name: service, type: "_plank-avp-relay._tcp", domain: domain, interface: nil),
                 channel: channel == .setup ? 1 : channel == .echo ? 2 : 0)
         }
         return RelayBLEConnection(identifier: address.bluetoothIdentifier, channel: channel, onProgress: onProgress)
@@ -211,7 +211,7 @@ public final class RelayPairingClient {
                              onProgress: ((String) -> Void)? = nil,
                              onApproval: @escaping (ButtonApproval) -> Void) async throws -> Data {
         guard privateKey.count == 32 else { throw RelaySetupError.invalidState }
-        let name = Array("PLANK Tablet Setup".utf8)
+        let name = Array("PLANK AVP Relay Setup".utf8)
         let codec = privateKey.withUnsafeBytes { key in
             name.withUnsafeBufferPointer { label in
                 pltr_client_pair_create_button(key.bindMemory(to: UInt8.self).baseAddress,

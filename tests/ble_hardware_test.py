@@ -9,8 +9,8 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
-from ble_lab.hardware import prepare_firmware, switch_disks, recover_radios, initialized
-from ble_lab.host_setup import configure_armbian
+from avp_relay.hardware import prepare_firmware, switch_disks, recover_radios, initialized
+from avp_relay.host_setup import configure_armbian
 
 
 class ArmbianInstallationTests(unittest.TestCase):
@@ -43,7 +43,7 @@ class ArmbianInstallationTests(unittest.TestCase):
         self.assertIn(b'GOVERNOR="powersave"\nexport GOVERNOR="powersave"\nENABLED="true"\n', changed)
         self.assertTrue(changed.startswith(b'# Board frequency limits\n'))
         self.assertEqual(self.config.stat().st_mode & 0o777, 0o640)
-        backup = self.root / 'var/backups/plank-tablet-relay/cpufrequtils.before-powersave'
+        backup = self.root / 'var/backups/plank-avp-relay/cpufrequtils.before-powersave'
         self.assertEqual(backup.read_text(), original)
         self.assertEqual(backup.stat().st_mode & 0o777, 0o600)
         self.assertFalse(configure_armbian(self.root))
@@ -164,7 +164,7 @@ class HardwareTests(unittest.TestCase):
         usb, _ = self.usb_device()
         self.usb_device('1-2', vendor='abcd')
         self.usb_device('1-3', kind='e0')
-        with patch('ble_lab.hardware.run') as run:
+        with patch('avp_relay.hardware.run') as run:
             switch_disks(usb)
         run.assert_called_once_with(['usb_modeswitch', '-K', '-v', '0bda', '-p', '1a2b', '-b', '1', '-g', '2'])
 
@@ -180,7 +180,7 @@ class HardwareTests(unittest.TestCase):
 
     def test_initialized_controller_is_never_reset(self):
         usb, _, drivers = self.radio()
-        with patch('ble_lab.hardware.wait_initialized', return_value=True):
+        with patch('avp_relay.hardware.wait_initialized', return_value=True):
             recover_radios(usb, drivers)
         self.assertEqual((drivers / 'btusb/unbind').read_text(), 'untouched')
         self.assertEqual((drivers / 'btusb/bind').read_text(), 'untouched')
@@ -189,7 +189,7 @@ class HardwareTests(unittest.TestCase):
         usb, interface, drivers = self.radio()
         wifi = usb / '1-1:1.2'
         wifi.mkdir()
-        with patch('ble_lab.hardware.wait_initialized', side_effect=[False, True]):
+        with patch('avp_relay.hardware.wait_initialized', side_effect=[False, True]):
             recover_radios(usb, drivers)
         self.assertEqual((drivers / 'btusb/unbind').read_text(), interface.name)
         self.assertEqual((drivers / 'btusb/bind').read_text(), interface.name)
@@ -197,7 +197,7 @@ class HardwareTests(unittest.TestCase):
 
     def test_management_failure_does_not_reset_an_unknown_controller(self):
         usb, _, drivers = self.radio()
-        with patch('ble_lab.hardware.wait_initialized', side_effect=OSError('permission denied')):
+        with patch('avp_relay.hardware.wait_initialized', side_effect=OSError('permission denied')):
             with self.assertRaises(OSError):
                 recover_radios(usb, drivers)
         self.assertEqual((drivers / 'btusb/unbind').read_text(), 'untouched')
@@ -207,9 +207,9 @@ class HardwareTests(unittest.TestCase):
         hci = self.root / 'bluetooth/hci2'
         hci.mkdir(parents=True)
         (hci / 'device').symlink_to(interface)
-        with patch('ble_lab.hardware.controller_indexes', return_value={0}):
+        with patch('avp_relay.hardware.controller_indexes', return_value={0}):
             self.assertFalse(initialized(interface, hci.parent))
-        with patch('ble_lab.hardware.controller_indexes', return_value={2}):
+        with patch('avp_relay.hardware.controller_indexes', return_value={2}):
             self.assertTrue(initialized(interface, hci.parent))
 
 

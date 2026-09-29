@@ -8,10 +8,10 @@ import unittest
 from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
-from ble_lab.tablets import HID, Tablets, save
-from ble_lab.admin import remove_tablet
-from ble_lab.transport import SetupChannel
-from ble_lab.tablet_bluez import TabletAgent, Denied
+from avp_relay.tablets import HID, Tablets, save
+from avp_relay.admin import remove_tablet
+from avp_relay.transport import SetupChannel
+from avp_relay.tablet_bluez import TabletAgent, Denied
 
 FIRST = 'AA:BB:CC:DD:EE:01'
 SECOND = 'AA:BB:CC:DD:EE:02'

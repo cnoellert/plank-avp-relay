@@ -11,7 +11,7 @@ import time
 
 from .controller import controller_indexes
 
-BUNDLE = Path('/usr/share/plank-tablet-relay-ble/firmware')
+BUNDLE = Path('/usr/share/plank-avp-relay/firmware')
 FIRMWARE = Path('/lib/firmware')
 USB = Path('/sys/bus/usb/devices')
 BLUETOOTH = Path('/sys/class/bluetooth')
@@ -145,7 +145,7 @@ def main():
     options.add_argument('--remove-links', action='store_true')
     args = parser.parse_args()
     try:
-        with open('/run/lock/plank-tablet-relay-hardware.lock', 'w') as lock:
+        with open('/run/lock/plank-avp-relay-hardware.lock', 'w') as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             prepare_firmware(remove=args.remove_links,
                 extra=read(Path('/sys/module/firmware_class/parameters/path')))

@@ -50,7 +50,7 @@ final class RelayTCPConnection: RelayByteConnection {
         case .cancelled: fail(CancellationError())
         case .waiting(let error):
             if case .dns(let code) = error, code == -65570 {
-                fail(RelaySetupError.network("Allow Local Network access for PLANK Tablet Setup in Settings."))
+                fail(RelaySetupError.network("Allow Local Network access for PLANK AVP Relay Setup in Settings."))
             }
         default: break
         }

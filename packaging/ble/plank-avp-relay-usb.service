@@ -1,18 +1,18 @@
 [Unit]
 Description=PLANK USB Ethernet appliance controller
 After=local-fs.target systemd-networkd.service nftables.service
-Before=plank-tablet-relay-ble.service
+Before=plank-avp-relay.service
 StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-ExecStart=/usr/lib/plank-tablet-relay-ble/plank-tablet-relay-gadget
+ExecStart=/usr/lib/plank-avp-relay/plank-avp-relay-usb
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=15
-StateDirectory=plank-tablet-relay-gadget
+StateDirectory=plank-avp-relay/usb
 StateDirectoryMode=0700
-RuntimeDirectory=plank-tablet-relay-gadget
+RuntimeDirectory=plank-avp-relay/usb
 RuntimeDirectoryMode=0700
 UMask=0077
 User=root

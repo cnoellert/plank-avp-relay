@@ -68,6 +68,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
             src/ble_lab.c src/protocol.c src/session.c src/link.c src/noise.c
             src/cpace.c src/confirm.c src/identity.c src/pair_budget.c
             src/pairing.c src/pair_wire.c)
+        set_target_properties(plank_ble_lab PROPERTIES OUTPUT_NAME plank_avp_relay)
         target_include_directories(plank_ble_lab PUBLIC src)
         target_compile_features(plank_ble_lab PRIVATE c_std_11)
         target_link_libraries(plank_ble_lab PRIVATE PkgConfig::SODIUM)
@@ -142,6 +143,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         target_link_libraries(button_pair_test PRIVATE plank_ble_lab plank_relay_client_pair plank_relay_client_link)
         add_test(NAME button_pair_test COMMAND button_pair_test)
         find_package(Python3 COMPONENTS Interpreter REQUIRED)
+        add_test(NAME namespace_migration_test COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/namespace_migration_test.py" "$<TARGET_FILE:plank_ble_lab>")
         add_test(NAME gadget_test COMMAND "${Python3_EXECUTABLE}"
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/gadget_test.py")
         add_test(NAME gadget_firewall_test COMMAND "${Python3_EXECUTABLE}"

@@ -147,6 +147,8 @@ def handle_socket(connection, controller):
 
 
 def main():
+    from .process import name_process
+    name_process('plank-avp-usb')
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--remove', action='store_true')
     parser.add_argument('--check-config', action='store_true')

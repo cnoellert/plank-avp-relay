@@ -3,7 +3,7 @@
 """Run the explicit BLE input-observer prototype; no production service install."""
 import argparse
 from pathlib import Path
-from ble_lab.bluez import Server
+from avp_relay.bluez import Server
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--library', type=Path)

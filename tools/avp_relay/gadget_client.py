@@ -3,7 +3,7 @@
 import json
 import socket
 
-SOCKET = '/run/plank-tablet-relay-gadget/control.sock'
+SOCKET = '/run/plank-avp-relay/usb/control.sock'
 
 
 class GadgetBusy(RuntimeError):

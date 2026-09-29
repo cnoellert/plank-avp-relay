@@ -1,9 +1,0 @@
-#!/bin/sh
-set -e
-#DEBHELPER#
-case "$1" in
-    remove|deconfigure)
-        /usr/lib/plank-tablet-relay-ble/plank-tablet-relay-gadget --remove
-        /usr/lib/plank-tablet-relay-ble/plank-tablet-relay-hardware --remove-links
-        ;;
-esac

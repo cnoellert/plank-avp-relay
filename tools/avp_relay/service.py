@@ -10,8 +10,10 @@ from .config import read_settings
 
 
 def main():
-    parser = argparse.ArgumentParser(description='PLANK network and Bluetooth tablet relay')
-    parser.add_argument('--config', type=Path, default=Path('/etc/plank-tablet-relay-ble/relay.conf'))
+    from .process import name_process
+    name_process('plank-avp-relay')
+    parser = argparse.ArgumentParser(description='PLANK AVP Relay')
+    parser.add_argument('--config', type=Path, default=Path('/etc/plank-avp-relay/relay.conf'))
     parser.add_argument('--check-config', action='store_true')
     args = parser.parse_args()
     try:
@@ -21,9 +23,9 @@ def main():
             return 0
         from .bluez import Server
         Server(SimpleNamespace(**vars(settings),
-            library=Path('/usr/lib/plank-tablet-relay-ble/libplank_ble_lab.so'),
-            state_dir=Path('/var/lib/plank-tablet-relay-ble'), transport_only=False,
-            version=Path('/usr/share/plank-tablet-relay-ble/version').read_text().strip(),
+            library=Path('/usr/lib/plank-avp-relay/libplank_avp_relay.so'),
+            state_dir=Path('/var/lib/plank-avp-relay'), transport_only=False,
+            version=Path('/usr/share/plank-avp-relay/version').read_text().strip(),
             notify_systemd=True)).run()
         return 0
     except (OSError, ValueError, RuntimeError, configparser.Error) as error:

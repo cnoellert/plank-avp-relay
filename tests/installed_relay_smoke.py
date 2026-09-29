@@ -8,43 +8,43 @@ import sys
 import tempfile
 
 root = Path(sys.argv[1]).resolve()
-private = root / 'usr/lib/plank-tablet-relay-ble'
-library = private / 'libplank_ble_lab.so'
+private = root / 'usr/lib/plank-avp-relay'
+library = private / 'libplank_avp_relay.so'
 assert library.is_file(), 'Packaged ctypes library missing or renamed'
-launcher = root / 'usr/bin/plank-tablet-relay-ble'
+launcher = root / 'usr/bin/plank-avp-relay'
 assert launcher.read_text().splitlines()[0] == '#!/usr/bin/python3 -I'
 sys.path.insert(0, str(private))
-from ble_lab.config import read_settings
-from ble_lab.native import Native
-from ble_lab.bluez import Server  # Check installed imports and dependencies.
-from ble_lab.network import TCPServer
-from ble_lab.discovery import Publisher
-from ble_lab.hardware import prepare_firmware
-from ble_lab.host_setup import configure_armbian
-from ble_lab.gadget_config import read_settings as read_gadget_settings
-from ble_lab.gadget import GadgetController
+from avp_relay.config import read_settings
+from avp_relay.native import Native
+from avp_relay.bluez import Server  # Check installed imports and dependencies.
+from avp_relay.network import TCPServer
+from avp_relay.discovery import Publisher
+from avp_relay.hardware import prepare_firmware
+from avp_relay.host_setup import configure_armbian
+from avp_relay.gadget_config import read_settings as read_gadget_settings
+from avp_relay.gadget import GadgetController
 
-settings = read_settings(root / 'etc/plank-tablet-relay-ble/relay.conf')
+settings = read_settings(root / 'etc/plank-avp-relay/relay.conf')
 assert not settings.exclusive_adapter and not settings.disable_controller_address_resolution
 assert settings.tcp_enabled and settings.tcp_port == 28991
-assert read_gadget_settings(root / 'etc/plank-tablet-relay-ble/usb-network.conf').enabled == 'auto'
-assert (private / 'plank-tablet-relay-gadget').is_file()
-assert (root / 'usr/lib/systemd/system/plank-tablet-relay-gadget.service').is_file()
+assert read_gadget_settings(root / 'etc/plank-avp-relay/usb-network.conf').enabled == 'auto'
+assert (private / 'plank-avp-relay-usb').is_file()
+assert (root / 'usr/lib/systemd/system/plank-avp-relay-usb.service').is_file()
 assert re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+',
-    (root / 'usr/share/plank-tablet-relay-ble/version').read_text().strip())
-unit = (root / 'usr/lib/systemd/system/plank-tablet-relay-ble.service').read_text()
+    (root / 'usr/share/plank-avp-relay/version').read_text().strip())
+unit = (root / 'usr/lib/systemd/system/plank-avp-relay.service').read_text()
 assert 'avahi-daemon.service' in unit and 'AF_INET AF_INET6' in unit
 assert 'PartOf=bluetooth.service' not in unit
-assert (private / 'plank-tablet-relay-hardware').is_file()
-assert (private / 'plank-tablet-relay-configure-host').is_file()
-assert (root / 'usr/lib/systemd/system/plank-tablet-relay-hardware.service').is_file()
-bluez_policy = root / 'usr/lib/systemd/system/bluetooth.service.d/10-plank-tablet-relay-ble.conf'
+assert (private / 'plank-avp-relay-hardware').is_file()
+assert (private / 'plank-avp-relay-configure-host').is_file()
+assert (root / 'usr/lib/systemd/system/plank-avp-relay-hardware.service').is_file()
+bluez_policy = root / 'usr/lib/systemd/system/bluetooth.service.d/10-plank-avp-relay.conf'
 assert 'ExecStart=/usr/libexec/bluetooth/bluetoothd --noplugin=battery' in bluez_policy.read_text()
 with tempfile.TemporaryDirectory() as directory:
     firmware = Path(directory)
-    prepare_firmware(firmware, root / 'usr/share/plank-tablet-relay-ble/firmware')
+    prepare_firmware(firmware, root / 'usr/share/plank-avp-relay/firmware')
     assert (firmware / 'updates/rtl_bt/rtl8851bu_fw.bin').stat().st_size == 49760
-    prepare_firmware(firmware, root / 'usr/share/plank-tablet-relay-ble/firmware', remove=True)
+    prepare_firmware(firmware, root / 'usr/share/plank-avp-relay/firmware', remove=True)
     assert not (firmware / 'updates/rtl_bt/rtl8851bu_fw.bin').is_symlink()
 with tempfile.TemporaryDirectory() as directory:
     state = Path(directory)

@@ -88,7 +88,7 @@ public final class RelayBLEScanner: NSObject, ObservableObject, @preconcurrency 
 
 private func bluetoothStateMessage(_ state: CBManagerState) -> String {
     switch state {
-    case .unauthorized: "Allow Bluetooth access for PLANK Tablet Setup in Settings."
+    case .unauthorized: "Allow Bluetooth access for PLANK AVP Relay Setup in Settings."
     case .poweredOff: "Turn on Bluetooth in Settings, then try again."
     case .unsupported: "Bluetooth LE is unavailable on this device. Use a physical headset for this test."
     default: "Bluetooth is not ready. Try again shortly."

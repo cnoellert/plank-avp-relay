@@ -1,8 +1,11 @@
 #!/bin/sh
 set -e
 if [ "$1" = configure ]; then
-    /usr/lib/plank-tablet-relay-ble/plank-tablet-relay-configure-host
-    /usr/lib/plank-tablet-relay-ble/plank-tablet-relay-hardware --firmware-only
+    if [ -d /run/systemd/system ]; then
+        systemctl disable --now plank-tablet-relay-ble.service plank-tablet-relay-gadget.service >/dev/null 2>&1 || true
+    fi
+    /usr/lib/plank-avp-relay/plank-avp-relay-configure-host
+    /usr/lib/plank-avp-relay/plank-avp-relay-hardware --firmware-only
     if [ -d /run/systemd/system ]; then
         systemctl --system daemon-reload >/dev/null || true
         # Apply the packaged battery-plugin policy before starting the relay.

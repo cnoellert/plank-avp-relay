@@ -9,12 +9,12 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
-from ble_lab.capture import Capture, SAMPLE
-from ble_lab.config import hostname_name, read_settings
-from ble_lab.controller import clear_advertisements
-from ble_lab.notify import ready
-from ble_lab.bluez import Server, PROPERTIES
-from ble_lab.core import RelayCore
+from avp_relay.capture import Capture, SAMPLE
+from avp_relay.config import hostname_name, read_settings
+from avp_relay.controller import clear_advertisements
+from avp_relay.notify import ready
+from avp_relay.bluez import Server, PROPERTIES
+from avp_relay.core import RelayCore
 
 
 class ServiceTests(unittest.TestCase):
@@ -34,12 +34,12 @@ class ServiceTests(unittest.TestCase):
         server.native.finish_enrollment.assert_called_once()
 
     def test_hostname_default_and_explicit_override(self):
-        with patch('ble_lab.config.socket.gethostname', return_value='plank-tablet-relay-02.local'):
+        with patch('avp_relay.config.socket.gethostname', return_value='plank-tablet-relay-02.local'):
             self.assertEqual(self.read('[relay]\n').name, 'plank-tablet-relay-02')
             self.assertEqual(self.read('[relay]\nname=Studio tablet\n').name, 'Studio tablet')
-        with patch('ble_lab.config.socket.gethostname', return_value='tablet-relay-' + 'a' * 40):
+        with patch('avp_relay.config.socket.gethostname', return_value='tablet-relay-' + 'a' * 40):
             first = hostname_name()
-        with patch('ble_lab.config.socket.gethostname', return_value='tablet-relay-' + 'a' * 39 + 'b'):
+        with patch('avp_relay.config.socket.gethostname', return_value='tablet-relay-' + 'a' * 39 + 'b'):
             self.assertNotEqual(first, hostname_name())
             self.assertLessEqual(len(hostname_name().encode()), 26)
 
@@ -86,8 +86,8 @@ class ServiceTests(unittest.TestCase):
     def test_ambiguous_tablets_stay_offline_without_opening_either(self):
         capture = Capture()
         candidates = {('bluetooth:a', '', 5): [], ('bluetooth:b', '', 5): []}
-        with patch('ble_lab.capture.candidates', return_value=candidates), \
-                patch('ble_lab.capture.os.open') as opener:
+        with patch('avp_relay.capture.candidates', return_value=candidates), \
+                patch('avp_relay.capture.os.open') as opener:
             capture.discover()
             self.assertFalse(capture.attached)
             self.assertIsNone(capture.identity)
@@ -128,9 +128,9 @@ class ServiceTests(unittest.TestCase):
         server.exclusive_adapter = True
         properties = MagicMock()
         properties.Get.return_value = True  # Discovery already running.
-        with patch('ble_lab.bluez.dbus.Interface', return_value=properties), \
-                patch('ble_lab.bluez.clear_advertisements') as clear, \
-                patch('ble_lab.bluez.disable_address_resolution') as workaround:
+        with patch('avp_relay.bluez.dbus.Interface', return_value=properties), \
+                patch('avp_relay.bluez.clear_advertisements') as clear, \
+                patch('avp_relay.bluez.disable_address_resolution') as workaround:
             with self.assertRaisesRegex(RuntimeError, 'no scan'):
                 Server.register_bluetooth(server)
             properties.Set.assert_not_called()
@@ -147,7 +147,7 @@ class ServiceTests(unittest.TestCase):
         advertising.RegisterAdvertisement.side_effect = lambda *a, **k: k['reply_handler']()
         interfaces = {'org.bluez.GattManager1': gatt,
                       'org.bluez.LEAdvertisingManager1': advertising, PROPERTIES: properties}
-        with patch('ble_lab.bluez.dbus.Interface', side_effect=lambda _, kind: interfaces[kind]):
+        with patch('avp_relay.bluez.dbus.Interface', side_effect=lambda _, kind: interfaces[kind]):
             Server.register_bluetooth(server)
         self.assertTrue(server.advertising)
         server.notify_ready.assert_called_once()

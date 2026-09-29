@@ -7,7 +7,7 @@ import sys
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
-from ble_lab.gadget_system import firewall
+from avp_relay.gadget_system import firewall
 
 
 def inside():

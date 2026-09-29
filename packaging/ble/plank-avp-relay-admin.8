@@ -1,10 +1,10 @@
-.TH PLANK-TABLET-RELAY-ADMIN 8 "September 2026" "PLANK" "System Administration"
+.TH PLANK-AVP-RELAY-ADMIN 8 "September 2026" "PLANK" "System Administration"
 .SH NAME
-plank-tablet-relay-admin \- recover tablet relay pairing over SSH
+plank-avp-relay-admin \- recover AVP relay pairing over SSH
 .SH SYNOPSIS
-.B plank-tablet-relay-admin reset-headsets --yes
+.B plank-avp-relay-admin reset-headsets --yes
 .br
-.B plank-tablet-relay-admin remove-tablet
+.B plank-avp-relay-admin remove-tablet
 .I Bluetooth-address
 .B --yes
 .SH DESCRIPTION
@@ -13,20 +13,20 @@ The command stops the relay, locks its saved state, performs the selected
 operation, and restarts the relay if it was previously running.
 .PP
 reset-headsets revokes approved headset keys while retaining the relay identity
-and tablet bonds. Forget the local relay pairing in the app before approving
-the headset again with three tablet-button presses.
+and tablet bonds. Open tablet setup in the app and pair or reconnect a tablet
+to authorize the replacement headset.
 .PP
 remove-tablet removes only the selected saved Wacom Bluetooth bond and its
 tablet selection. Other tablet bonds and headset approvals remain intact.
 It refuses unrelated Bluetooth devices.
 .PP
 Previous enrollment metadata is saved privately under
-/var/backups/plank-tablet-relay. This is not a backup of deleted Bluetooth keys.
+/var/backups/plank-avp-relay. This is not a backup of deleted Bluetooth keys.
 Normal sleep or disconnection does not require either recovery command.
 .SH FILES
-/etc/plank-tablet-relay-ble/relay.conf
+/etc/plank-avp-relay/relay.conf
 .br
-/var/lib/plank-tablet-relay-ble
+/var/lib/plank-avp-relay
 .SH SEE ALSO
-.BR plank-tablet-relay-ble (1),
+.BR plank-avp-relay (1),
 .BR bluetoothctl (1)

@@ -8,10 +8,10 @@ import subprocess
 import sys
 
 archive = pathlib.Path(sys.argv[1])
-app = archive / 'Products/Applications/PLANK Tablet Setup.app'
+app = archive / 'Products/Applications/PLANK AVP Relay Setup.app'
 info = plistlib.loads((app / 'Info.plist').read_bytes())
 binary = app / info['CFBundleExecutable']
-symbols = archive / 'dSYMs/PLANK Tablet Setup.app.dSYM'
+symbols = archive / 'dSYMs/PLANK AVP Relay Setup.app.dSYM'
 if not symbols.is_dir():
     sys.exit('FAIL: application dSYM missing from archive')
 

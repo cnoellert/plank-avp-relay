@@ -1,6 +1,6 @@
-# Linux network and Bluetooth relay package
+# PLANK AVP Relay Linux package
 
-`plank-tablet-relay-ble` installs the relay used by PLANK Tablet Setup: discover
+`plank-avp-relay` installs the relay used by PLANK AVP Relay Setup: discover
 the relay, pair a tablet to authorize the initiating headset automatically, and
 view authenticated position, pressure and button readings. It is separate from the
 legacy `plank-tablet-relay` TCP/raw-HID workstation daemon. The two services
@@ -13,9 +13,9 @@ serve both TCP and Bluetooth. Only one setup/readings session owns the core.
 
 ## Automatic network discovery
 
-`apt install ./plank-tablet-relay-ble_*.deb` installs Avahi and the other runtime
+`apt install ./plank-avp-relay_*.deb` installs Avahi and the other runtime
 dependencies. The systemd unit starts Avahi with the relay at boot. The live
-listener publishes `_plank-tablet._tcp` through an Avahi D-Bus entry group;
+listener publishes `_plank-avp-relay._tcp` through an Avahi D-Bus entry group;
 there is no hand-edited service XML file or static IP requirement. Publication
 ends with the listener/process and is renewed after Avahi restarts. Removing
 the package withdraws its service without removing other applications' Avahi
@@ -47,8 +47,36 @@ Discovery alone never grants headset authorization.
 Bluetooth registration retries without stopping the network listener. A lost
 tablet reports offline over the active connection; a missing radio can defer
 interrupted pairing cleanup using its durable journal. New tablet mutations
-wait for that cleanup. The package retains its existing name, configuration
-path and state directory so upgrades preserve pairings.
+wait for that cleanup. Version 0.4.0 migrates the previous package namespace
+while retaining the identity and saved approvals.
+
+## Product and Linux names (0.4.0)
+
+The product is **PLANK AVP Relay**; the companion app displays **PLANK AVP Relay
+Setup**. The repository and Apple bundle identifier are unchanged.
+
+| Purpose | Name or location |
+| --- | --- |
+| Debian package, main command and process | `plank-avp-relay` |
+| Main service | `plank-avp-relay.service` |
+| USB Ethernet service | `plank-avp-relay-usb.service` |
+| USB process name (`ps`/`top`) | `plank-avp-usb` |
+| SSH recovery command | `plank-avp-relay-admin` |
+| Configuration | `/etc/plank-avp-relay/` |
+| Persistent identity and state | `/var/lib/plank-avp-relay/` |
+| USB controller state | `/var/lib/plank-avp-relay/usb/` |
+| Private implementation and helpers | `/usr/lib/plank-avp-relay/` |
+| Root-only USB control socket | `/run/plank-avp-relay/usb/control.sock` |
+| LAN discovery type | `_plank-avp-relay._tcp` |
+
+Install the new package normally with `apt`; it replaces
+`plank-tablet-relay-ble`. Before startup, its installer copies the old private
+state and configuration into the new locations, preserving the original
+copies. It refuses conflicting identities rather than replacing them. A
+migration marker prevents subsequent reinstalls from overwriting newer
+configuration. BlueZ tablet bonds and the headset's saved Keychain identity
+remain intact. Upgrade the Setup app as well to discover the renamed LAN
+service; Bluetooth service UUIDs are unchanged.
 
 The new TCP wire starts with eight ASCII bytes `PLTRTCP1` and one channel byte:
 0 for current framed Noise traffic, 1 for one length-prefixed read-only setup
@@ -71,11 +99,11 @@ bridge mode carries the LAN's IPv6 directly. The owned inet firewall also
 prevents routing from the USB bridge through other interfaces.
 
 The package installs `iproute2`, `nftables`, `device-tree-compiler`, and the
-separate `plank-tablet-relay-gadget.service`. Its default `enabled=auto` activates
+separate `plank-avp-relay-usb.service`. Its default `enabled=auto` activates
 only on Armbian NanoPi Zero2 hardware; x86 Ubuntu Server hosts are unaffected.
 The board must use systemd-networkd. Explicit enablement on another board
 requires USB peripheral support and hardware qualification. Settings are in
-`/etc/plank-tablet-relay-ble/usb-network.conf`; ambiguous Ethernet/controller
+`/etc/plank-avp-relay/usb-network.conf`; ambiguous Ethernet/controller
 selection requires explicit names there. A validated private `router_address`
 can be changed there to avoid an overlapping subnet. DHCP pool sizing follows
 the subnet rather than a fixed 20-address pool.
@@ -84,7 +112,7 @@ If the supported board has no active USB device controller, the service can
 install an Armbian peripheral-mode overlay. It reports that a relay restart is
 required; it never reboots the host automatically. On first configuration it
 saves the wired addressing/DNS/routes and forwarding setting privately under
-`/var/lib/plank-tablet-relay-gadget/`. It writes only owned `04-plank-usb*`
+`/var/lib/plank-avp-relay/usb/`. It writes only owned `04-plank-usb*`
 networkd fragments and checks that networkd actually selects them. The service
 is designed for the dedicated appliance, with routing table 155 and rule
 priorities 31000–31002 reserved for it. Other networking managers and complex
@@ -161,19 +189,19 @@ build. The `.deb` format does not imply Debian or older Ubuntu compatibility;
 OpenWrt/FriendlyWrt cannot install this package.
 
 ```sh
-sudo apt install ./plank-tablet-relay-ble_*.deb
-sudo editor /etc/plank-tablet-relay-ble/relay.conf
-sudo plank-tablet-relay-ble --check-config
-sudo systemctl restart plank-tablet-relay-ble
-systemctl status plank-tablet-relay-ble
-journalctl -u plank-tablet-relay-ble -b
+sudo apt install ./plank-avp-relay_*.deb
+sudo editor /etc/plank-avp-relay/relay.conf
+sudo plank-avp-relay --check-config
+sudo systemctl restart plank-avp-relay
+systemctl status plank-avp-relay
+journalctl -u plank-avp-relay -b
 ```
 
 On Armbian (detected by `/etc/armbian-release`), installation and upgrades set
 `GOVERNOR="powersave"` and `ENABLED="true"` in `/etc/default/cpufrequtils`.
 Other settings, including minimum/maximum frequency and boost, are preserved.
 The first changed file is backed up to
-`/var/backups/plank-tablet-relay/cpufrequtils.before-powersave`. Armbian applies
+`/var/backups/plank-avp-relay/cpufrequtils.before-powersave`. Armbian applies
 the governor at boot; the installer does not restart its broader hardware
 optimization service. Package removal retains this host setting and backup.
 Non-Armbian hosts are unaffected.
@@ -202,7 +230,7 @@ Other Bluetooth adapters and the dongle's Wi-Fi interface are not reset. This
 requires an existing kernel `btusb`/`btrtl` driver supporting the chipset; the
 package does not install a replacement kernel or USB Wi-Fi driver.
 
-The helper runs as `plank-tablet-relay-hardware.service` before the relay. Inspect
+The helper runs as `plank-avp-relay-hardware.service` before the relay. Inspect
 its journal if hardware preparation fails. Dedicated-adapter management also
 supports Python before 3.14 by using Linux's native HCI control-channel address.
 Ubuntu 26.04 remains the build/installation target; operation on the test
@@ -243,7 +271,7 @@ independent approval/Noise connection. This was observed on both the Intel
 Starting with revision 13, installation includes this vendor systemd drop-in:
 
 ```ini
-# /usr/lib/systemd/system/bluetooth.service.d/10-plank-tablet-relay-ble.conf
+# /usr/lib/systemd/system/bluetooth.service.d/10-plank-avp-relay.conf
 [Service]
 ExecStart=
 ExecStart=/usr/libexec/bluetooth/bluetoothd --noplugin=battery
@@ -268,7 +296,7 @@ an AVP link with this option disabled; do not infer that every adapter needs it.
 
 ## Saved state, updates and removal
 
-The root-owned `0700` directory `/var/lib/plank-tablet-relay-ble` stores the
+The root-owned `0700` directory `/var/lib/plank-avp-relay` stores the
 relay identity, approved headset public keys and pairing attempt budget.
 Systemd and package updates retain it. Package removal and purge also retain
 it deliberately. Back it up securely; deleting it changes the relay identity
@@ -280,7 +308,7 @@ directory. Preserve ownership and `0600` file permissions; do not copy keys
 into the source checkout. Never run two processes against the same state.
 The native store locks itself and refuses unsafe ownership/permissions.
 
-Use `sudo apt remove plank-tablet-relay-ble` to stop and remove the service.
+Use `sudo apt remove plank-avp-relay` to stop and remove the service.
 The packaged BlueZ battery-policy drop-in is removed automatically. Explicit
 administrator BlueZ overrides remain under administrator control.
 

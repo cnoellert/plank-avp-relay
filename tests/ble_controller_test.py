@@ -9,14 +9,14 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
-from ble_lab.controller import clear_advertisements, disable_address_resolution, bind_control, controller_indexes
+from avp_relay.controller import clear_advertisements, disable_address_resolution, bind_control, controller_indexes
 
 
 class ControllerTests(unittest.TestCase):
     def invoke(self, events):
         channel = MagicMock()
         channel.recv.side_effect = events
-        with patch('ble_lab.controller.socket.socket') as factory:
+        with patch('avp_relay.controller.socket.socket') as factory:
             factory.return_value.__enter__.return_value = channel
             disable_address_resolution('hci2')
         return channel
@@ -43,7 +43,7 @@ class ControllerTests(unittest.TestCase):
             self.invoke([socket.timeout()])
 
     def test_invalid_adapter_does_not_open_controller(self):
-        with patch('ble_lab.controller.socket.socket') as factory:
+        with patch('avp_relay.controller.socket.socket') as factory:
             for adapter in ('hci', 'hci-1', 'hci0/other', 'hci١', 'hci65535'):
                 with self.subTest(adapter=adapter), self.assertRaises(ValueError):
                     disable_address_resolution(adapter)
@@ -56,8 +56,8 @@ class ControllerTests(unittest.TestCase):
     def clear(self, events):
         channel = MagicMock()
         channel.recv.side_effect = events
-        with patch('ble_lab.controller.socket.socket') as factory, \
-                patch('ble_lab.controller.bind_control') as bind:
+        with patch('avp_relay.controller.socket.socket') as factory, \
+                patch('avp_relay.controller.bind_control') as bind:
             factory.return_value.__enter__.return_value = channel
             clear_advertisements('hci2')
             bind.assert_called_once_with(channel)
@@ -88,7 +88,7 @@ class ControllerTests(unittest.TestCase):
     def test_native_control_bind_has_exact_linux_abi_on_older_python(self):
         channel = MagicMock()
         channel.fileno.return_value = 17
-        with patch('ble_lab.controller.ctypes.CDLL') as library:
+        with patch('avp_relay.controller.ctypes.CDLL') as library:
             bind = library.return_value.bind
             def capture(fd, pointer, size):
                 self.assertEqual(fd, 17)
@@ -101,16 +101,16 @@ class ControllerTests(unittest.TestCase):
         channel.bind.assert_not_called()
 
     def test_native_bind_failure_preserves_errno(self):
-        with patch('ble_lab.controller.ctypes.CDLL') as library, \
-                patch('ble_lab.controller.ctypes.get_errno', return_value=errno.EACCES):
+        with patch('avp_relay.controller.ctypes.CDLL') as library, \
+                patch('avp_relay.controller.ctypes.get_errno', return_value=errno.EACCES):
             library.return_value.bind.return_value = -1
             with self.assertRaises(OSError) as raised:
                 bind_control(MagicMock())
         self.assertEqual(raised.exception.errno, errno.EACCES)
 
     def test_kernel_index_list_is_validated(self):
-        with patch('ble_lab.controller.socket.socket'), patch('ble_lab.controller.bind_control'), \
-                patch('ble_lab.controller.management_command') as command:
+        with patch('avp_relay.controller.socket.socket'), patch('avp_relay.controller.bind_control'), \
+                patch('avp_relay.controller.management_command') as command:
             command.return_value = bytes.fromhex('020000000200')
             self.assertEqual(controller_indexes(), {0, 2})
             command.return_value = bytes.fromhex('0000')

@@ -64,7 +64,7 @@ public final class RelayScanner: ObservableObject {
         scanning = true
         let current = generation
         bluetooth.start()
-        let browser = NWBrowser(for: .bonjourWithTXTRecord(type: "_plank-tablet._tcp", domain: "local."), using: .tcp)
+        let browser = NWBrowser(for: .bonjourWithTXTRecord(type: "_plank-avp-relay._tcp", domain: "local."), using: .tcp)
         self.browser = browser
         browser.stateUpdateHandler = { [weak self] state in
             Task { @MainActor in

@@ -1,8 +1,8 @@
 #!/usr/bin/python3 -I
 # SPDX-License-Identifier: GPL-3.0-or-later
 import sys
-sys.path.insert(0, '/usr/lib/plank-tablet-relay-ble')
-from ble_lab.admin import main
+sys.path.insert(0, '/usr/lib/plank-avp-relay')
+from avp_relay.admin import main
 try:
     raise SystemExit(main())
 except (OSError, ValueError, RuntimeError) as error:

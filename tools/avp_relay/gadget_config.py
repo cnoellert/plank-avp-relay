@@ -10,8 +10,8 @@ import re
 import tempfile
 
 MODES = ('bridge', 'router')
-STATE = Path('/var/lib/plank-tablet-relay-gadget')
-CONFIG = Path('/etc/plank-tablet-relay-ble/usb-network.conf')
+STATE = Path('/var/lib/plank-avp-relay/usb')
+CONFIG = Path('/etc/plank-avp-relay/usb-network.conf')
 
 
 @dataclass(frozen=True)

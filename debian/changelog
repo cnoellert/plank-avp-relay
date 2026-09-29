@@ -1,4 +1,4 @@
-plank-tablet-relay-ble (0.4.0~visionos-tablet-setup) experimental; urgency=medium
+plank-avp-relay (0.4.0~visionos-tablet-setup) experimental; urgency=medium
 
   * Add managed USB Ethernet with Bridge default and selectable Router mode.
     Gate USB attachment on Ethernet link, with no Internet requirement.
@@ -6,6 +6,8 @@ plank-tablet-relay-ble (0.4.0~visionos-tablet-setup) experimental; urgency=mediu
     Persist changes independently of the app and report actual USB status.
   * Install the gadget controller and networking dependencies automatically;
     enable the appliance feature by default on Armbian NanoPi Zero2 only.
+  * Rename the managed product to PLANK AVP Relay and migrate the previous
+    package's configuration and private state without changing saved trust.
 
  -- PLANK contributors <625982+alatteri@users.noreply.github.com>  Tue, 29 Sep 2026 20:00:00 +0000
 

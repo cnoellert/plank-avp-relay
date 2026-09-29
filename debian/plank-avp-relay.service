@@ -1,24 +1,25 @@
 [Unit]
-Description=PLANK Network and Bluetooth Tablet Relay
-Wants=bluetooth.service avahi-daemon.service plank-tablet-relay-hardware.service plank-tablet-relay-gadget.service
-After=bluetooth.service avahi-daemon.service plank-tablet-relay-hardware.service plank-tablet-relay-gadget.service
+Description=PLANK AVP Relay
+Wants=bluetooth.service avahi-daemon.service plank-avp-relay-hardware.service plank-avp-relay-usb.service
+After=bluetooth.service avahi-daemon.service plank-avp-relay-hardware.service plank-avp-relay-usb.service
 StartLimitIntervalSec=0
 
 [Service]
 Type=notify
 NotifyAccess=main
-ExecStart=/usr/bin/plank-tablet-relay-ble
+ExecStart=/usr/bin/plank-avp-relay
 Restart=on-failure
 RestartSec=5
 TimeoutStartSec=30
 TimeoutStopSec=10
-StateDirectory=plank-tablet-relay-ble
+StateDirectory=plank-avp-relay
 StateDirectoryMode=0700
 UMask=0077
 User=root
 CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW
 NoNewPrivileges=yes
 ProtectSystem=strict
+ReadOnlyPaths=-/var/lib/plank-avp-relay/usb
 ProtectHome=yes
 PrivateTmp=yes
 ProtectKernelTunables=yes
