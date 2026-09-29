@@ -13,15 +13,47 @@ Local `origin` points to this new repository; `fork` retains
 the old repository where those records were generated. GPL and third-party
 attributions are retained. The original parent main
 `465c11a9708bfce0c155502844ca8d53e4370390` is already included. The earlier
-requested pull/rebase completed without replay. No merge or public release.
+requested pull/rebase completed without replay. The new repository preserves
+that ancestry; no upstream merge was performed during this migration.
 Root PLANK and its unrelated work remain untouched. Machine access, signing
 jobs and deployment details belong in the operator's private notes.
 
-Shared release **0.5.5** is being prepared in the new repository. Package
-homepage/source and CI now target the new repository's `main`; the app's
-visible branch label is `main`. Bundle ID, signing, TestFlight app and all
-installed identity/state namespaces remain unchanged. Native package CI and
-Apple upload **22** will validate the matching release.
+Shared release **0.5.5** is delivered from the new repository. Package
+homepage/source and CI target `main`; the app displays `0.5.5-main`. Bundle ID,
+signing, TestFlight listing, installed state namespaces and the fixed Router
+subnet are unchanged. The initial migration source
+`accacc1c226a2b1a6c89c9c37bb1ce29edc6717d` is the app's signed source.
+The final relay source is `bfbdd91e31922540b94b5c4a4889ed109b310efe`, which
+only corrects Debian changelog metadata. Recent changelog timestamps now
+reflect the release source commits rather than future-dated entries.
+
+All 30 Linux suites and all four native package / clean-install jobs passed
+in [CI 36642639817](https://github.com/instinctual/plank-avp-relay/actions/runs/36642639817).
+The initial [CI 36642284123](https://github.com/instinctual/plank-avp-relay/actions/runs/36642284123)
+failed lintian because the newest changelog date preceded an older entry;
+no package from that run was installed or promoted. Both final installers are
+in `artifacts/`, with metadata under `artifacts/deb/0.5.5/<platform>/<arch>/`.
+Root and versioned checksums pass. Previous 0.5.4 installers are under
+`artifacts/superseded/0.5.4/`. CI artifacts and generated files are excluded
+from Git; the README links the new repository's workflow for downloads.
+
+The app passed all 17 Apple suites, macOS build, signed visionOS device archive
+and export, bundle/privacy checks and matching executable/dSYM UUID. Simulator
+compilation was last checked in 0.5.3. Apple upload **22** is **VALID /
+IN_BETA_TESTING**, with notes and Standard / No France compliance saved and
+read back. All archive/export/upload jobs are unloaded. Artifacts:
+`artifacts/testflight/0.5.5/build-22/`. Next Apple upload identifier: **23**.
+
+**Live host update is pending.** The exact final 0.5.5 arm64 installer and
+private upgrade script were transferred, but SSH became unreachable through
+both saved endpoints before the checksum/install command could start.
+No 0.5.5 installation or pre-install state backup is claimed. Last verified
+live version is **0.5.4** with retained pairings, Router mode and gateway
+`10.20.30.1`. Resume the verified upgrade when the host returns and compare
+identity/headset/tablet/USB-mode files against its private backup. Do not reset
+saved authorization. USB forwarding, cable gating and app interaction remain
+operator acceptance checks. Access addresses, credentials, staged paths and
+private release details belong in operator notes.
 
 ## Previous delivery snapshot — 0.5.4
 
