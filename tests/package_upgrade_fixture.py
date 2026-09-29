@@ -27,9 +27,12 @@ if sys.argv[1] == 'prepare':
     native = Native(extracted/'usr/lib/plank-avp-relay/libplank_avp_relay.so', old)
     public = native.public_key
     native.close()
-    (old/'paired-clients.json').write_text(json.dumps({'version':1, 'clients':['12'*32]}))
+    (old/'paired-clients.json').write_text(json.dumps({'version':1, 'clients':['12'*32]}, separators=(',', ':')))
     (old/'paired-clients.json').chmod(0o600)
     (old/'tablets.json').write_text('{"version":1,"selected":"AA:BB:CC:DD:EE:FF","tablets":["AA:BB:CC:DD:EE:FF"],"pending":null}')
+    native = Native(extracted/'usr/lib/plank-avp-relay/libplank_avp_relay.so', old)
+    assert native.public_key == public and native.has_clients, 'Previous state must be valid before migration'
+    native.close()
     expected = {'public':public, 'files':{p.name:p.read_bytes().hex() for p in old.iterdir()}}
     (scratch/'expected.json').write_text(json.dumps(expected))
     # A minimal previous package supplies its real conffile namespace. apt must
