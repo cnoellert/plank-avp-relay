@@ -10,7 +10,7 @@ jobs and deployment details belong in the operator's private notes.
 
 Shared release **0.5.0** adds full Wi-Fi client controls to the Network tab.
 App source `27bd518de7bedf6ab806f2b675f9ef21b5f2da90` and relay source
-`c3eb9de3c1e476b45a8d23f4373329ed75a91508` are committed and pushed. The app remains **PLANK AVP Relay Setup** and the Linux package is
+`b5de18318e35aff186c216613100ab165f0ec989` are committed and pushed. The app remains **PLANK AVP Relay Setup** and the Linux package is
 `plank-avp-relay`. Apple build **17** is **VALID / IN_BETA_TESTING**, with notes and saved
 Standard / No France compliance verified. Package build and clean-install
 checks passed for both target distributions. Release artifacts and
@@ -94,15 +94,26 @@ IPA SHA-256: `99e5361ab580764f5d9e55c9e153ffdbdf4d243639db228b626df6446f5acafd`.
 arm64 dSYM UUID: `B34B666D-BFEA-3502-B130-932CD2C92F94`.
 Next Apple upload identifier is **18**.
 
-[Final package CI](https://github.com/instinctual/plank-tablet-relay/actions/runs/36627990159)
+[Final package CI](https://github.com/instinctual/plank-tablet-relay/actions/runs/36629621596)
 passed all four jobs: native Ubuntu 26.04 amd64 and Debian 13 arm64 builds,
 plus clean install, reinstall, private-state retention, removal and
 old-namespace migration on both distributions. Each native build passed all
 30 Linux suites. Artifact hashes and source provenance were verified locally.
-Final packages are under
-`artifacts/deb/0.5.0~visionos-tablet-setup/ubuntu-26.04/amd64/` and
-`artifacts/deb/0.5.0~visionos-tablet-setup/debian-13/arm64/`.
-CI logs/downloads are in `artifacts/ci/36627990159/`; additional Debian 13
+The operator requested removal of the old branch suffix from package naming.
+Debian package version is now exactly **0.5.0**, matching `VERSION`; the
+builder rejects branch suffixes and build counters. This sorts after the
+previous `0.5.0~visionos-tablet-setup` package, so apt treats it as an upgrade.
+Internal package name/version, architecture, source and checksums were checked.
+Regular installers are directly in `artifacts/`:
+`plank-avp-relay_0.5.0_amd64.deb` for Intel / Ubuntu Server 26.04 and
+`plank-avp-relay_0.5.0_arm64.deb` for NanoPi / Armbian Debian 13. Both provide
+the same features. Future builds also copy the main installer and checksum
+to that directory. Optional `dbgsym` files contain crash-debugging symbols;
+they stay with build metadata under `artifacts/deb/0.5.0/ubuntu-26.04/amd64/`
+and `artifacts/deb/0.5.0/debian-13/arm64/`. Previous top-level copies are
+archived in `artifacts/superseded/0.5.0~visionos-tablet-setup/`.
+The generated artifacts directory is excluded from Git; CI provides downloads.
+CI logs/downloads are in `artifacts/ci/36629621596/`; additional Debian 13
 userspace and real isolated supplicant checks are in
 `artifacts/validation/0.5.0/`. Containers do not qualify the board kernels.
 
