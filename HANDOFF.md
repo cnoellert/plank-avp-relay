@@ -126,8 +126,20 @@ Live AVP position/pressure acceptance is requested and remains pending.
 A temporary read-only pen monitor is prepared; input-node creation, an active
 service or an authenticated connection alone do not count as acceptance.
 Physical dongle unplug/replug and new-board sleep/wake qualification also remain
-pending. The older qualified Intel host has not been changed; its last access
-attempt was unreachable, so an old generic advertisement could not be excluded.
+pending. The operator identified the generic “PLANK Tablet Relay” listing as
+yesterday's test machine, which was still powered on. Do not hide valid relays
+by filtering that name.
+
+A later intermittent timeout occurred when starting readings after approval;
+the operator reported that a second attempt worked. A new private radio trace
+captured a clean pairing disconnect, followed by link-establishment failures
+(`0x3e`) and a connection timeout (`0x08`) before the readings exchange. A later
+attempt authenticated successfully. This is evidence of a failed Bluetooth
+reconnection, not proof of its underlying cause. The operator subsequently
+reported normal operation after restarting their setup. No runtime changes or
+new app build were made in response; a proposed bounded startup retry was
+deferred. The capture is retained privately for recurrence. Do not claim a
+permanent fix or explicit X/Y/pressure acceptance from that report alone.
 
 ### Qualified Intel host
 
