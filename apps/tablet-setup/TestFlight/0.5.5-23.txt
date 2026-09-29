@@ -1,0 +1,5 @@
+PLANK AVP Relay Setup 0.5.5
+
+Rebuilt from the new Instinctual/plank-avp-relay main checkout, alongside fresh amd64 and arm64 relay packages. The visible software version remains 0.5.5-main; Apple's upload counter stays internal. This rebuild retains the existing behavior, headset authorization, tablet pairings and network settings.
+
+Test with relay 0.5.5: reconnect to your saved relay and confirm pen position and pressure in Live Readings. Check Wi-Fi controls and Bridge/Router operation. Router mode uses 10.20.30.0/24 with gateway 10.20.30.1; Bridge mode uses the wired network's addresses. USB networking should withdraw when Ethernet is unplugged.

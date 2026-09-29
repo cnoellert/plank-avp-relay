@@ -9,7 +9,8 @@ branch through `53b1a22313921addaa3b36f59a175dc8336958db` is preserved.
 Local `origin` points to this new repository; `fork` retains
 `instinctual/plank-tablet-relay` and `upstream` retains
 `cnoellert/plank-tablet-relay`. The old local main is retained as
-`upstream-main`. Historical CI and fixed-snapshot links continue to point to
+`upstream-main` in the original checkout. The primary development checkout is
+now `~/dev/plank-avp-relay`. Historical CI and fixed-snapshot links continue to point to
 the old repository where those records were generated. GPL and third-party
 attributions are retained. The original parent main
 `465c11a9708bfce0c155502844ca8d53e4370390` is already included. The earlier
@@ -18,42 +19,62 @@ that ancestry; no upstream merge was performed during this migration.
 Root PLANK and its unrelated work remain untouched. Machine access, signing
 jobs and deployment details belong in the operator's private notes.
 
-Shared release **0.5.5** is delivered from the new repository. Package
-homepage/source and CI target `main`; the app displays `0.5.5-main`. Bundle ID,
-signing, TestFlight listing, installed state namespaces and the fixed Router
-subnet are unchanged. The initial migration source
-`accacc1c226a2b1a6c89c9c37bb1ce29edc6717d` is the app's signed source.
-The final relay source is `bfbdd91e31922540b94b5c4a4889ed109b310efe`, which
-only corrects Debian changelog metadata. Recent changelog timestamps now
-reflect the release source commits rather than future-dated entries.
+Shared release **0.5.5** has been rebuilt and republished from the new main
+checkout at `54f6e1a4841d4faa31e81a48fedc12407990632e`. Both relay packages
+and the signed app use this same source commit. This is a verification rebuild
+with existing behavior and the same shared software version. The app displays
+`0.5.5-main`; Apple's upload identifier stays in bundle metadata.
 
-All 30 Linux suites and all four native package / clean-install jobs passed
-in [CI 36642639817](https://github.com/instinctual/plank-avp-relay/actions/runs/36642639817).
-The initial [CI 36642284123](https://github.com/instinctual/plank-avp-relay/actions/runs/36642284123)
-failed lintian because the newest changelog date preceded an older entry;
-no package from that run was installed or promoted. Both final installers are
-in `artifacts/`, with metadata under `artifacts/deb/0.5.5/<platform>/<arch>/`.
-Root and versioned checksums pass. Previous 0.5.4 installers are under
-`artifacts/superseded/0.5.4/`. CI artifacts and generated files are excluded
-from Git; the README links the new repository's workflow for downloads.
+Both native builds passed all 30 Linux suites and all 101 libsodium tests.
+All four package / clean-install jobs passed in
+[CI 36646938148](https://github.com/instinctual/plank-avp-relay/actions/runs/36646938148).
+Install/reinstall, namespace upgrades, private-state retention, removal and
+configuration checks passed. The new checkout also built locally and passed
+30/30 Linux tests. Both installers are in `artifacts/`, with metadata under
+`artifacts/deb/0.5.5/<platform>/<arch>/`. Original run artifacts/logs are under
+`artifacts/ci/36646938148/`. Root and versioned checksums pass.
 
-The app passed all 17 Apple suites, macOS build, signed visionOS device archive
-and export, bundle/privacy checks and matching executable/dSYM UUID. Simulator
-compilation was last checked in 0.5.3. Apple upload **22** is **VALID /
-IN_BETA_TESTING**, with notes and Standard / No France compliance saved and
-read back. All archive/export/upload jobs are unloaded. Artifacts:
-`artifacts/testflight/0.5.5/build-22/`. Next Apple upload identifier: **23**.
+The [published v0.5.5 release](https://github.com/instinctual/plank-avp-relay/releases/tag/v0.5.5)
+provides both installers, optional debug symbols, SHA-256 checksums and build
+provenance. Its tag points to the exact rebuilt source; all eight published
+asset digests were read back and matched against local files. Release assets
+are staged under `artifacts/releases/0.5.5/`. The preceding 0.5.5 Linux delivery
+is retained under `artifacts/superseded/0.5.5/ci-36642639817/`. Generated files
+remain excluded from Git.
 
-**Live host update is pending.** The exact final 0.5.5 arm64 installer and
+The fresh Apple checkout passed all 17 suites, macOS build, visionOS simulator
+compilation, device build, signed archive/export, bundle/privacy checks and
+matching executable/dSYM UUID. The simulator was compiled, not run. Apple
+upload **23** is **VALID / IN_BETA_TESTING**, with exact tester notes and the
+confirmed Standard / No France compliance saved and read back. All one-shot
+verification/archive/export/upload jobs are unloaded. Artifacts:
+`artifacts/testflight/0.5.5/build-23/`. Next Apple upload identifier: **24**.
+
+**Live host update is pending.** The preceding 0.5.5 arm64 installer and
 private upgrade script were transferred, but SSH became unreachable through
 both saved endpoints before the checksum/install command could start.
 No 0.5.5 installation or pre-install state backup is claimed. Last verified
 live version is **0.5.4** with retained pairings, Router mode and gateway
 `10.20.30.1`. Resume the verified upgrade when the host returns and compare
 identity/headset/tablet/USB-mode files against its private backup. Do not reset
-saved authorization. USB forwarding, cable gating and app interaction remain
+saved authorization. This rebuild has not changed the installed host; stage
+the newly published installer when resuming the update. USB forwarding, cable gating and app interaction remain
 operator acceptance checks. Access addresses, credentials, staged paths and
 private release details belong in operator notes.
+
+## Previous repository-migration delivery — 0.5.5
+
+Initial migration app source was
+`accacc1c226a2b1a6c89c9c37bb1ce29edc6717d`; relay source
+`bfbdd91e31922540b94b5c4a4889ed109b310efe` corrected Debian changelog metadata
+only. All 30 Linux suites and all four package / clean-install jobs passed in
+[CI 36642639817](https://github.com/instinctual/plank-avp-relay/actions/runs/36642639817).
+The initial [CI 36642284123](https://github.com/instinctual/plank-avp-relay/actions/runs/36642284123)
+failed lintian because the newest changelog date preceded an older entry;
+no package from that run was installed or promoted. Recent changelog timestamps
+were corrected to the release source commits rather than future-dated entries.
+Apple upload 22 remains VALID / IN_BETA_TESTING, with notes/compliance verified;
+its artifacts remain under `artifacts/testflight/0.5.5/build-22/`.
 
 ## Previous delivery snapshot — 0.5.4
 

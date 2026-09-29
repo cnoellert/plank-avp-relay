@@ -22,9 +22,11 @@ configure startup, and migrate saved state from the previous package name.
 Installers are named `plank-avp-relay_0.5.5_amd64.deb` and
 `plank-avp-relay_0.5.5_arm64.deb` and are placed directly in `artifacts/`.
 Package versions use the shared release number without a branch suffix.
-Download packages from a successful
-[Linux relay packages run](https://github.com/instinctual/plank-avp-relay/actions/workflows/relay-deb.yml).
-Generated installers, symbols and build logs are CI artifacts rather than Git files.
+Download the installers and optional debugging symbols from
+[Releases](https://github.com/instinctual/plank-avp-relay/releases/latest).
+Native build and clean-install logs remain in the
+[Linux relay packages workflow](https://github.com/instinctual/plank-avp-relay/actions/workflows/relay-deb.yml).
+Generated installers, symbols and build logs are release/CI artifacts rather than Git files.
 See [installation and network behavior](docs/linux-ble-package.md) and
 [the current app workflow](apps/tablet-setup/README.md).
 The [platform matrix](docs/relay-platforms.md) distinguishes each Armbian
