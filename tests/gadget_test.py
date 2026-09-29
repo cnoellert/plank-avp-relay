@@ -208,6 +208,24 @@ class GadgetTests(unittest.TestCase):
         self.assertIn('PoolSize=0', text)
         self.assertNotIn('PoolSize=20', text)
 
+    def test_warm_restart_does_not_select_own_usb_gadget_as_wired_port(self):
+        backend = LinuxGadget(GadgetSettings())
+        net = self.path / 'net'
+        platform = self.path / 'platform'; platform.mkdir()
+        for name, mac in [('end0', '02:01:02:03:04:05'), ('plankusb0', backend.device_mac)]:
+            port = net / name
+            (port / 'device').mkdir(parents=True)
+            (port / 'device/subsystem').symlink_to(platform)
+            (port / 'address').write_text(mac)
+        backend.select_wired(required=True, net=net)
+        self.assertEqual(backend.wired, 'end0')
+        # A genuinely second physical Ethernet port must still require config.
+        (net / 'end1/device').mkdir(parents=True)
+        (net / 'end1/device/subsystem').symlink_to(platform)
+        (net / 'end1/address').write_text('02:06:07:08:09:10')
+        with self.assertRaisesRegex(RuntimeError, 'ambiguous'):
+            backend.select_wired(required=True, net=net)
+
     def test_networkd_config_is_readable_under_private_service_umask(self):
         directory = self.path / 'networkd'
         files = network_files('bridge', 'end0', '02:01:02:03:04:05', '02:06:07:08:09:10',

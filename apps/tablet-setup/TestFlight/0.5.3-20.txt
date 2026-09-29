@@ -1,0 +1,9 @@
+Network status now refreshes in the background without disabling the controls. Opening Wi-Fi password entry, leaving Network, or starting another operation cancels and closes the background connection first.
+
+Ethernet status is reported independently of USB setup errors. An unplugged cable shows Disconnected and USB shows Waiting for Ethernet when USB networking is configured.
+
+Relay 0.5.3 includes the missing Wi-Fi firmware for the tested Realtek combo dongle and supports the NanoPi Zero2 kernel's deferred USB network interface creation.
+
+Please test Network controls while status refreshes, Wi-Fi discovery and joining, and Ethernet/USB status with the cable connected and disconnected. Tablet and headset pairings are retained by the relay update.
+
+Relay 0.5.3 also keeps USB network setup working after package upgrades and repeated service starts. App and relay use the identical release number.

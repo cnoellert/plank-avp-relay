@@ -8,20 +8,21 @@ requested pull/rebase completed without replay. No merge or public release.
 Root PLANK and its unrelated work remain untouched. Machine access, signing
 jobs and deployment details belong in the operator's private notes.
 
-Shared release **0.5.1** requires a tablet before live readings and adds
-explicit recovery after reinstalling a relay at the same address.
-App source `af9afeec34ece305eaa41a35ece9ebbae20cdd36` and relay source
-`1102145ce9a78f0beb74aadd76003799e93a139a` are committed and pushed. The app remains **PLANK AVP Relay Setup** and the Linux package is
-`plank-avp-relay`. Apple build **18** is **VALID / IN_BETA_TESTING**, with notes and saved
-Standard / No France compliance verified. Package build and clean-install
-checks passed for both target distributions. Release artifacts and
-results are recorded in the current release section below.
-The operator supplied the available fresh-install Zero2 host. It has now been
-upgraded from 0.5.0 to **0.5.1**, with identity, headset and tablet state
-retention verified against a private pre-install backup. Main, Wi-Fi, USB
-and Bluetooth services are active; BLE advertising and Avahi registration
-resumed. Access details belong in private notes. Earlier unavailable-host
-instructions are historical and superseded for this host.
+Shared release **0.5.3** includes the nonblocking Network refresh, independent
+Ethernet status, combo-dongle WLAN firmware and Zero2 USB startup corrections.
+A 0.5.2 package reinstall exposed one further warm-start issue: the owned USB
+netdev has platform ancestry and was mistaken for another physical Ethernet
+port. 0.5.3 excludes its stable gadget MAC while retaining ambiguity checks for
+real multiple Ethernet ports. Final 0.5.3 builds/deployment are pending.
+App 0.5.2 / upload 19 is VALID / IN_BETA_TESTING, notes/compliance verified;
+0.5.3 / upload 20 will supersede it to keep app and relay versions identical.
+The live host runs 0.5.2 plus the final USB source under hardware validation;
+install the released 0.5.3 package to replace that temporary test copy.
+WLAN firmware loaded and Wi-Fi controls report supported (saved default off).
+Ethernet carrier is connected; the bridge has a LAN DHCP address. No physical
+USB transfer or Wi-Fi joining acceptance has been completed. Relay identity,
+paired clients and tablets retained byte-for-byte across upgrades. Access and
+private backups belong in the operator's private notes.
 
 Platform targets are **Ubuntu Server 26.04 / amd64** on Intel hardware and
 **Armbian Minimal, Debian 13 / arm64** on the NanoPi boards. The operator
@@ -54,6 +55,55 @@ author's coding agent. See [AVP Bluetooth upstream handoff](docs/avp-bluetooth-u
 for the verified address-resolution and battery-plugin fixes, fixed reference
 snapshot, implementation/recovery requirements and acceptance tests. Creating
 this document changes no runtime code or deployed host configuration.
+
+## Shared release 0.5.2 — responsive Network controls and hardware startup
+
+- Periodic Network reads no longer call `beginNetworkSettings` or set global
+  busy/activity. They are serial read-only background tasks, preferring TCP.
+  Each finishes before the ten-second interval starts. The foreground mutation
+  path retains its BLE preference and durable single-send request identifiers.
+- Foreground operations cancel and await background transport teardown before
+  connecting. Opening Wi-Fi entry, leaving the Network tab, changing relay or
+  app inactivity cancels background work; stale canceled responses cannot
+  overwrite the current view. Passive refresh retains editable controls.
+- Ethernet carrier remains independent of unsupported/failed USB setup.
+  A supported appliance with carrier down reports **Disconnected** and
+  **Waiting for Ethernet**. Actual USB errors remain explicit.
+- The tested combo dongle's WLAN probe failed with missing
+  `rtw89/rtw8851b_fw.bin`, although Bluetooth firmware loaded successfully.
+  The package now bundles original base / `-1` WLAN firmware from the same
+  pinned linux-firmware revision and Realtek redistribution license as its
+  Bluetooth bundle. Existing OS/admin/compressed firmware takes precedence.
+  Recovery probes only an unbound supported WLAN interface; it does not reset
+  the parent USB device or Bluetooth. Kernel firmware 0.29.41.5 loaded and the
+  helper reports supported, disabled according to the saved default policy.
+- Zero2 kernel 6.18.54 registers the NCM netdev on UDC binding. Configfs requires
+  a numeric `plankusb%d` name pattern. Reserve the expected free `plankusb0`,
+  install networkd files and forwarding guard before binding, then verify the
+  resulting USB configuration. With no Ethernet link, UDC stays unbound.
+  Non-secret networkd files must be 0644, despite the helper's private umask;
+  private credentials/state retain their separate protections.
+
+All **17 Apple suites** pass, including background cancellation/disconnect
+ordering, no overlapping connections, retained foreground controls and status
+labels. macOS/device/simulator builds, signed archive/export, privacy and
+matching dSYM checks pass. Simulator compiled, not run. All 30 local Linux
+suites pass; native packages and clean-install CI passed, but the final reinstall exposed
+a warm-start interface-selection issue superseded by release 0.5.3.
+Initial [CI 36635742190](https://github.com/instinctual/plank-tablet-relay/actions/runs/36635742190)
+passed all four jobs, but hardware validation then exposed USB interface-pattern
+and networkd permission issues. Those binaries are quarantined under
+`artifacts/rejected/36635742190`; use only the rebuilt final packages.
+Final [CI 36636601807](https://github.com/instinctual/plank-tablet-relay/actions/runs/36636601807)
+passed all four jobs for `3de031f0c94acc7147ab4b9f57ca8874cadf24ff`; these
+Linux binaries are quarantined under `artifacts/rejected/36636601807`.
+App 0.5.2 source `316ed631ca55b9acc65bb6638233dd535831e1ad` differs only in Linux
+hardware corrections and their docs/tests/changelog. Both exposed version 0.5.2. Apple upload 19 is VALID / IN_BETA_TESTING with
+notes and Standard / No France compliance saved; signing jobs unloaded.
+App release artifacts: `artifacts/testflight/0.5.2/build-19/`.
+Next Apple upload identifier after this submission was **20**, reserved for 0.5.3.
+Physical AVP Network interaction, Wi-Fi joining, USB host enumeration, Ethernet
+cable removal/restoration and pen readings remain operator acceptance work.
 
 ## Shared release 0.5.1 — tablet availability and identity recovery
 

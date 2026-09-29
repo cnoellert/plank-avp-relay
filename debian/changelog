@@ -1,3 +1,12 @@
+plank-avp-relay (0.5.3) experimental; urgency=medium
+
+  * Exclude the relay's own USB gadget from physical Ethernet uplink discovery
+    during service restart and package upgrade; retain ambiguity checks for
+    multiple actual wired ports.
+  * Match app and relay release numbers following the 0.5.2 Network fixes.
+
+ -- PLANK contributors <625982+alatteri@users.noreply.github.com>  Wed, 30 Sep 2026 00:10:00 +0000
+
 plank-avp-relay (0.5.2) experimental; urgency=medium
 
   * Keep Ethernet status available when USB setup fails or is unsupported.

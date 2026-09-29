@@ -182,15 +182,20 @@ class LinuxGadget:
         run('udevadm', 'settle', '--timeout=5')
         return True
 
-    def select_wired(self, required=False):
+    def select_wired(self, required=False, net=Path('/sys/class/net')):
         candidates = []
-        for port in sorted(Path('/sys/class/net').iterdir()):
+        for port in sorted(net.iterdir()):
+            # An already-bound gadget can have a platform/UDC device ancestry,
+            # just like onboard Ethernet. Exclude our stable gadget MAC so
+            # upgrade/restart never counts USB as another wired uplink.
+            if read(port / 'address') == self.device_mac:
+                continue
             if (port / 'device').exists() and not (port / 'wireless').exists() and not (port / 'phy80211').exists():
                 if (port / 'device/subsystem').resolve().name != 'usb':
                     candidates.append(port.name)
         if self.settings.wired_interface:
             self.wired = self.settings.wired_interface
-            port = Path('/sys/class/net') / self.wired
+            port = net / self.wired
             if not port.exists() or (port / 'wireless').exists() or (port / 'phy80211').exists():
                 self.wired = ''
                 if required:
