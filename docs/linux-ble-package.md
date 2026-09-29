@@ -61,12 +61,14 @@ Setup**. The repository and Apple bundle identifier are unchanged.
 | Main service | `plank-avp-relay.service` |
 | USB Ethernet service | `plank-avp-relay-usb.service` |
 | USB process name (`ps`/`top`) | `plank-avp-usb` |
+| Wi-Fi service / process | `plank-avp-relay-wifi.service` / `plank-avp-wifi` |
 | SSH recovery command | `plank-avp-relay-admin` |
 | Configuration | `/etc/plank-avp-relay/` |
 | Persistent identity and state | `/var/lib/plank-avp-relay/` |
 | USB controller state | `/var/lib/plank-avp-relay/usb/` |
 | Private implementation and helpers | `/usr/lib/plank-avp-relay/` |
 | Root-only USB control socket | `/run/plank-avp-relay/usb/control.sock` |
+| Wi-Fi private state / socket | `/var/lib/plank-avp-relay/wifi/` / `/run/plank-avp-relay/wifi/control.sock` |
 | LAN discovery type | `_plank-avp-relay._tcp` |
 
 Install the new package normally with `apt`; it replaces
@@ -86,6 +88,10 @@ Connections, record sizes, send queues and timeouts are bounded. This path
 does not start a raw-HID worker or implement the older TCP pairing protocol.
 
 ## USB Ethernet appliance (0.4.0)
+
+Version 0.5.0 also adds [Wi-Fi client management](wifi-management.md) through
+the authorized app. The package installs the helper and dependencies. This
+does not change the USB wired-uplink policy below.
 
 The dedicated relay can present its USB device port as an Ethernet adapter.
 **Bridge is the default**, joining USB and wired Ethernet on `plankbr0`. Router

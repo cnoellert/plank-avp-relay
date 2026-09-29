@@ -76,6 +76,14 @@ extension RelayPairingClient {
         guard privateKey.count == 32, relayKey.count == 32, (mode == nil) == (requestID == nil) else {
             throw RelaySetupError.invalidStoredKey
         }
+        let payload = try JSONEncoder().encode(RelayNetworkCommand(op: mode == nil ? "network-status" : "network-mode", mode: mode, requestID: requestID))
+        let replies = try await managementRequests(address: address, privateKey: privateKey, relayKey: relayKey, payloads: [payload])
+        return try RelayNetworkStatus.decode(replies[0], request: 1)
+    }
+
+    func managementRequests(address: RelayAddress, privateKey: Data, relayKey: Data, payloads: [Data]) async throws -> [Data] {
+        guard privateKey.count == 32, relayKey.count == 32, !payloads.isEmpty, payloads.count <= 3,
+              payloads.allSatisfy({ $0.count <= 1024 }) else { throw RelaySetupError.protocolError }
         let socket = connection(address) { _ in }
         let codec = privateKey.withUnsafeBytes { key in
             relayKey.withUnsafeBytes { relay in
@@ -87,7 +95,7 @@ extension RelayPairingClient {
         defer { pltr_client_link_destroy(codec) }
         guard pltr_client_link_enable_tablet_management(codec) == 0 else { throw RelaySetupError.protocolError }
         do {
-            let status = try await bounded(socket: socket, seconds: 12) {
+            let responses = try await bounded(socket: socket, seconds: 12) {
                 try await socket.connect()
                 var output = [UInt8](repeating: 0, count: 8448)
                 var written = 0
@@ -96,23 +104,26 @@ extension RelayPairingClient {
                 while pltr_client_link_peer_version(codec) == nil {
                     guard try await self.managementFrames(socket, codec: codec).isEmpty else { throw RelaySetupError.unexpectedMessage }
                 }
-                let payload = try JSONEncoder().encode(RelayNetworkCommand(op: mode == nil ? "network-status" : "network-mode",
-                                                                          mode: mode, requestID: requestID))
-                let result = payload.withUnsafeBytes { bytes in
-                    pltr_client_link_send(codec, UInt16(PLTR_TABLET_REQUEST.rawValue),
-                        bytes.bindMemory(to: UInt8.self).baseAddress, payload.count,
-                        &output, output.count, &written)
+                var responses: [Data] = []
+                for payload in payloads {
+                    try Task.checkCancellation()
+                    let result = payload.withUnsafeBytes { bytes in
+                        pltr_client_link_send(codec, UInt16(PLTR_TABLET_REQUEST.rawValue),
+                            bytes.bindMemory(to: UInt8.self).baseAddress, payload.count,
+                            &output, output.count, &written)
+                    }
+                    guard result == 0 else { throw RelaySetupError.protocolError }
+                    try await socket.send(Data(output.prefix(written)))
+                    while true {
+                        let replies = try await self.managementFrames(socket, codec: codec)
+                        guard replies.count <= 1 else { throw RelaySetupError.protocolError }
+                        if let reply = replies.first { responses.append(reply); break }
+                    }
                 }
-                guard result == 0 else { throw RelaySetupError.protocolError }
-                try await socket.send(Data(output.prefix(written)))
-                while true {
-                    let replies = try await self.managementFrames(socket, codec: codec)
-                    guard replies.count <= 1 else { throw RelaySetupError.protocolError }
-                    if let reply = replies.first { return try RelayNetworkStatus.decode(reply, request: 1) }
-                }
+                return responses
             }
             await socket.finishDisconnect()
-            return status
+            return responses
         } catch {
             await socket.finishDisconnect()
             throw error

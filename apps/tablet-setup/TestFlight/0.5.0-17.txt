@@ -1,0 +1,12 @@
+PLANK AVP Relay Setup: Wi-Fi controls for the dedicated relay.
+
+- Enable or disable relay Wi-Fi, refresh nearby networks, select a network and join with its password.
+- Secured networks show a lock beside their name. Open networks have no security label. Signal strength is shown separately.
+- Connect to saved networks, update passwords, forget networks, or enter a hidden network.
+- See read-only Wi-Fi connection and address status. Turning Wi-Fi off retains saved networks and Bluetooth access.
+- Accepted changes continue on the relay if the app disconnects. The app checks the saved operation result without repeating the change.
+- USB Ethernet remains wired-only in both Bridge and Router modes, regardless of Wi-Fi state.
+
+Requires relay package 0.5.0 for Wi-Fi controls, a working WLAN driver and systemd-networkd. Supports WPA2/WPA3 Personal and open networks; enterprise and captive portal sign-in are not included.
+
+Please test joining, an incorrect password, saved-network reconnection, disabling/re-enabling, reboot persistence and TCP discovery after joining. Verify that unplugging wired Ethernet withdraws USB even while relay Wi-Fi remains connected. Physical Wi-Fi/USB/AVP acceptance and installation on the currently unavailable relay remain pending.

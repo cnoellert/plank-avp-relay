@@ -65,7 +65,7 @@ jobs:
           apt-get install -y --no-install-recommends \
             build-essential cmake ninja-build pkg-config libudev-dev \
             python3 python3-dbus python3-gi debhelper dh-python \
-            curl ca-certificates git lintian bluez systemd
+            curl ca-certificates git lintian bluez systemd wpasupplicant dbus iproute2
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           persist-credentials: false
@@ -99,6 +99,9 @@ jobs:
           systemd-analyze verify /lib/systemd/system/plank-avp-relay.service /lib/systemd/system/plank-avp-relay-hardware.service
           systemd-analyze verify /lib/systemd/system/plank-avp-relay-usb.service
           /usr/lib/plank-avp-relay/plank-avp-relay-usb --check-config
+          systemd-analyze verify /lib/systemd/system/plank-avp-relay-wifi.service
+          /usr/lib/plank-avp-relay/plank-avp-relay-wifi --check-config
+          dpkg-query -W -f='${Status}\n' wpasupplicant rfkill | grep -c 'install ok installed' | grep -qx 2
           test -x /usr/libexec/bluetooth/bluetoothd
           test -x /usr/sbin/avahi-daemon
           dpkg-query -W -f='${Status}\n' avahi-daemon | grep -q 'install ok installed'
@@ -163,6 +166,9 @@ jobs:
           systemd-analyze verify /lib/systemd/system/plank-avp-relay.service /lib/systemd/system/plank-avp-relay-hardware.service
           systemd-analyze verify /lib/systemd/system/plank-avp-relay-usb.service
           /usr/lib/plank-avp-relay/plank-avp-relay-usb --check-config
+          systemd-analyze verify /lib/systemd/system/plank-avp-relay-wifi.service
+          /usr/lib/plank-avp-relay/plank-avp-relay-wifi --check-config
+          dpkg-query -W -f='${Status}\n' wpasupplicant rfkill | grep -c 'install ok installed' | grep -qx 2
           test -L /lib/firmware/updates/rtl_bt/rtl8851bu_fw.bin
           test -x /usr/sbin/avahi-daemon
           dpkg-query -W -f='${Status}\n' avahi-daemon | grep -q 'install ok installed'
@@ -174,12 +180,22 @@ jobs:
           apt-get install --reinstall -y "./${package[0]}"
           cmp /etc/default/cpufrequtils /tmp/cpufrequtils-before
           touch /etc/armbian-release
+          # Reinstall and removal must retain private Wi-Fi enrollment. No
+          # hardware is claimed in this container, so removal stays inert.
+          install -d -m 0700 /var/lib/plank-avp-relay/wifi
+          printf 'private fixture\n' > /var/lib/plank-avp-relay/wifi/wpa.conf
+          chmod 600 /var/lib/plank-avp-relay/wifi/wpa.conf
+          cp /var/lib/plank-avp-relay/wifi/wpa.conf /tmp/wifi-before
           apt-get install --reinstall -y "./${package[0]}"
+          cmp /var/lib/plank-avp-relay/wifi/wpa.conf /tmp/wifi-before
           grep -qx 'GOVERNOR="powersave"' /etc/default/cpufrequtils
           grep -qx 'ENABLED="true"' /etc/default/cpufrequtils
           grep -qx 'MAX_SPEED=2016000' /etc/default/cpufrequtils
           cmp /var/backups/plank-avp-relay/cpufrequtils.before-powersave /tmp/cpufrequtils-before
           apt-get remove -y plank-avp-relay
+          cmp /var/lib/plank-avp-relay/wifi/wpa.conf /tmp/wifi-before
+          test ! -e /etc/systemd/network/03-plank-wifi.network
+          test ! -e /usr/lib/plank-avp-relay/plank-avp-relay-wifi
           test ! -L /lib/firmware/updates/rtl_bt/rtl8851bu_fw.bin
           test ! -L /lib/firmware/updates/rtl_bt/rtl8851bu_config.bin
           test ! -e /usr/lib/plank-avp-relay/avp_relay

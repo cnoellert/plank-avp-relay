@@ -1,3 +1,14 @@
+plank-avp-relay (0.5.0~visionos-tablet-setup) experimental; urgency=medium
+
+  * Add authorized Wi-Fi radio, discovery, join and saved-network controls.
+    Persist accepted operations and private credentials independently of the
+    headset connection; restore prior profiles when a join fails.
+  * Install the supplicant dependency and separate Wi-Fi controller. Preserve
+    configured hosts on upgrade and default unconfigured appliance radios off.
+  * Keep USB forwarding limited to wired Ethernet in both network modes.
+
+ -- PLANK contributors <625982+alatteri@users.noreply.github.com>  Tue, 29 Sep 2026 23:00:00 +0000
+
 plank-avp-relay (0.4.0~visionos-tablet-setup) experimental; urgency=medium
 
   * Add managed USB Ethernet with Bridge default and selectable Router mode.

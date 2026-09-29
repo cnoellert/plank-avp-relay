@@ -7,6 +7,7 @@ from .capture import Capture
 from .native import Native, ProtocolError
 from .tablets import Tablets
 from .gadget_client import GadgetClient, GadgetBusy
+from .wifi_protocol import FIELDS as WIFI_FIELDS, unavailable as wifi_unavailable
 
 
 class RelayCore:
@@ -16,6 +17,7 @@ class RelayCore:
         self.emit = self.busy = self.close_connection = None
         self.capture = Capture(args.tablet, self.button)
         self.gadget = GadgetClient()
+        self.wifi = GadgetClient('/run/plank-avp-relay/wifi/control.sock', 'wifi-status', wifi_unavailable, 'Wi-Fi')
         self.tablets = Tablets(backend, args.state_dir, lambda: self.native.has_clients,
             self.select, lambda: self.capture.attached, args.tablet,
             enroll_headset=self.enroll_headset)
@@ -32,17 +34,19 @@ class RelayCore:
 
     def request(self, data, peer, authenticated=False, enrolling=False):
         command = json.loads(data)
-        if isinstance(command, dict) and command.get('op') in ('network-status', 'network-mode'):
+        if isinstance(command, dict) and isinstance(command.get('op'), str) and command['op'] in ('network-status', 'network-mode', *WIFI_FIELDS):
             response = {'version': 1, 'id': command.get('id', 0), 'ok': False}
             try:
                 if not authenticated or peer != self.owner:
                     raise ValueError('An authorized headset is required to manage network settings.')
                 if command.get('version') != 1 or type(command.get('id')) is not int or not 1 <= command['id'] <= 1000000:
                     raise ValueError('Invalid network request envelope.')
-                expected = {'version', 'id', 'op'} | ({'mode', 'requestID'} if command['op'] == 'network-mode' else set())
+                expected = {'version', 'id', 'op'} | (WIFI_FIELDS[command['op']] if command['op'] in WIFI_FIELDS else
+                    {'mode', 'requestID'} if command['op'] == 'network-mode' else set())
                 if set(command) != expected:
                     raise ValueError('Invalid network command fields.')
-                result = self.gadget.request({k: v for k, v in command.items() if k not in ('version', 'id')})
+                helper = self.wifi if command['op'] in WIFI_FIELDS else self.gadget
+                result = helper.request({k: v for k, v in command.items() if k not in ('version', 'id')})
                 if 'error' in result:
                     raise ValueError(result['error'])
                 response.update(result, ok=True)
@@ -50,7 +54,9 @@ class RelayCore:
                 response.update(error=str(error), code='busy')
             except (OSError, ValueError) as error:
                 response['error'] = str(error)[:512]
-            return json.dumps(response, separators=(',', ':')).encode()
+            encoded = json.dumps(response, separators=(',', ':'), ensure_ascii=False).encode()
+            if len(encoded) > 4096: raise ProtocolError('Management response exceeded its bound.')
+            return encoded
         response = json.loads(self.tablets.handle(data, peer, authenticated, enrolling))
         if response.get('ok'):
             response['enrollmentVersion'] = 1

@@ -136,7 +136,7 @@ class NetworkTests(unittest.TestCase):
         self.fail('No authenticated management response')
 
     def test_public_identity_and_no_public_mutations(self):
-        for operation in ('status', 'scan', 'cancel', 'remove', 'network-status', 'network-mode'):
+        for operation in ('status', 'scan', 'cancel', 'remove', 'network-status', 'network-mode', 'wifi-status', 'wifi-join'):
             sock = self.socket(1)
             payload = json.dumps({'version': 1, 'id': 1, 'op': operation}).encode()
             record = len(payload).to_bytes(2, 'little') + payload
@@ -201,6 +201,27 @@ class NetworkTests(unittest.TestCase):
             self.assertFalse(connected)
             sock.close(); self.pump()
             self.assertTrue(self.core.native.has_clients)
+
+    def test_wifi_commands_require_approved_noise_and_do_not_echo_password(self):
+        from avp_relay.wifi_protocol import unavailable
+        self.core.wifi = MagicMock()
+        self.core.wifi.request.return_value = dict(unavailable(), supported=True, phase='applying')
+        command = dict(network=None, ssid='Example', security='personal', password='test-password',
+                       requestID='0e0f733e-ce3f-4a72-8272-e33cd37d165b')
+        sock, client, connected = self.connect()
+        self.assertTrue(connected)
+        self.assertFalse(self.request(sock, client, 'wifi-join', **command)['ok'])
+        self.core.wifi.request.assert_not_called()
+        sock.close(); self.pump(); self.approve()
+        sock, client, connected = self.connect()
+        self.assertTrue(connected)
+        reply = self.request(sock, client, 'wifi-join', **command)
+        self.assertTrue(reply['ok'])
+        self.assertNotIn(command['password'], json.dumps(reply))
+        self.core.wifi.request.assert_called_once_with(dict(op='wifi-join', **command))
+        self.core.wifi.request.reset_mock()
+        self.assertFalse(self.request(sock, client, 'wifi-status', password='forbidden-extra-field')['ok'])
+        self.core.wifi.request.assert_not_called()
 
     def test_new_tablet_commits_only_provisional_network_owner(self):
         sock, client, connected = self.connect()

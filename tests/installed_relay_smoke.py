@@ -23,6 +23,8 @@ from avp_relay.hardware import prepare_firmware
 from avp_relay.host_setup import configure_armbian
 from avp_relay.gadget_config import read_settings as read_gadget_settings
 from avp_relay.gadget import GadgetController
+from avp_relay.wifi import WifiController
+from avp_relay.wifi_system import read_settings as read_wifi_settings
 
 settings = read_settings(root / 'etc/plank-avp-relay/relay.conf')
 assert not settings.exclusive_adapter and not settings.disable_controller_address_resolution
@@ -30,11 +32,15 @@ assert settings.tcp_enabled and settings.tcp_port == 28991
 assert read_gadget_settings(root / 'etc/plank-avp-relay/usb-network.conf').enabled == 'auto'
 assert (private / 'plank-avp-relay-usb').is_file()
 assert (root / 'usr/lib/systemd/system/plank-avp-relay-usb.service').is_file()
+assert read_wifi_settings(root / 'etc/plank-avp-relay/wifi.conf') == ''
+assert (private / 'plank-avp-relay-wifi').is_file()
+assert (root / 'usr/lib/systemd/system/plank-avp-relay-wifi.service').is_file()
 assert re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+',
     (root / 'usr/share/plank-avp-relay/version').read_text().strip())
 unit = (root / 'usr/lib/systemd/system/plank-avp-relay.service').read_text()
 assert 'avahi-daemon.service' in unit and 'AF_INET AF_INET6' in unit
 assert 'PartOf=bluetooth.service' not in unit
+assert 'InaccessiblePaths=-/var/lib/plank-avp-relay/wifi' in unit
 assert (private / 'plank-avp-relay-hardware').is_file()
 assert (private / 'plank-avp-relay-configure-host').is_file()
 assert (root / 'usr/lib/systemd/system/plank-avp-relay-hardware.service').is_file()

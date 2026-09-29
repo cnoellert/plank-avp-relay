@@ -7,6 +7,9 @@ with Bridge/Router selection and separate connection statuses in the app's
 Network tab. Physical Ethernet carrier gates USB attachment; relay Wi-Fi is
 never an uplink for the headset. Automatic LAN discovery and TCP communication
 run alongside Bluetooth LE with shared identity and headset authorization.
+Release 0.5.0 adds [Wi-Fi enable/disable, join and saved-network controls](docs/wifi-management.md)
+in the Network tab. Wi-Fi may carry relay TCP traffic; USB continues to use
+only wired Ethernet. Secured Wi-Fi rows show a lock and open rows no security label.
 The Ubuntu 26.04 amd64/arm64 `plank-avp-relay` package installs dependencies,
 configures startup, and migrates saved state from the previous package name.
 See [installation and network behavior](docs/linux-ble-package.md) and

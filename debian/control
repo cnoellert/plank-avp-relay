@@ -11,10 +11,11 @@ Package: plank-avp-relay
 Architecture: linux-any
 Conflicts: plank-tablet-relay-ble
 Replaces: plank-tablet-relay-ble
-Depends: ${shlibs:Depends}, ${misc:Depends}, ${python3:Depends}, python3-dbus, python3-gi, bluez, avahi-daemon, systemd, udev, kmod, usb-modeswitch, usb-modeswitch-data, iproute2, nftables, device-tree-compiler, mount
+Depends: ${shlibs:Depends}, ${misc:Depends}, ${python3:Depends}, python3-dbus, python3-gi, bluez, avahi-daemon, systemd, udev, kmod, usb-modeswitch, usb-modeswitch-data, iproute2, nftables, device-tree-compiler, mount, wpasupplicant, rfkill
 Description: Network, USB Ethernet and tablet relay for Apple Vision Pro
  Receives Wacom tablet input through Linux input devices and provides
  tablet enrollment and authenticated readings over TCP and Bluetooth LE.
  Advertises the active network service automatically through Avahi.
+ Provides authorized Wi-Fi client management and wired USB Ethernet controls.
  Includes a managed system service and persistent headset trust. This setup
  component is separate from the raw-HID workstation forwarding service.

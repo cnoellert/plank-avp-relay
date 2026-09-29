@@ -7,6 +7,7 @@ struct TabletSetupView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var tabletToRemove: ManagedTablet?
     @State private var selectedTab = "tablet"
+    @State private var editingWifi = false
 
     init(setup: SetupCoordinator = SetupCoordinator()) {
         _setup = StateObject(wrappedValue: setup)
@@ -72,6 +73,12 @@ struct TabletSetupView: View {
                       RelayNetworkSettingsView(status: setup.networkStatus, authorized: setup.state.hasTrust,
                           busy: setup.state.busy, message: setup.networkMessage,
                           refresh: setup.refreshNetworkSettings, apply: setup.applyNetworkMode)
+                      Divider()
+                      RelayWifiView(status: setup.wifiStatus, available: setup.wifiAvailable, saved: setup.wifiSaved,
+                          moreAvailable: setup.wifiAvailableNext != nil, moreSaved: setup.wifiSavedNext != nil,
+                          authorized: setup.state.hasTrust, busy: setup.state.busy, message: setup.wifiMessage,
+                          action: setup.performWifi, more: { setup.moreWifiNetworks(saved: $0) },
+                          editing: { editingWifi = $0 })
                   }.padding(22)
               }
               .tabItem { Label("Network", systemImage: "network") }.tag("network")
@@ -79,13 +86,13 @@ struct TabletSetupView: View {
             .task(id: "\(selectedTab)-\(scenePhase)") {
                 guard selectedTab == "network", scenePhase == .active else { return }
                 while !Task.isCancelled {
-                    if setup.state.hasTrust, !setup.state.busy { setup.refreshNetworkSettings() }
+                    if setup.state.hasTrust, !setup.state.busy, !editingWifi { setup.pollNetworkSettings() }
                     do { try await Task.sleep(for: .seconds(4)) } catch { return }
                 }
             }
             HStack(alignment: .top, spacing: 10) {
                 if setup.state.busy && !setup.state.connectionVerified { ProgressView().controlSize(.small) }
-                Text(selectedTab == "network" ? "Network mode is configurable. Connection status is read-only." : setup.message)
+                Text(selectedTab == "network" ? "Configure USB networking and Wi-Fi above. Connection status is read-only." : setup.message)
                     .font(.callout).fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("setup-status")
             }

@@ -14,6 +14,14 @@ public final class SetupCoordinator: ObservableObject {
     @Published public private(set) var tabletCommandPending = false
     @Published public private(set) var networkStatus: RelayNetworkStatus?
     @Published public private(set) var networkMessage = "Select and authorize a relay to manage its network mode."
+    @Published public private(set) var wifiStatus: RelayWifiStatus?
+    @Published public private(set) var wifiAvailable: [RelayWifiNetwork] = []
+    @Published public private(set) var wifiSaved: [RelayWifiNetwork] = []
+    @Published public private(set) var wifiMessage = "Open Network to manage the relay’s Wi-Fi."
+    @Published public private(set) var wifiAvailableNext: Int?
+    @Published public private(set) var wifiSavedNext: Int?
+    private var wifiAvailableGeneration = ""
+    private var wifiSavedGeneration = ""
     public let scanner = RelayScanner()
     private var addresses: [RelayAddress] = []
     private let keys = RelayKeyStore()
@@ -29,6 +37,11 @@ public final class SetupCoordinator: ObservableObject {
         scanner.stop()
         bluetoothTestResult = nil
         networkStatus = nil
+        wifiStatus = nil
+        wifiAvailable = []; wifiSaved = []
+        wifiAvailableNext = nil; wifiSavedNext = nil
+        wifiAvailableGeneration = ""; wifiSavedGeneration = ""
+        wifiMessage = "Open Network to manage the relay’s Wi-Fi."
         networkMessage = "Open Network to check the selected relay’s settings."
         do {
             let trusted = try keys.relayKey(address) != nil
@@ -195,7 +208,8 @@ public final class SetupCoordinator: ObservableObject {
             return
         }
         if state.activity == .managingNetwork {
-            networkMessage = "Status monitoring stopped. An accepted mode change continues on the relay; refresh to check it."
+            networkMessage = "Status monitoring stopped. An accepted network change continues on the relay; refresh to check it."
+            wifiMessage = networkMessage
         }
         scanner.stop()
         task?.cancel()
@@ -206,14 +220,15 @@ public final class SetupCoordinator: ObservableObject {
         message = "Operation canceled. Existing pairing was not removed."
     }
 
-    public func refreshNetworkSettings() { networkSettings(mode: nil) }
+    public func refreshNetworkSettings() { networkSettings(mode: nil, refreshWifiLists: true) }
+    public func pollNetworkSettings() { networkSettings(mode: nil) }
 
     public func applyNetworkMode(_ mode: RelayNetworkMode) {
         guard networkStatus?.canChange == true, networkStatus?.mode != mode else { return }
         networkSettings(mode: mode)
     }
 
-    private func networkSettings(mode: RelayNetworkMode?) {
+    private func networkSettings(mode: RelayNetworkMode?, refreshWifiLists: Bool = false) {
         guard let address = state.address, let id = state.beginNetworkSettings() else { return }
         let request = mode == nil ? nil : UUID().uuidString.lowercased()
         networkMessage = mode == nil ? "Reading connection status…" : "Changing network mode…"
@@ -227,10 +242,16 @@ public final class SetupCoordinator: ObservableObject {
                 var candidates = self.addresses.isEmpty ? [address] : self.addresses
                 candidates.sort { $0.linkType < $1.linkType }
                 var selected: RelayAddress?
+                var wifi: RelayWifiStatus?
                 var lastError: any Error = RelaySetupError.timedOut
                 for candidate in candidates {
                     do {
-                        self.networkStatus = try await self.client.networkSettings(address: candidate, privateKey: privateKey, relayKey: key)
+                        if mode == nil {
+                            let statuses = try await self.client.networkAndWifiStatus(address: candidate, privateKey: privateKey, relayKey: key)
+                            self.networkStatus = statuses.0; wifi = statuses.1
+                        } else {
+                            self.networkStatus = try await self.client.networkSettings(address: candidate, privateKey: privateKey, relayKey: key)
+                        }
                         try Task.checkCancellation()
                         selected = candidate
                         break
@@ -290,15 +311,146 @@ public final class SetupCoordinator: ObservableObject {
                     throw RelaySetupError.rejected("The mode change has not been confirmed. Reconnect and refresh its status before trying again.")
                 } else {
                     self.networkMessage = self.networkStatus?.message ?? "Connection status refreshed."
+                    do {
+                        if let wifi {
+                            try await self.readWifi(selected, privateKey: privateKey, relayKey: key, lists: refreshWifiLists, status: wifi)
+                        } else {
+                            self.wifiStatus = nil
+                            self.wifiMessage = "Update the relay to use Wi-Fi controls."
+                        }
+                    } catch {
+                        try Task.checkCancellation()
+                        self.wifiMessage = "Wi-Fi settings could not be read. Check that the relay is updated, then refresh."
+                    }
                 }
                 _ = self.state.succeed(id)
             } catch is CancellationError {
                 guard self.state.operation == id else { return }
                 self.state.cancel()
-                self.networkMessage = "Status monitoring stopped. An accepted mode change continues on the relay; refresh to check it."
+                self.networkMessage = "Status monitoring stopped. An accepted network change continues on the relay; refresh to check it."
             } catch {
                 guard self.state.operation == id else { return }
                 self.networkMessage = error.localizedDescription
+                self.state.fail(id, message: error.localizedDescription)
+            }
+            guard self.state.operation == nil else { return }
+            self.task = nil
+        }
+    }
+
+    private func readWifi(_ address: RelayAddress, privateKey: Data, relayKey: Data, lists: Bool, status supplied: RelayWifiStatus? = nil) async throws {
+        let previous = self.wifiStatus
+        let status: RelayWifiStatus
+        if let supplied { status = supplied }
+        else { status = try await self.client.wifiStatus(address: address, privateKey: privateKey, relayKey: relayKey) }
+        try Task.checkCancellation()
+        self.wifiStatus = status
+        self.wifiMessage = status.message
+        if status.supported && (lists || wifiAvailableGeneration.isEmpty || previous?.requestID != status.requestID || previous?.phase != status.phase) {
+            let pages = try await self.client.wifiLists(address: address, privateKey: privateKey, relayKey: relayKey)
+            try Task.checkCancellation()
+            self.wifiAvailable = pages.0.networks; self.wifiSaved = pages.1.networks
+            self.wifiAvailableGeneration = pages.0.generation; self.wifiSavedGeneration = pages.1.generation
+            self.wifiAvailableNext = pages.0.next; self.wifiSavedNext = pages.1.next
+        }
+    }
+
+    public func performWifi(_ action: RelayWifiAction) {
+        guard wifiStatus?.canChange == true else { return }
+        wifiOperation(action: action)
+    }
+
+    public func moreWifiNetworks(saved: Bool) {
+        guard let offset = saved ? wifiSavedNext : wifiAvailableNext else { return }
+        wifiOperation(page: (saved ? "saved" : "available", offset, saved ? wifiSavedGeneration : wifiAvailableGeneration))
+    }
+
+    private func wifiOperation(action: RelayWifiAction? = nil, page: (String, Int, String)? = nil) {
+        guard let address = state.address, let id = state.beginNetworkSettings() else { return }
+        let request = UUID().uuidString.lowercased()
+        wifiMessage = action == nil ? "Reading networks…" : "Applying Wi-Fi settings…"
+        task = Task { [weak self] in
+            guard let self else { return }
+            do {
+                guard let key = try self.keys.relayKey(address) else { throw RelaySetupError.invalidStoredKey }
+                let privateKey = try self.keys.clientKey()
+                var candidates = self.addresses.isEmpty ? [address] : self.addresses
+                candidates.sort { $0.linkType < $1.linkType }
+                var selected: RelayAddress?
+                var failure: any Error = RelaySetupError.timedOut
+                for candidate in candidates {
+                    do {
+                        self.wifiStatus = try await self.client.wifiStatus(address: candidate, privateKey: privateKey, relayKey: key)
+                        try Task.checkCancellation()
+                        selected = candidate; break
+                    } catch {
+                        try Task.checkCancellation()
+                        guard Self.transportFailure(error) else { throw error }
+                        failure = error
+                    }
+                }
+                guard let selected else { throw failure }
+                self.state.useAddress(selected, operation: id)
+                if let page {
+                    let result = try await self.client.wifiPage(address: selected, privateKey: privateKey, relayKey: key,
+                                                              kind: page.0, offset: page.1, generation: page.2)
+                    try Task.checkCancellation()
+                    guard result.generation == page.2, result.next == nil || result.next! > page.1 else { throw RelaySetupError.protocolError }
+                    if page.0 == "saved" {
+                        self.wifiSaved += result.networks.filter { row in !self.wifiSaved.contains(where: { $0.id == row.id }) }
+                        self.wifiSavedNext = result.next
+                    } else {
+                        self.wifiAvailable += result.networks.filter { row in !self.wifiAvailable.contains(where: { $0.id == row.id }) }
+                        self.wifiAvailableNext = result.next
+                    }
+                    self.wifiMessage = "Network list updated."
+                } else if let action {
+                    try Task.checkCancellation()
+                    do {
+                        self.wifiStatus = try await self.client.wifiStatus(address: selected, privateKey: privateKey,
+                                                                         relayKey: key, action: action, request: request)
+                    } catch {
+                        try Task.checkCancellation()
+                        guard Self.transportFailure(error) else { throw error }
+                        // Never repeat a mutation after an ambiguous lost reply.
+                    }
+                    self.scanner.start()
+                    defer { self.scanner.stop() }
+                    let deadline = ContinuousClock.now + .seconds(100)
+                    var attempt = 0
+                    var confirmed = false
+                    while ContinuousClock.now < deadline {
+                        try await Task.sleep(for: .seconds(2))
+                        for relay in self.scanner.relays {
+                            for endpoint in relay.addresses where endpoint.advertisedKey == key && !candidates.contains(endpoint) { candidates.append(endpoint) }
+                        }
+                        let endpoint = candidates[attempt % candidates.count]; attempt += 1
+                        do {
+                            let status = try await self.client.wifiStatus(address: endpoint, privateKey: privateKey, relayKey: key)
+                            try Task.checkCancellation()
+                            self.wifiStatus = status; self.wifiMessage = status.message
+                            if status.confirms(request) {
+                                self.state.useAddress(endpoint, operation: id)
+                                self.addresses = candidates
+                                try await self.readWifi(endpoint, privateKey: privateKey, relayKey: key, lists: true)
+                                confirmed = true; break
+                            }
+                            if status.requestID == request && status.phase == "failed" { throw RelaySetupError.rejected(status.message) }
+                        } catch {
+                            try Task.checkCancellation()
+                            guard Self.transportFailure(error) else { throw error }
+                        }
+                    }
+                    guard confirmed else { throw RelaySetupError.rejected("Wi-Fi change has not been confirmed. Refresh its status before trying again.") }
+                }
+                _ = self.state.succeed(id)
+            } catch is CancellationError {
+                guard self.state.operation == id else { return }
+                self.state.cancel()
+                self.wifiMessage = "Stopped waiting. An accepted Wi-Fi change continues on the relay."
+            } catch {
+                guard self.state.operation == id else { return }
+                self.wifiMessage = error.localizedDescription
                 self.state.fail(id, message: error.localizedDescription)
             }
             guard self.state.operation == nil else { return }

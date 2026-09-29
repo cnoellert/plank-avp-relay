@@ -1,0 +1,27 @@
+[Unit]
+Description=PLANK AVP Relay Wi-Fi controller
+Wants=wpa_supplicant.service
+After=local-fs.target dbus.service systemd-networkd.service wpa_supplicant.service
+Before=plank-avp-relay.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+ExecStart=/usr/lib/plank-avp-relay/plank-avp-relay-wifi
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+StateDirectory=plank-avp-relay/wifi
+StateDirectoryMode=0700
+RuntimeDirectory=plank-avp-relay/wifi
+RuntimeDirectoryMode=0700
+UMask=0077
+User=root
+NoNewPrivileges=yes
+ProtectHome=yes
+PrivateTmp=yes
+RestrictAddressFamilies=AF_UNIX AF_NETLINK AF_INET AF_INET6
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target

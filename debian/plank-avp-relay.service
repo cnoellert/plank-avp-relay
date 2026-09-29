@@ -1,7 +1,7 @@
 [Unit]
 Description=PLANK AVP Relay
-Wants=bluetooth.service avahi-daemon.service plank-avp-relay-hardware.service plank-avp-relay-usb.service
-After=bluetooth.service avahi-daemon.service plank-avp-relay-hardware.service plank-avp-relay-usb.service
+Wants=bluetooth.service avahi-daemon.service plank-avp-relay-hardware.service plank-avp-relay-usb.service plank-avp-relay-wifi.service
+After=bluetooth.service avahi-daemon.service plank-avp-relay-hardware.service plank-avp-relay-usb.service plank-avp-relay-wifi.service
 StartLimitIntervalSec=0
 
 [Service]
@@ -20,6 +20,7 @@ CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW
 NoNewPrivileges=yes
 ProtectSystem=strict
 ReadOnlyPaths=-/var/lib/plank-avp-relay/usb
+InaccessiblePaths=-/var/lib/plank-avp-relay/wifi
 ProtectHome=yes
 PrivateTmp=yes
 ProtectKernelTunables=yes

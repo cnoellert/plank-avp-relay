@@ -3,6 +3,7 @@ set -e
 #DEBHELPER#
 case "$1" in
     remove|deconfigure)
+        /usr/lib/plank-avp-relay/plank-avp-relay-wifi --remove
         /usr/lib/plank-avp-relay/plank-avp-relay-usb --remove
         /usr/lib/plank-avp-relay/plank-avp-relay-hardware --remove-links
         ;;

@@ -14,7 +14,7 @@ pairing management are in expandable sections.
 Synthetic readout fixtures exist only in the separate offscreen preview executable.
 The shipping app supports encrypted TCP and Bluetooth connections.
 
-Release 0.4.0 adds **Tablet** and **Network** tabs sharing the selected relay.
+The app has **Tablet** and **Network** tabs sharing the selected relay.
 Network mode is an editable Bridge/Router selector with Apply changes. Its
 separate Connection status group uses read-only Ethernet and USB labels/icons,
 with a Refresh status action and automatic four-second refresh while idle.
@@ -30,6 +30,16 @@ mode mutation after a lost connection. Stop waiting only stops monitoring:
 accepted changes finish on the relay and can be checked with Refresh status.
 USB is withdrawn when Ethernet link disappears; Internet access is irrelevant.
 See [USB appliance configuration](../../docs/linux-ble-package.md#usb-ethernet-appliance-040).
+
+Release 0.5.0 adds Wi-Fi on/off, scan/select/join, hidden networks, saved
+networks, password updates and Forget in Network. Secured network rows show
+only a lock; open rows have no security label. Wi-Fi connection/address status
+is a separate read-only group. Profile passwords are cleared from the join
+sheet when submitted/dismissed and are never saved in the app. Idle polling
+pauses while entering network details. USB and Wi-Fi status share one
+authenticated connection per poll; paginated lists refresh separately.
+The same durable receipt/reconnection rules apply to Wi-Fi changes. See
+[Wi-Fi configuration and acceptance](../../docs/wifi-management.md).
 
 The visible version uses `Major.Minor.Ancillary` followed by the branch
 description, for example `0.3.0-visionos-tablet-setup`. The numeric version is
