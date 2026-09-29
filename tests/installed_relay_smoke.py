@@ -24,6 +24,8 @@ assert not settings.exclusive_adapter and not settings.disable_controller_addres
 assert (private / 'plank-tablet-relay-hardware').is_file()
 assert (private / 'plank-tablet-relay-configure-host').is_file()
 assert (root / 'usr/lib/systemd/system/plank-tablet-relay-hardware.service').is_file()
+bluez_policy = root / 'usr/lib/systemd/system/bluetooth.service.d/10-plank-tablet-relay-ble.conf'
+assert 'ExecStart=/usr/libexec/bluetooth/bluetoothd --noplugin=battery' in bluez_policy.read_text()
 with tempfile.TemporaryDirectory() as directory:
     firmware = Path(directory)
     prepare_firmware(firmware, root / 'usr/share/plank-tablet-relay-ble/firmware')

@@ -1,3 +1,12 @@
+plank-tablet-relay-ble (0.2.0~visionos-tablet-setup.13) experimental; urgency=medium
+
+  * Package the BlueZ battery-plugin policy required for reliable AVP links,
+    rather than relying on a manually installed host override.
+  * Reload and restart active Bluetooth services on install/upgrade and
+    restore remaining host policy on removal, honoring policy-rc.d.
+
+ -- PLANK contributors <625982+alatteri@users.noreply.github.com>  Tue, 29 Sep 2026 05:12:00 +0000
+
 plank-tablet-relay-ble (0.2.0~visionos-tablet-setup.12) experimental; urgency=medium
 
   * Configure GOVERNOR="powersave" and ENABLED="true" in Armbian's

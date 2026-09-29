@@ -30,8 +30,9 @@ the running service retains that physical identity across sleep/wake.
 ## Install and configure
 
 Use the package matching `dpkg --print-architecture`: `arm64` for 64-bit ARM
-Linux, or `amd64` for x86-64. **Ubuntu 26.04 is the target OS** for both
-architectures. Automated builds use Ubuntu 26.04 containers on native ARM64
+Linux, or `amd64` for x86-64. **Ubuntu Server 26.04 is the x86-64 host OS**.
+Ubuntu 26.04 remains the package build baseline for both architectures; the
+current NanoPi ARM64 hardware test uses Armbian. Automated builds use Ubuntu 26.04 containers on native ARM64
 and x86-64 runners. Bluetooth operation still requires
 qualification on the board's kernel, radio and firmware. The existing physical
 qualification is Ubuntu 26.04 amd64 with Intel 7265. There is no 32-bit `armhf`
@@ -109,34 +110,39 @@ The service retries missing adapters/startup failures and re-registers after
 BlueZ restarts. `active (running)` means GATT registration and advertising have
 completed; it does not claim a tablet or headset is currently connected.
 
-## Qualified Intel 7265 compatibility settings
+## AVP Bluetooth compatibility
 
-The tested Intel 7265 / BlueZ 5.85 / visionOS 27 combination needed both:
+The package disables BlueZ's optional `battery` plugin. Its unsolicited read
+of the headset's Battery Level characteristic can trigger OS-level pairing,
+authentication failure and a local disconnect, interrupting the relay app's
+independent approval/Noise connection. This was observed on both the Intel
+7265/BlueZ 5.85 host and the RTL8851BU/BlueZ 5.82 Armbian host.
 
-1. `disable_controller_address_resolution = true` in `relay.conf`, applied
-   before advertising and reapplied after the service restarts. This is a
-   controller workaround; it does not remove BlueZ bonds or change the app's
-   saved-key authentication. Use it only for hardware that needs it.
-2. Disable BlueZ's optional `battery` plugin. Its GATT client attempted an
-   authenticated battery read from the headset, triggering OS-level pairing
-   and disconnecting the application link. This setting affects all devices
-   on that BlueZ instance, including optional Bluetooth battery reporting.
-
-The package does not silently change global BlueZ policy. On the qualified
-Ubuntu host, whose existing `ExecStart` is `/usr/libexec/bluetooth/bluetoothd`,
-an administrator can install this persistent override:
+Starting with revision 13, installation includes this vendor systemd drop-in:
 
 ```ini
-# /etc/systemd/system/bluetooth.service.d/90-plank-tablet-relay-ble.conf
+# /usr/lib/systemd/system/bluetooth.service.d/10-plank-tablet-relay-ble.conf
 [Service]
 ExecStart=
 ExecStart=/usr/libexec/bluetooth/bluetoothd --noplugin=battery
 ```
 
-Check `systemctl cat bluetooth.service` first and preserve any existing
-arguments or plugin exclusions. Then run `sudo systemctl daemon-reload` and
-`sudo systemctl restart bluetooth.service`. This briefly disconnects Bluetooth
-devices. Remove only this override and restart BlueZ to undo it.
+It uses the stock BlueZ executable on the supported Ubuntu Server 26.04 and
+tested Armbian image. Installation/upgrades reload systemd and restart an
+already-running Bluetooth service, honoring `policy-rc.d`; connected devices
+briefly disconnect. The relay restarts automatically, retaining saved bonds.
+This policy disables optional GATT battery reporting for all devices on that
+BlueZ instance. Package removal removes the vendor drop-in and restarts an
+active BlueZ instance with the remaining host policy. Administrator overrides
+under `/etc/systemd/system/bluetooth.service.d/` remain administrator-owned;
+if they replace `ExecStart`, retain `--noplugin=battery` alongside custom
+arguments/plugin exclusions. Inspect `systemctl cat bluetooth.service`.
+
+The older Intel 7265 also requires a separate opt-in controller workaround:
+`disable_controller_address_resolution = true` in `relay.conf`. It is applied
+before advertising and reapplied when the relay restarts. This does not remove
+BlueZ bonds or change saved-key authentication. The Realtek radio established
+an AVP link with this option disabled; do not infer that every adapter needs it.
 
 ## Saved state, updates and removal
 
@@ -153,8 +159,8 @@ into the source checkout. Never run two processes against the same state.
 The native store locks itself and refuses unsafe ownership/permissions.
 
 Use `sudo apt remove plank-tablet-relay-ble` to stop and remove the service.
-An explicitly installed global BlueZ override remains under administrator
-control and can be removed separately.
+The packaged BlueZ battery-policy drop-in is removed automatically. Explicit
+administrator BlueZ overrides remain under administrator control.
 
 ## Build and validation
 
@@ -165,7 +171,7 @@ The script snapshots that commit, verifies the pinned libsodium 1.0.22 archive,
 builds it statically with PIC, runs its tests and the relay's assertions-enabled
 tests, and creates `.deb`, `.buildinfo`, `.changes` and SHA-256 artifacts in
 `artifacts/deb/<software-version>/<distribution>-<version>/<architecture>/`,
-for example `artifacts/deb/0.2.0~visionos-tablet-setup.12/ubuntu-26.04/arm64/`.
+for example `artifacts/deb/0.2.0~visionos-tablet-setup.13/ubuntu-26.04/arm64/`.
 The software version comes from `debian/changelog`; the exact Git commit is
 retained in `source-commit.txt` and `provenance.json` with compiler/OS metadata.
 Build natively on the target architecture; the script

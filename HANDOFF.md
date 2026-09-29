@@ -21,53 +21,98 @@ this document changes no runtime code or deployed host configuration.
 
 ## Linux package
 
-The target OS remains **Ubuntu 26.04**, with native **arm64 and amd64** builds.
-Revision `0.2.0~visionos-tablet-setup.10`, source
-`02ec24ceb7cd2325aa05b708e52422c7cb973ef5`, adds automatic Realtek USB driver-disk
-switching, offline fallback RTL8851BU firmware, and Python 3.13-compatible HCI
-management. See [package documentation](docs/linux-ble-package.md).
-The helper preserves OS/admin firmware and initialized controllers, retries
-only the supported dongle's failed Bluetooth interface, and removes only its
-own fallback links. The USB Wi-Fi function is outside this change.
+The x86-64 host OS is **Ubuntu Server 26.04**. Packages use Ubuntu 26.04 as
+the native **amd64 and arm64** build baseline; the current NanoPi hardware
+check uses Armbian/Debian 13. Revision `0.2.0~visionos-tablet-setup.12`, source
+`3625d6cf4240a2e8ce958bf10c4fd9846343d980`, is installed on the NanoPi.
+See [package documentation](docs/linux-ble-package.md).
 
-Revision 9 passed both native builds and installation checks, but fresh removal
-exposed a helper import recreating bytecode after Debian cleanup. Revision 10
-fixes that. Both architectures pass 23 relay suites, 101 libsodium tests,
-lintian, installed-library checks and fresh Ubuntu 26.04 install/remove checks.
-The same cleanup fix was independently reproduced and verified locally.
+- Revision 11 adds tablet enrollment from the headset app, explicit SSH
+  recovery commands, and hostname-based relay discovery.
+- Revision 12 sets `GOVERNOR="powersave"` and `ENABLED="true"` in
+  `/etc/default/cpufrequtils` on Armbian only. It preserves other settings and
+  backs up the original file. Ubuntu Server CPU settings are unaffected.
+- Automatic Realtek driver-disk switching, offline RTL8851BU Bluetooth firmware,
+  Python 3.13 HCI management, and removal cleanup remain included. Firmware
+  runs on the radio and is identical for ARM64 and x86-64; the native relay
+  library must match the host architecture. USB Wi-Fi is not qualified.
 
-[Build and artifacts](https://github.com/instinctual/plank-tablet-relay/actions/runs/36520677972).
+Both native builds pass 24 relay suites, 101 libsodium tests, lintian,
+installed-library checks and package checksums. Revision 12's fresh Ubuntu
+installation/reinstallation/removal checks also pass on both architectures,
+including an Armbian marker fixture to exercise the actual postinst and verify
+non-Armbian settings remain unchanged. Revision 11 passed both native and
+fresh-install jobs.
+[Revision 12 build and artifacts](https://github.com/instinctual/plank-tablet-relay/actions/runs/36523992017).
 Artifacts use `artifacts/deb/<software-version>/ubuntu-26.04/{arm64,amd64}/`,
 with the Git commit in `source-commit.txt` and `provenance.json`.
-The library remains a private ctypes library with generic Python 3 dependencies.
+
+### Headless tablet enrollment
+
+Build 8 discovers the relay hostname. For first setup, Add tablet opens a
+bounded discovery window, the operator selects a tablet in Bluetooth pairing
+mode, and the relay verifies the Wacom vendor, HID service, bond and actual
+pen/pad input. Three releases of the same tablet button separately approve
+that headset. No tablet model/PID is hardcoded. Saved tablets retain bonds
+while offline; Connect differs from new pairing.
+
+Unauthenticated enrollment is limited to an empty relay without saved headset
+approvals or an existing/attached tablet. Subsequent tablet management uses the
+approved headset's existing Noise connection. A temporary BlueZ agent accepts
+only the selected tablet's HID service, never becomes the system default agent,
+and cleans up a new bond after failed/canceled enrollment. Ownership, timeouts,
+message bounds and crash recovery are covered by tests. Wire message types
+48/49 are opt-in; the existing input snapshot and build 7 readings path remain
+compatible. Physical acceptance of the new enrollment flow remains pending.
+
+The operator cannot add a hardware button. SSH recovery is explicit:
+`sudo plank-tablet-relay-admin reset-headsets --yes` retains the relay identity
+and tablet bonds; `remove-tablet AA:BB:CC:DD:EE:FF --yes` removes only the chosen
+saved tablet. Recovery was tested with isolated state, not run against live
+approvals. No web UI or AP work is implemented.
 
 ### NanoPi hardware check
 
-A NanoPi Zero2 on Armbian/Debian 13 with kernel 6.18 recognizes the tested
-RTL8851BU Bluetooth 5.3 radio (`3625:010b`) after its Realtek driver-disk identity
-(`0bda:1a2b`) is ejected and the two Bluetooth firmware files are supplied.
-These manual preparation steps motivated the package automation. The board's
-existing PCIe Wi-Fi remains the network connection; USB Wi-Fi is not qualified.
-Ubuntu 26.04 remains the product target, independent of this board's test image.
+The NanoPi Zero2 on Armbian/Debian 13 with kernel 6.18 recognizes the tested
+RTL8851BU Bluetooth 5.3 radio (`3625:010b`). Package automation ejects its
+Realtek driver-disk identity (`0bda:1a2b`) and supplies missing firmware before
+Bluetooth starts. The board's existing PCIe Wi-Fi remains the network uplink;
+USB Wi-Fi is not qualified.
 
-The Wacom is paired, bonded and trusted over Bluetooth Classic. Linux exposes
-pen, finger and pad input nodes and the relay attaches to pen/button input.
-Concurrent AVP readings, new-board sleep/wake and reboot qualification remain
-pending; input-node creation is not proof of physical pen events or AVP delivery.
-Revision 10 is installed on the NanoPi. To qualify recovery, the manually
-supplied firmware was moved into a private backup and just the Bluetooth
-interface reprobed: the kernel reported zero initialized controllers. Package
-installation supplied the fallback links, retried that failed interface and
-started advertising automatically. The installed-library smoke test passed;
-relay identity and tablet bond bytes were unchanged. Repeating preparation
-preserved the initialized controller. Dedicated-adapter startup now works with
-Python 3.13, and the tablet reattached using its saved bond. Address-resolution
-and global battery-plugin workarounds are not enabled on this radio.
-Physical dongle unplug/replug, reboot and AVP acceptance remain pending.
-The tablet selection logic remains model independent.
+Revision 10 installation was tested after privately backing up the manually
+supplied firmware and reproducing a failed Bluetooth probe. The package
+supplied fallback links, retried only the failed Bluetooth interface and began
+advertising. Repeated preparation preserved the initialized controller.
+The user then rebooted the board: driver-disk switching, firmware loading and
+advertising completed automatically despite a changed USB bus number. Relay
+identity and Wacom bond bytes were unchanged. The tablet's saved bond survives
+reboot; an offline saved device does not establish live pen delivery.
 
-The operator canceled the proposed AP and web UI work; neither is implemented.
-The qualified Intel host is unchanged by these new-board tests.
+Revision 12 upgrades revision 10, preserves the live identity/approvals and
+uses the hostname with no explicit name override. The actual service exports
+all six data/echo/setup characteristics and advertises successfully. The
+package's extracted stock configuration/library smoke test passes on the
+board, while the live configuration retains dedicated-adapter mode. The
+installer applied the requested Armbian values, retained frequency limits and
+boost, and backed up the original configuration. The live governor is
+`powersave`. Controller address resolution remains enabled on this radio.
+
+The first live AVP attempt exposed a deployment omission: the earlier host's
+manual `--noplugin=battery` override had not been packaged. A captured AVP
+connection on the Realtek radio completed the diagnostic exchange, then BlueZ
+read Battery Level, received Insufficient Authentication, initiated SMP and
+locally disconnected. The same failure was captured on a second connection.
+A persistent host override now disables the battery plugin on the NanoPi.
+Revision 13 packages that policy for installation/upgrade and removes only its
+own vendor drop-in during uninstall. Build and qualification are in progress;
+revision 12 plus the manual override is currently running.
+
+Live AVP position/pressure acceptance is requested and remains pending.
+A temporary read-only pen monitor is prepared; input-node creation, an active
+service or an authenticated connection alone do not count as acceptance.
+Physical dongle unplug/replug and new-board sleep/wake qualification also remain
+pending. The older qualified Intel host has not been changed; its last access
+attempt was unreachable, so an old generic advertisement could not be excluded.
 
 ### Qualified Intel host
 
@@ -133,36 +178,35 @@ then confirmed an existing-headset approval request and authenticated input
 observation. User confirmation of displayed position/pressure/button updates
 remains pending; do not confuse connection evidence with input acceptance.
 
-## TestFlight build 7
+## TestFlight build 8
 
-Version `0.1.0 (7)`, app source
-`5c62b275f6208c9060e475014d60e48dc3ce0919`, removes the obsolete TCP host/port
-setup, five-key enrollment workflow, Network framework dependency, local-network
-permission, and simulation coordinator. The app now uses only Bluetooth relay
-discovery, three-button approval, live readings and diagnostics. Offscreen
-preview fixtures remain development tools, not a runtime app mode.
+Version `0.1.0 (8)`, app source
+`3757f0b00089746193c882759833c61d56132190`, adds headless tablet discovery,
+pairing, connection, selection and removal to the headset app. It checks for
+the matching relay feature and waits for the management connection to close
+before beginning separate three-press headset approval.
 
-The current `relay-ble-v1:<peripheral UUID>` Keychain accounts and
-`client-private-v1` identity are retained for secure reconnect. The old TCP
-account lookup is gone; no legacy account migration is needed. Shared C
-protocol/crypto and the standalone upstream TCP/raw-HID daemon remain intact.
+Build 7's cleanup remains: obsolete TCP host/port setup, five-key workflow,
+Network framework dependency, local-network permission and runtime simulation
+are removed. Current `relay-ble-v1:<peripheral UUID>` Keychain accounts and
+`client-private-v1` identity remain for secure reconnect. Shared C protocol and
+the standalone upstream TCP/raw-HID daemon remain intact. Offscreen previews
+are development tools, not an app simulation mode.
 
-- Apple 9/9 CTest suites pass; the obsolete TCP fixture suite was removed.
-- Native macOS and visionOS simulator/device SDK builds pass with SDK27.
+- Apple 10/10 CTest suites pass, including tablet management/state checks.
+- Native macOS and visionOS simulator/device SDK builds pass with SDK 27.
   Simulator compilation is not simulator execution.
 - Signed archive/export, bundle/privacy resources and executable/dSYM matching
-  pass. Relay, authorization and readings layouts were inspected using the
-  macOS offscreen preview.
-- IPA SHA-256: `e18ca03a7b42bc070b0555e8a860849e79830ceec7357459f24c183f20ba976c`.
-- arm64 dSYM UUID: `0D5794D9-1E77-335A-9982-762FC7C698DE`.
+  pass. Tablet scan and saved-tablet layouts were inspected in offscreen previews.
+- IPA SHA-256: `c26206e4fcaa0a9759603e5d7e602fbf4eda6b6005dc474560529f6731256099`.
+- arm64 dSYM UUID: `A73F6E33-E768-34E4-9505-DFDA97BB89A5`.
 - IPA, symbols, previews and provenance are retained under ignored
-  `artifacts/testflight/0.1.0/build-7/`.
+  `artifacts/testflight/0.1.0/build-8/`.
 
-Apple accepted upload at 2026-09-29T04:15:23Z. The exact build is
+Apple accepted upload at 2026-09-29T04:56:55Z. The exact build is
 **VALID / IN_BETA_TESTING**; notes and the saved compliance baseline were
 written and read back. GUI archive/export/upload jobs are unloaded. The next
-upload must use build 8. Physical AVP acceptance remains pending. Build 6
-remains documented in Git history.
+upload must use build 9. Physical AVP acceptance remains pending.
 
 ## Established hardware findings
 

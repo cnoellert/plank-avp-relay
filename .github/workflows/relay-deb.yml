@@ -95,6 +95,8 @@ jobs:
           dpkg --verify plank-tablet-relay-ble
           readelf -h /usr/lib/plank-tablet-relay-ble/libplank_ble_lab.so | tee artifacts/logs/elf-header.log
           systemd-analyze verify /lib/systemd/system/plank-tablet-relay-ble.service /lib/systemd/system/plank-tablet-relay-hardware.service
+          test -x /usr/libexec/bluetooth/bluetoothd
+          systemd-analyze verify /lib/systemd/system/bluetooth.service
           cd "$(dirname "${package[0]}")"
           sha256sum -c SHA256SUMS
       - name: Save packages and build logs
@@ -171,5 +173,6 @@ jobs:
           test ! -L /lib/firmware/updates/rtl_bt/rtl8851bu_config.bin
           test ! -e /usr/lib/plank-tablet-relay-ble/ble_lab
           test ! -e /usr/lib/plank-tablet-relay-ble/libplank_ble_lab.so
+          test ! -e /usr/lib/systemd/system/bluetooth.service.d/10-plank-tablet-relay-ble.conf
           grep -qx 'GOVERNOR="powersave"' /etc/default/cpufrequtils
           cmp /var/backups/plank-tablet-relay/cpufrequtils.before-powersave /tmp/cpufrequtils-before

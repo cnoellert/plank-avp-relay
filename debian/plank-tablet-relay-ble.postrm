@@ -1,0 +1,8 @@
+#!/bin/sh
+set -e
+#DEBHELPER#
+if [ "$1" = remove ] && [ -d /run/systemd/system ]; then
+    # dpkg has removed our drop-in; restore the host's remaining BlueZ policy.
+    systemctl --system daemon-reload >/dev/null || true
+    deb-systemd-invoke try-restart bluetooth.service >/dev/null || true
+fi

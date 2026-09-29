@@ -3,5 +3,11 @@ set -e
 if [ "$1" = configure ]; then
     /usr/lib/plank-tablet-relay-ble/plank-tablet-relay-configure-host
     /usr/lib/plank-tablet-relay-ble/plank-tablet-relay-hardware --firmware-only
+    if [ -d /run/systemd/system ]; then
+        systemctl --system daemon-reload >/dev/null || true
+        # Apply the packaged battery-plugin policy before starting the relay.
+        # Honor policy-rc.d and leave an inactive Bluetooth service inactive.
+        deb-systemd-invoke try-restart bluetooth.service >/dev/null || true
+    fi
 fi
 #DEBHELPER#
