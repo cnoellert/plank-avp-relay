@@ -12,9 +12,21 @@ enum SetupPreview {
         _ = NSApplication.shared
         let directory = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        for page in ["relay", "readings", "offline", "tablets-empty", "tablets-scan", "tablets-saved", "tablets-pairing", "tablets-replacement", "tablets-recovery"] {
+        for page in ["relay", "readings", "offline", "network-bridge", "network-router", "network-disconnected", "network-changing", "network-unavailable", "tablets-empty", "tablets-scan", "tablets-saved", "tablets-pairing", "tablets-replacement", "tablets-recovery"] {
             let content: AnyView
-            if page.hasPrefix("tablets-") {
+            if page.hasPrefix("network-") {
+                let status = try RelayNetworkStatus.decode(JSONSerialization.data(withJSONObject: [
+                    "version": 1, "id": 1, "ok": true, "supported": page != "network-unavailable",
+                    "mode": page == "network-router" ? "router" : "bridge", "targetMode": "bridge",
+                    "phase": page == "network-changing" ? "applying" : page == "network-unavailable" ? "unavailable" : "idle",
+                    "message": "USB networking follows the Ethernet link.",
+                    "ethernet": page == "network-disconnected" ? "disconnected" : "connected",
+                    "usb": page == "network-disconnected" ? "waiting" : page == "network-unavailable" ? "unavailable" : "connected",
+                    "addresses": ["192.168.1.42"], "requestID": NSNull()]), request: 1)
+                content = AnyView(RelayNetworkSettingsView(status: status, authorized: true, busy: page == "network-changing",
+                    message: page == "network-changing" ? "Changing network mode… Reconnecting to the same relay." : status.message,
+                    refresh: {}, apply: { _ in }).padding(30))
+            } else if page.hasPrefix("tablets-") {
                 let tablet: [String: Any] = ["id": "AA:BB:CC:DD:EE:01", "name": "Wacom Intuos Pro M",
                     "connected": false, "paired": page == "tablets-saved"]
                 var secondTablet = tablet

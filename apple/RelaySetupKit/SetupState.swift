@@ -14,7 +14,7 @@ public enum SetupStep: Int, CaseIterable, Sendable {
 }
 
 public enum SetupActivity: Equatable, Sendable {
-    case idle, checking, observing, testingBluetooth, managingTablets, failed(String), paired
+    case idle, checking, observing, testingBluetooth, managingTablets, managingNetwork, failed(String), paired
 }
 
 public struct RelayAddress: Equatable, Sendable {
@@ -109,6 +109,12 @@ public struct SetupState: Equatable, Sendable {
     public mutating func beginObservation() -> UUID? {
         guard address != nil, let id = beginCheck() else { return nil }
         activity = .observing
+        return id
+    }
+
+    public mutating func beginNetworkSettings() -> UUID? {
+        guard let id = beginCheck() else { return nil }
+        activity = .managingNetwork
         return id
     }
 

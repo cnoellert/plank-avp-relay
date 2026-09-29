@@ -21,10 +21,15 @@ from ble_lab.network import TCPServer
 from ble_lab.discovery import Publisher
 from ble_lab.hardware import prepare_firmware
 from ble_lab.host_setup import configure_armbian
+from ble_lab.gadget_config import read_settings as read_gadget_settings
+from ble_lab.gadget import GadgetController
 
 settings = read_settings(root / 'etc/plank-tablet-relay-ble/relay.conf')
 assert not settings.exclusive_adapter and not settings.disable_controller_address_resolution
 assert settings.tcp_enabled and settings.tcp_port == 28991
+assert read_gadget_settings(root / 'etc/plank-tablet-relay-ble/usb-network.conf').enabled == 'auto'
+assert (private / 'plank-tablet-relay-gadget').is_file()
+assert (root / 'usr/lib/systemd/system/plank-tablet-relay-gadget.service').is_file()
 assert re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+',
     (root / 'usr/share/plank-tablet-relay-ble/version').read_text().strip())
 unit = (root / 'usr/lib/systemd/system/plank-tablet-relay-ble.service').read_text()

@@ -1,0 +1,26 @@
+[Unit]
+Description=PLANK USB Ethernet appliance controller
+After=local-fs.target systemd-networkd.service nftables.service
+Before=plank-tablet-relay-ble.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+ExecStart=/usr/lib/plank-tablet-relay-ble/plank-tablet-relay-gadget
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+StateDirectory=plank-tablet-relay-gadget
+StateDirectoryMode=0700
+RuntimeDirectory=plank-tablet-relay-gadget
+RuntimeDirectoryMode=0700
+UMask=0077
+User=root
+NoNewPrivileges=yes
+ProtectHome=yes
+PrivateTmp=yes
+RestrictAddressFamilies=AF_UNIX AF_NETLINK AF_INET AF_INET6
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -6,6 +6,7 @@ import time
 from .capture import Capture
 from .native import Native, ProtocolError
 from .tablets import Tablets
+from .gadget_client import GadgetClient, GadgetBusy
 
 
 class RelayCore:
@@ -14,6 +15,7 @@ class RelayCore:
         self.owner = None
         self.emit = self.busy = self.close_connection = None
         self.capture = Capture(args.tablet, self.button)
+        self.gadget = GadgetClient()
         self.tablets = Tablets(backend, args.state_dir, lambda: self.native.has_clients,
             self.select, lambda: self.capture.attached, args.tablet,
             enroll_headset=self.enroll_headset)
@@ -29,6 +31,26 @@ class RelayCore:
         self.capture.last_scan = 0
 
     def request(self, data, peer, authenticated=False, enrolling=False):
+        command = json.loads(data)
+        if isinstance(command, dict) and command.get('op') in ('network-status', 'network-mode'):
+            response = {'version': 1, 'id': command.get('id', 0), 'ok': False}
+            try:
+                if not authenticated or peer != self.owner:
+                    raise ValueError('An authorized headset is required to manage network settings.')
+                if command.get('version') != 1 or type(command.get('id')) is not int or not 1 <= command['id'] <= 1000000:
+                    raise ValueError('Invalid network request envelope.')
+                expected = {'version', 'id', 'op'} | ({'mode', 'requestID'} if command['op'] == 'network-mode' else set())
+                if set(command) != expected:
+                    raise ValueError('Invalid network command fields.')
+                result = self.gadget.request({k: v for k, v in command.items() if k not in ('version', 'id')})
+                if 'error' in result:
+                    raise ValueError(result['error'])
+                response.update(result, ok=True)
+            except GadgetBusy as error:
+                response.update(error=str(error), code='busy')
+            except (OSError, ValueError) as error:
+                response['error'] = str(error)[:512]
+            return json.dumps(response, separators=(',', ':')).encode()
         response = json.loads(self.tablets.handle(data, peer, authenticated, enrolling))
         if response.get('ok'):
             response['enrollmentVersion'] = 1

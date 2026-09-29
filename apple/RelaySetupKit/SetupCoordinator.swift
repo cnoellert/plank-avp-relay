@@ -12,6 +12,8 @@ public final class SetupCoordinator: ObservableObject {
     @Published public private(set) var bluetoothTestResult: String?
     @Published public private(set) var tabletStatus: TabletSetupStatus?
     @Published public private(set) var tabletCommandPending = false
+    @Published public private(set) var networkStatus: RelayNetworkStatus?
+    @Published public private(set) var networkMessage = "Select and authorize a relay to manage its network mode."
     public let scanner = RelayScanner()
     private var addresses: [RelayAddress] = []
     private let keys = RelayKeyStore()
@@ -26,6 +28,8 @@ public final class SetupCoordinator: ObservableObject {
         addresses = relay.addresses
         scanner.stop()
         bluetoothTestResult = nil
+        networkStatus = nil
+        networkMessage = "Open Network to check the selected relay’s settings."
         do {
             let trusted = try keys.relayKey(address) != nil
             guard state.selectRelay(address, trusted: trusted) else { return }
@@ -190,6 +194,9 @@ public final class SetupCoordinator: ObservableObject {
             finishTabletSetup()
             return
         }
+        if state.activity == .managingNetwork {
+            networkMessage = "Status monitoring stopped. An accepted mode change continues on the relay; refresh to check it."
+        }
         scanner.stop()
         task?.cancel()
         task = nil
@@ -197,6 +204,106 @@ public final class SetupCoordinator: ObservableObject {
         readings = nil
         bluetoothTestResult = nil
         message = "Operation canceled. Existing pairing was not removed."
+    }
+
+    public func refreshNetworkSettings() { networkSettings(mode: nil) }
+
+    public func applyNetworkMode(_ mode: RelayNetworkMode) {
+        guard networkStatus?.canChange == true, networkStatus?.mode != mode else { return }
+        networkSettings(mode: mode)
+    }
+
+    private func networkSettings(mode: RelayNetworkMode?) {
+        guard let address = state.address, let id = state.beginNetworkSettings() else { return }
+        let request = mode == nil ? nil : UUID().uuidString.lowercased()
+        networkMessage = mode == nil ? "Reading connection status…" : "Changing network mode…"
+        task = Task { [weak self] in
+            guard let self else { return }
+            do {
+                guard let key = try self.keys.relayKey(address) else { throw RelaySetupError.invalidStoredKey }
+                let privateKey = try self.keys.clientKey()
+                // Prefer BLE control so changing the USB subnet does not break
+                // the command connection. All candidates must prove this key.
+                var candidates = self.addresses.isEmpty ? [address] : self.addresses
+                candidates.sort { $0.linkType < $1.linkType }
+                var selected: RelayAddress?
+                var lastError: any Error = RelaySetupError.timedOut
+                for candidate in candidates {
+                    do {
+                        self.networkStatus = try await self.client.networkSettings(address: candidate, privateKey: privateKey, relayKey: key)
+                        try Task.checkCancellation()
+                        selected = candidate
+                        break
+                    } catch {
+                        try Task.checkCancellation()
+                        guard Self.transportFailure(error) else { throw error }
+                        lastError = error
+                    }
+                }
+                guard let selected else { throw lastError }
+                self.state.useAddress(selected, operation: id)
+                if let mode, let request {
+                    try Task.checkCancellation()
+                    do {
+                        self.networkStatus = try await self.client.networkSettings(address: selected, privateKey: privateKey,
+                            relayKey: key, mode: mode, requestID: request)
+                    } catch {
+                        try Task.checkCancellation()
+                        guard Self.transportFailure(error) else { throw error }
+                        // The relay may have committed before its reply was
+                        // lost. Only poll status; never resend this mutation.
+                    }
+                    self.networkMessage = "Changing network mode… Reconnecting to the same relay."
+                    self.scanner.start()
+                    defer { self.scanner.stop() }
+                    let deadline = ContinuousClock.now + .seconds(90)
+                    var attempt = 0
+                    while ContinuousClock.now < deadline {
+                        try await Task.sleep(for: .seconds(2))
+                        for relay in self.scanner.relays {
+                            for candidate in relay.addresses where candidate.advertisedKey == key && !candidates.contains(candidate) {
+                                candidates.append(candidate)
+                            }
+                        }
+                        let candidate = candidates[attempt % candidates.count]
+                        attempt += 1
+                        do {
+                            let status = try await self.client.networkSettings(address: candidate, privateKey: privateKey, relayKey: key)
+                            try Task.checkCancellation()
+                            self.networkStatus = status
+                            if status.confirms(request, mode: mode) {
+                                self.state.useAddress(candidate, operation: id)
+                                self.addresses = candidates
+                                self.networkMessage = "\(mode.title) mode saved."
+                                _ = self.state.succeed(id)
+                                self.task = nil
+                                return
+                            }
+                            if status.requestID == request && status.phase == "failed" {
+                                throw RelaySetupError.rejected(status.message)
+                            }
+                        } catch {
+                            try Task.checkCancellation()
+                            guard Self.transportFailure(error) else { throw error }
+                        }
+                    }
+                    throw RelaySetupError.rejected("The mode change has not been confirmed. Reconnect and refresh its status before trying again.")
+                } else {
+                    self.networkMessage = self.networkStatus?.message ?? "Connection status refreshed."
+                }
+                _ = self.state.succeed(id)
+            } catch is CancellationError {
+                guard self.state.operation == id else { return }
+                self.state.cancel()
+                self.networkMessage = "Status monitoring stopped. An accepted mode change continues on the relay; refresh to check it."
+            } catch {
+                guard self.state.operation == id else { return }
+                self.networkMessage = error.localizedDescription
+                self.state.fail(id, message: error.localizedDescription)
+            }
+            guard self.state.operation == nil else { return }
+            self.task = nil
+        }
     }
 
     public func pauseForInactivity() {

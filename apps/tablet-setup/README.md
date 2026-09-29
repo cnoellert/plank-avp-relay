@@ -14,6 +14,23 @@ pairing management are in expandable sections.
 Synthetic readout fixtures exist only in the separate offscreen preview executable.
 The shipping app supports encrypted TCP and Bluetooth connections.
 
+Release 0.4.0 adds **Tablet** and **Network** tabs sharing the selected relay.
+Network mode is an editable Bridge/Router selector with Apply changes. Its
+separate Connection status group uses read-only Ethernet and USB labels/icons,
+with a Refresh status action and automatic four-second refresh while idle.
+An authorized headset can change mode without another pairing step; finish
+tablet setup first on a new relay. Stop readings/other tablet operations before
+network management. Unsupported gadget hardware is reported without changing
+its network configuration.
+
+Bluetooth control is preferred when available. After Apply, the app confirms
+the durable request UUID and saved mode on the same authenticated relay,
+rediscovering changed network endpoints as needed. It never blindly retries a
+mode mutation after a lost connection. Stop waiting only stops monitoring:
+accepted changes finish on the relay and can be checked with Refresh status.
+USB is withdrawn when Ethernet link disappears; Internet access is irrelevant.
+See [USB appliance configuration](../../docs/linux-ble-package.md#usb-ethernet-appliance-040).
+
 The visible version uses `Major.Minor.Ancillary` followed by the branch
 description, for example `0.3.0-visionos-tablet-setup`. The numeric version is
 defined once in the repository's `VERSION` file and shared with the relay

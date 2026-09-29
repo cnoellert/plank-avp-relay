@@ -126,9 +126,9 @@ class NetworkTests(unittest.TestCase):
         self.assertEqual(codec.pltr_client_link_send(client, kind, payload, len(payload), out, len(out), C.byref(size)), 0)
         sock.sendall(out.raw[:size.value])
 
-    def request(self, sock, client, op='status', tablet=None):
+    def request(self, sock, client, op='status', tablet=None, **fields):
         self.request_id += 1
-        payload = json.dumps({'version': 1, 'id': self.request_id, 'op': op, **({'tablet': tablet} if tablet else {})}).encode()
+        payload = json.dumps({'version': 1, 'id': self.request_id, 'op': op, **({'tablet': tablet} if tablet else {}), **fields}).encode()
         self.send(sock, client, 48, payload)
         for _ in range(10):
             for kind, data in self.feed(sock, client, self.read(sock)):
@@ -136,7 +136,7 @@ class NetworkTests(unittest.TestCase):
         self.fail('No authenticated management response')
 
     def test_public_identity_and_no_public_mutations(self):
-        for operation in ('status', 'scan', 'cancel', 'remove'):
+        for operation in ('status', 'scan', 'cancel', 'remove', 'network-status', 'network-mode'):
             sock = self.socket(1)
             payload = json.dumps({'version': 1, 'id': 1, 'op': operation}).encode()
             record = len(payload).to_bytes(2, 'little') + payload
@@ -177,6 +177,22 @@ class NetworkTests(unittest.TestCase):
         self.assertEqual(self.core.owner, owner)
         sock.close(); self.pump()
         self.assertIsNone(self.core.owner)
+
+    def test_network_mode_requires_approved_noise_identity(self):
+        from ble_lab.gadget_client import unavailable
+        self.core.gadget = MagicMock()
+        self.core.gadget.request.return_value = dict(unavailable(), supported=True, phase='applying')
+        sock, client, connected = self.connect()
+        self.assertTrue(connected)  # Provisional tablet setup is allowed.
+        command = dict(mode='router', requestID='0e0f733e-ce3f-4a72-8272-e33cd37d165b')
+        self.assertFalse(self.request(sock, client, 'network-mode', **command)['ok'])
+        self.core.gadget.request.assert_not_called()
+        sock.close(); self.pump()
+        self.approve()
+        sock, client, connected = self.connect()
+        self.assertTrue(connected)
+        self.assertTrue(self.request(sock, client, 'network-mode', **command)['ok'])
+        self.core.gadget.request.assert_called_once_with(dict(op='network-mode', **command))
 
     def test_owned_relay_rejects_stranger_and_wrong_transport(self):
         self.approve()

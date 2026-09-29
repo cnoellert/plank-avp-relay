@@ -1,7 +1,7 @@
 [Unit]
 Description=PLANK Network and Bluetooth Tablet Relay
-Wants=bluetooth.service avahi-daemon.service plank-tablet-relay-hardware.service
-After=bluetooth.service avahi-daemon.service plank-tablet-relay-hardware.service
+Wants=bluetooth.service avahi-daemon.service plank-tablet-relay-hardware.service plank-tablet-relay-gadget.service
+After=bluetooth.service avahi-daemon.service plank-tablet-relay-hardware.service plank-tablet-relay-gadget.service
 StartLimitIntervalSec=0
 
 [Service]

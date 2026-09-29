@@ -20,7 +20,7 @@ public struct ButtonApproval: Equatable, Sendable {
 public enum RelaySetupError: LocalizedError, Sendable {
     case invalidState, storage(OSStatus), invalidStoredKey, random, protocolError
     case network(String), timedOut, identityChanged, unexpectedMessage
-    case approvalFailed
+    case approvalFailed, rejected(String)
 
     public var errorDescription: String? {
         switch self {
@@ -30,6 +30,7 @@ public enum RelaySetupError: LocalizedError, Sendable {
         case .random: "The system could not generate secure random data."
         case .protocolError: "The relay exchange could not be verified. Try connecting again."
         case let .network(message): "Relay connection failed: \(message)"
+        case let .rejected(message): message
         case .timedOut: "The relay did not complete the operation in time. You can try again."
         case .identityChanged: "This address already has a different trusted relay. Forget it explicitly before pairing a replacement."
         case .unexpectedMessage: "The relay sent an unsupported message. The connection closed; saved trust is retained."

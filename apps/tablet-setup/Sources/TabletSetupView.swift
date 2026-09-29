@@ -6,6 +6,7 @@ struct TabletSetupView: View {
     @StateObject private var setup = SetupCoordinator()
     @Environment(\.scenePhase) private var scenePhase
     @State private var tabletToRemove: ManagedTablet?
+    @State private var selectedTab = "tablet"
 
     init(setup: SetupCoordinator = SetupCoordinator()) {
         _setup = StateObject(wrappedValue: setup)
@@ -18,7 +19,8 @@ struct TabletSetupView: View {
                 Text(Bundle.main.object(forInfoDictionaryKey: "PLANKSetupVersion") as? String ?? "development")
                     .font(.caption).foregroundStyle(.secondary)
             }
-            ScrollView {
+            TabView(selection: $selectedTab) {
+              ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     Text(setup.state.activity == .managingTablets ? "Set up your tablet" :
                          setup.state.activity == .testingBluetooth ? "Test relay connection" :
@@ -56,16 +58,42 @@ struct TabletSetupView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(22)
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22))
+              }
+              .tabItem { Label("Tablet", systemImage: "pencil.tip") }.tag("tablet")
+              ScrollView {
+                  VStack(alignment: .leading, spacing: 16) {
+                      if let address = setup.state.address {
+                          LabeledContent("Relay", value: address.description)
+                      }
+                      if setup.state.busy && setup.state.activity != .managingNetwork {
+                          Text("Stop the current tablet operation before changing network settings.")
+                          Button("Stop current operation") { setup.cancel() }
+                      }
+                      RelayNetworkSettingsView(status: setup.networkStatus, authorized: setup.state.hasTrust,
+                          busy: setup.state.busy, message: setup.networkMessage,
+                          refresh: setup.refreshNetworkSettings, apply: setup.applyNetworkMode)
+                  }.padding(22)
+              }
+              .tabItem { Label("Network", systemImage: "network") }.tag("network")
+            }
+            .task(id: "\(selectedTab)-\(scenePhase)") {
+                guard selectedTab == "network", scenePhase == .active else { return }
+                while !Task.isCancelled {
+                    if setup.state.hasTrust, !setup.state.busy { setup.refreshNetworkSettings() }
+                    do { try await Task.sleep(for: .seconds(4)) } catch { return }
+                }
             }
             HStack(alignment: .top, spacing: 10) {
                 if setup.state.busy && !setup.state.connectionVerified { ProgressView().controlSize(.small) }
-                Text(setup.message).font(.callout).fixedSize(horizontal: false, vertical: true)
+                Text(selectedTab == "network" ? "Network mode is configurable. Connection status is read-only." : setup.message)
+                    .font(.callout).fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("setup-status")
             }
             HStack {
                 Text("No workstation connection required").font(.caption).foregroundStyle(.secondary)
                 Spacer()
-                if setup.state.busy && setup.state.activity != .observing { Button("Cancel") { setup.cancel() } }
+                if setup.state.activity == .managingNetwork { Button("Stop waiting") { setup.cancel() } }
+                else if setup.state.busy && setup.state.activity != .observing { Button("Cancel") { setup.cancel() } }
                 else if !setup.state.busy && setup.state.step != .relay { Button("Back") { setup.back() } }
             }
         }

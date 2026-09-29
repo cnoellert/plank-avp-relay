@@ -57,6 +57,76 @@ BLE retains domain 1. Setup status cannot mutate or cancel an operation.
 Connections, record sizes, send queues and timeouts are bounded. This path
 does not start a raw-HID worker or implement the older TCP pairing protocol.
 
+## USB Ethernet appliance (0.4.0)
+
+The dedicated relay can present its USB device port as an Ethernet adapter.
+**Bridge is the default**, joining USB and wired Ethernet on `plankbr0`. Router
+mode supplies a private USB subnet (default `10.55.0.1/24`) and IPv4 NAT through
+the wired port. Neither mode checks Internet access. Ethernet carrier gates
+USB attachment; removing the cable withdraws the USB adapter. Router mode
+still provides its local USB address when Ethernet has link but no upstream
+DHCP lease yet. Upstream routing becomes usable when the wired network does.
+No Wi-Fi interface is selected as an uplink. Router mode blocks forwarded IPv6;
+bridge mode carries the LAN's IPv6 directly. The owned inet firewall also
+prevents routing from the USB bridge through other interfaces.
+
+The package installs `iproute2`, `nftables`, `device-tree-compiler`, and the
+separate `plank-tablet-relay-gadget.service`. Its default `enabled=auto` activates
+only on Armbian NanoPi Zero2 hardware; x86 Ubuntu Server hosts are unaffected.
+The board must use systemd-networkd. Explicit enablement on another board
+requires USB peripheral support and hardware qualification. Settings are in
+`/etc/plank-tablet-relay-ble/usb-network.conf`; ambiguous Ethernet/controller
+selection requires explicit names there. A validated private `router_address`
+can be changed there to avoid an overlapping subnet. DHCP pool sizing follows
+the subnet rather than a fixed 20-address pool.
+
+If the supported board has no active USB device controller, the service can
+install an Armbian peripheral-mode overlay. It reports that a relay restart is
+required; it never reboots the host automatically. On first configuration it
+saves the wired addressing/DNS/routes and forwarding setting privately under
+`/var/lib/plank-tablet-relay-gadget/`. It writes only owned `04-plank-usb*`
+networkd fragments and checks that networkd actually selects them. The service
+is designed for the dedicated appliance, with routing table 155 and rule
+priorities 31000–31002 reserved for it. Other networking managers and complex
+pre-existing bridge arrangements are not supported.
+
+The supplied standalone `install-usb-gadget.sh` is not used as a runtime
+backend. A recognized installation is backed up to `standalone-before.json`,
+its Bridge/Router selection is retained, and its service/configuration is
+retired before the new controller takes over. Unknown gadget installations
+are left untouched and reported as unavailable. The original supplied script
+outside this repository is unchanged. Custom settings such as a non-default
+private USB subnet should be set in the new configuration before migration.
+
+The app's **Network** tab has an editable **Network mode** section and a
+separate **Connection status** section. Ethernet/USB rows are read-only text
+and icons. USB reports the UDC's actual configured/suspended state, so binding
+the gadget does not falsely claim a connected headset. Visible status is
+refreshed every four seconds when no other operation is active.
+
+Only the already authorized headset can issue `network-status` or
+`network-mode` commands through the encrypted management channel. Provisional
+tablet setup and public discovery cannot change network settings. The relay
+forwards these fixed commands to a root-only, bounded local socket; the app
+cannot submit shell commands or configuration paths. The separate service
+durably records a request UUID and mode before acknowledging it, delays apply
+briefly to let the reply leave, and completes it independently of the app.
+An interrupted helper resumes a pending request after restart. An apply error
+attempts to restore the previous mode and leaves USB disabled if that fails.
+
+The app prefers available Bluetooth control, then polls the same pinned
+identity over available transports to confirm the exact request. A lost reply
+does not cause mutation replay or a new pairing. **Stop waiting** cancels app
+monitoring; an accepted change continues on the relay. Refresh status to learn
+its result. Changes retain tablet bonds and headset ownership.
+
+Uninstall withdraws the gadget, removes owned firewall/network configuration,
+restores the original forwarding setting and reconfigures the wired port.
+An overlay created by this package is removed from Armbian's boot settings;
+its live device-tree effect lasts until reboot. Private backups and saved mode
+remain available across removal/reinstallation. Physical AVP USB operation,
+both modes, cable transitions and migration on the NanoPi require live testing.
+
 ## Hardware baseline
 
 For new hardware, target **Bluetooth 5.0 or newer**, with both BR/EDR (Classic)

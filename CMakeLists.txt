@@ -142,6 +142,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         target_link_libraries(button_pair_test PRIVATE plank_ble_lab plank_relay_client_pair plank_relay_client_link)
         add_test(NAME button_pair_test COMMAND button_pair_test)
         find_package(Python3 COMPONENTS Interpreter REQUIRED)
+        add_test(NAME gadget_test COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/gadget_test.py")
+        add_test(NAME gadget_firewall_test COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/gadget_firewall_test.py")
         add_test(NAME network_relay_test COMMAND "${Python3_EXECUTABLE}"
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/network_relay_test.py"
             "$<TARGET_FILE:plank_ble_lab>" "$<TARGET_FILE:relay_network_test_client>")

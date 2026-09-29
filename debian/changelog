@@ -1,3 +1,14 @@
+plank-tablet-relay-ble (0.4.0~visionos-tablet-setup) experimental; urgency=medium
+
+  * Add managed USB Ethernet with Bridge default and selectable Router mode.
+    Gate USB attachment on Ethernet link, with no Internet requirement.
+  * Let the authorized headset change mode over encrypted Bluetooth or TCP.
+    Persist changes independently of the app and report actual USB status.
+  * Install the gadget controller and networking dependencies automatically;
+    enable the appliance feature by default on Armbian NanoPi Zero2 only.
+
+ -- PLANK contributors <625982+alatteri@users.noreply.github.com>  Tue, 29 Sep 2026 20:00:00 +0000
+
 plank-tablet-relay-ble (0.3.0~visionos-tablet-setup) experimental; urgency=medium
 
   * Add a new bounded TCP transport for the current tablet setup and readings

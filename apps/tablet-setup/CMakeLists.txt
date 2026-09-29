@@ -45,6 +45,7 @@ add_library(RelaySetupKit STATIC
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayDiscovery.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/TabletReadings.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/TabletManagement.swift"
+    "${RELAY_ROOT}/apple/RelaySetupKit/RelayNetworkSettings.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayPairingClient.swift")
 target_link_libraries(RelaySetupKit PUBLIC CRelayProtocol
     "-framework Foundation" "-framework Security" "-framework Combine"
@@ -57,7 +58,7 @@ set_target_properties(CRelayProtocol RelaySetupKit PROPERTIES
     XCODE_ATTRIBUTE_SKIP_INSTALL "YES")
 
 add_executable(PlankTabletSetup MACOSX_BUNDLE
-    Sources/TabletSetupApp.swift Sources/TabletSetupView.swift Sources/TabletReadingsView.swift)
+    Sources/TabletSetupApp.swift Sources/TabletSetupView.swift Sources/TabletReadingsView.swift Sources/RelayNetworkSettingsView.swift)
 configure_file("${PLANK_SODIUM_PREFIX}/share/licenses/libsodium/LICENSE"
     "${CMAKE_CURRENT_BINARY_DIR}/libsodium-LICENSE.txt" COPYONLY)
 set(APP_LICENSES "${RELAY_ROOT}/LICENSE" "${RELAY_ROOT}/apple/NOTICE.md"
@@ -115,7 +116,7 @@ endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     enable_testing()
-    add_executable(setup-preview Sources/PreviewMain.swift Sources/TabletSetupView.swift Sources/TabletReadingsView.swift)
+    add_executable(setup-preview Sources/PreviewMain.swift Sources/TabletSetupView.swift Sources/TabletReadingsView.swift Sources/RelayNetworkSettingsView.swift)
     target_include_directories(setup-preview PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
     target_link_libraries(setup-preview PRIVATE RelaySetupKit "-framework SwiftUI" "-framework AppKit")
     add_executable(setup-state-tests
@@ -144,6 +145,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     target_include_directories(tablet-management-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
     target_link_libraries(tablet-management-tests PRIVATE RelaySetupKit)
     add_test(NAME tablet-management-tests COMMAND tablet-management-tests)
+    add_executable(relay-network-settings-tests "${RELAY_ROOT}/apple/Tests/RelayNetworkSettingsTests.swift")
+    target_include_directories(relay-network-settings-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+    target_link_libraries(relay-network-settings-tests PRIVATE RelaySetupKit)
+    add_test(NAME relay-network-settings-tests COMMAND relay-network-settings-tests)
     foreach(test protocol session client_link pair_e2e noise_vector cpace_vector confirm)
         if(test STREQUAL "noise_vector" OR test STREQUAL "cpace_vector")
             # Vector fixtures require a different test-only context layout.

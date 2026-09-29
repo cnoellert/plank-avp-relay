@@ -31,12 +31,15 @@ override_dh_auto_install:
 	install -m 0644 tools/ble_lab/*.py debian/plank-tablet-relay-ble/usr/lib/plank-tablet-relay-ble/ble_lab/
 	install -m 0755 packaging/ble/plank-tablet-relay-hardware debian/plank-tablet-relay-ble/usr/lib/plank-tablet-relay-ble/
 	install -m 0755 packaging/ble/plank-tablet-relay-configure-host debian/plank-tablet-relay-ble/usr/lib/plank-tablet-relay-ble/
+	install -m 0755 packaging/ble/plank-tablet-relay-gadget debian/plank-tablet-relay-ble/usr/lib/plank-tablet-relay-ble/
 	install -D -m 0644 packaging/ble/plank-tablet-relay-hardware.service debian/plank-tablet-relay-ble/usr/lib/systemd/system/plank-tablet-relay-hardware.service
+	install -D -m 0644 packaging/ble/plank-tablet-relay-gadget.service debian/plank-tablet-relay-ble/usr/lib/systemd/system/plank-tablet-relay-gadget.service
 	install -D -m 0644 packaging/ble/bluetooth-relay.conf debian/plank-tablet-relay-ble/usr/lib/systemd/system/bluetooth.service.d/10-plank-tablet-relay-ble.conf
 	install -d debian/plank-tablet-relay-ble/usr/share/plank-tablet-relay-ble/firmware
 	install -m 0644 packaging/ble/firmware/* debian/plank-tablet-relay-ble/usr/share/plank-tablet-relay-ble/firmware/
 	install -m 0644 VERSION debian/plank-tablet-relay-ble/usr/share/plank-tablet-relay-ble/version
 	install -D -m 0644 packaging/ble/relay.conf debian/plank-tablet-relay-ble/etc/plank-tablet-relay-ble/relay.conf
+	install -D -m 0644 packaging/ble/usb-network.conf debian/plank-tablet-relay-ble/etc/plank-tablet-relay-ble/usb-network.conf
 	install -D -m 0644 debian/sodium-source/LICENSE debian/plank-tablet-relay-ble/usr/share/doc/plank-tablet-relay-ble/libsodium-LICENSE
 
 override_dh_auto_clean:

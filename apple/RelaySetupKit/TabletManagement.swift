@@ -186,7 +186,7 @@ extension RelayPairingClient {
         }
     }
 
-    private func managementFrames(_ socket: any RelayByteConnection, codec: OpaquePointer) async throws -> [Data] {
+    func managementFrames(_ socket: any RelayByteConnection, codec: OpaquePointer) async throws -> [Data] {
         let data = try await receiveWithDeadline(socket)
         var frames: [Data] = [], offset = 0
         while offset < data.count {
