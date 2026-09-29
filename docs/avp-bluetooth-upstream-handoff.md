@@ -26,6 +26,25 @@ has already been implemented. Inspect the current upstream architecture and
 adapt these changes to its BLE transport; do not replace its wire protocol
 with the diagnostic snapshot protocol accidentally.
 
+### 2026-09-29 addendum: recover a closing-link handoff
+
+Later testing on the Realtek relay with visionOS 27.0.1 identified a separate
+startup race. The app's next authorization session attached to the previous
+physical link just before Linux finished closing it. AVP logs reported the new
+session ready, then disconnected it about one millisecond later. No approval
+request had reached the relay. Waiting for CoreBluetooth's local disconnect
+callback alone did not guarantee physical teardown.
+
+The app-side recovery is in
+[`c2cb855`](https://github.com/instinctual/plank-tablet-relay/commit/c2cb8550acd1e76ce88bdcec59f00114048c1d44):
+make one fresh connection attempt only for a disconnect before the reply
+subscription is ready, with separate delegates and the original startup
+deadline. Complete cleanup first and respect cancellation. Never replay an
+established authorization/input stream. Fake-transport tests cover this race;
+physical acceptance of build 10 remains pending. See the
+[detailed trace interpretation](bluetooth-headset-lab.md#closing-link-reuse-during-app-transitions).
+This does not replace the two Linux compatibility fixes below.
+
 ## What the physical investigation established
 
 The tested combination was an Intel Wireless-AC 7265 controller, Ubuntu 26.04,

@@ -177,6 +177,30 @@ automatically on a shared adapter. The managed package's explicit
 `exclusive_adapter` policy checks BlueZ ownership and queries kernel instances
 before clearing orphans; the foreground lab still requires manual recovery.
 
+### Closing-link reuse during app transitions
+
+With package revision 13 and TestFlight build 9, a post-reboot failure was
+captured between tablet setup and headset approval. The setup channel exchanged
+and acknowledged status messages successfully. The app canceled that session,
+then opened a new CoreBluetooth central for authorization. The AVP attached the
+new session to the old physical link and reported it ready about one millisecond
+before processing the relay's disconnect. Service discovery then failed before
+any approval request reached the relay. A subsequent attempt on the same boot
+completed approval and began authenticated input observation.
+
+This differs from both the Intel controller's address-resolution failure and
+the unsolicited battery-read failure. CoreBluetooth's
+[cancellation callback does not guarantee immediate physical disconnection](https://developer.apple.com/documentation/corebluetooth/cbcentralmanager/cancelperipheralconnection%28_%3A%29).
+Waiting for that callback alone cannot prevent this race.
+
+Build 10 makes one fresh attempt when a disconnect occurs before the reply
+subscription is ready. Attempts have separate delegates and share the original
+20-second startup deadline. Cancellation, missing services, other failures and
+established protocol streams are not automatically retried. No authorization
+bytes are replayed. Tests cover this ordering, cleanup, deadline retention and
+cancellation; physical build-10 acceptance remains pending. Earlier radio
+link-establishment failures remain a separate qualification item.
+
 ### Unrelated BlueZ battery polling during authorization
 
 Deployment update: this failure was also captured on the RTL8851BU radio with

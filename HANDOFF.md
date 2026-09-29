@@ -148,11 +148,18 @@ the private backups. The new trace shows successful tablet-setup requests and
 replies, followed by a subscription shutdown and a relay-initiated disconnect.
 No subsequent authorization connection reached the radio in that failed
 attempt. On the same boot with unchanged configuration, the next attempt
-completed approval and started authenticated readings at 06:08:58 UTC. This
-narrows that failure to the setup-to-authorization connection transition, but
-does not prove an app, OS or radio cause. The nearby Mac was unreachable, so
-corresponding AVP logs could not be retrieved. Both attempts are retained in a
-private trace; no runtime workaround was applied.
+completed approval and started authenticated readings at 06:08:58 UTC.
+
+When the nearby Mac became available, an AVP diagnostic archive established
+the failed handoff's ordering. The installed app is build 9 and the headset
+runs visionOS 27.0.1. The new authorization session attached to the previous
+physical link at 06:05:48.571 UTC and was reported ready; about one millisecond
+later, visionOS processed the relay's pending disconnect. Service discovery
+then failed before an approval request could be sent. The app's earlier local
+disconnect callback had not meant the physical link was gone. Both sides'
+traces are retained privately. Build 10 below adds bounded recovery for this
+specific startup race. It does not establish a cause or complete qualification
+for the separate earlier radio `0x3e`/`0x08` failures.
 
 ### Qualified Intel host
 
@@ -218,6 +225,32 @@ then confirmed an existing-headset approval request and authenticated input
 observation. User confirmation of displayed position/pressure/button updates
 remains pending; do not confuse connection evidence with input acceptance.
 
+## TestFlight build 10
+
+App source `c2cb8550acd1e76ce88bdcec59f00114048c1d44` recovers once from a
+disconnect before the reply subscription is ready. Each attempt owns separate
+CoreBluetooth delegates and uses the original 20-second startup deadline.
+Cleanup finishes before creating the replacement attempt. This happens before
+the caller can send any pairing/authorization/input bytes; established streams
+and other errors are not retried. Cancellation prevents the replacement attempt.
+Live readings show connection progress. Stage-only logs now use the persisted
+notice level without logging identities, keys or tablet input.
+
+All 12 Apple suites pass, including a fake-transport reproduction of the early
+disconnect, deadline retention, retry limit, cancellation during cleanup and
+no replay after startup. Native macOS and both visionOS SDK builds pass;
+the simulator was compiled, not executed. Signed archive/export and bundle,
+privacy and executable/dSYM checks pass. Physical AVP acceptance is pending.
+
+Apple accepted build 10 at 2026-09-29T06:26:55Z. Exact API readback is
+**VALID / IN_BETA_TESTING**; notes and saved Standard / No France compliance
+were saved and read back. All GUI signing jobs are unloaded. Artifacts and
+provenance are retained under `artifacts/testflight/0.1.0/build-10/`.
+IPA SHA-256: `6c1c1a79b287433cd42dd4a14e7960a65bbe905b178a2cf73f18a3c039ff0798`.
+arm64 dSYM UUID: `F305AAA7-D1AD-3CA7-9C87-209B07CCB890`.
+The next upload must use build 11. Test build 10 after a fresh relay reboot,
+through tablet setup, three-press approval and live pen position/pressure.
+
 ## TestFlight build 9
 
 Version `0.1.0 (9)`, app source
@@ -250,7 +283,7 @@ of changing pen X/Y and pressure remains pending.
 Apple accepted upload at 2026-09-29T05:32:37Z. Processing completed as VALID;
 notes and saved compliance were written and read back. The exact build is
 **VALID / IN_BETA_TESTING**. All GUI signing jobs are unloaded. The next
-upload must use build 10. Physical availability-list acceptance remains pending.
+upload after build 10 must use build 11. Physical availability-list acceptance remains pending.
 
 ## TestFlight build 8
 

@@ -24,6 +24,14 @@ without creating or verifying saved pairing trust. Progress/timeout messages
 show which connection stage was reached and the last signal strength when
 available. See the lab guide for its dedicated, bounded echo channels.
 
+Connection startup recovers once if the previous physical Bluetooth link closes
+before the new reply subscription is ready. The fresh attempt uses the original
+20-second deadline. This handles a setup/approval transition where CoreBluetooth
+briefly reuses a link that Linux is still closing. Recovery happens before any
+authorization or input protocol bytes are sent; established sessions and
+protocol failures are not replayed. Live readings expose the same progress
+messages, and connection-stage logs contain no identifiers, keys or input.
+
 With the Linux [packaged Bluetooth relay](../../docs/linux-ble-package.md) or
 [foreground input lab](../../docs/bluetooth-headset-lab.md) running,
 choose **Scan for relays**, select the relay and tap **Pair**. The app reports
@@ -96,6 +104,8 @@ with positive `PLANK_BUILD_JOBS`. CMake/CTest paths may be supplied through
 The macOS build also runs pure Swift state and actual C protocol/crypto tests.
 Workflow tests cover canceled/stale operations, retained Bluetooth Keychain account
 identifiers, observation and the distinction between byte echo and saved trust.
+Connection tests reproduce early link closure, require cleanup before retry,
+preserve the original deadline, and cover retry limits and cancellation.
 Native C tests cover the shared pairing, framing and Noise implementation.
 These tests do not access the app Keychain or Bluetooth devices.
 Existing Linux daemon builds and service behavior are unchanged.
