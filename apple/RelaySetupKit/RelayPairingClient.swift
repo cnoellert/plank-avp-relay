@@ -279,6 +279,7 @@ public final class RelayPairingClient {
     }
 
     public func observe(address: RelayAddress, privateKey: Data, relayKey: Data,
+                        onProgress: ((String) -> Void)? = nil,
                         onSample: (TabletReadings) -> Void) async throws {
         guard privateKey.count == 32, relayKey.count == 32 else {
             throw RelaySetupError.invalidState
@@ -292,7 +293,7 @@ public final class RelayPairingClient {
         guard let codec else { throw RelaySetupError.protocolError }
         defer { pltr_client_link_destroy(codec) }
         guard pltr_client_link_enable_input_observer(codec) == 0 else { throw RelaySetupError.protocolError }
-        let socket = connection(address)
+        let socket = connection(address, onProgress: onProgress)
         try await bounded(socket: socket, seconds: 3600) {
             try await socket.connect()
             var output = [UInt8](repeating: 0, count: 8448)

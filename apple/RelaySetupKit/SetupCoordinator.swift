@@ -220,7 +220,11 @@ public final class SetupCoordinator: ObservableObject {
             guard let self else { return }
             do {
                 guard let relayKey = try self.keys.relayKey(address) else { throw RelaySetupError.invalidStoredKey }
-                try await self.client.observe(address: address, privateKey: self.keys.clientKey(), relayKey: relayKey) {
+                try await self.client.observe(address: address, privateKey: self.keys.clientKey(), relayKey: relayKey,
+                    onProgress: { [weak self] message in
+                        guard let self, self.state.operation == id else { return }
+                        self.message = message
+                    }) {
                     [weak self] sample in
                     guard let self, self.state.operation == id else { return }
                     self.state.verifyObservation(id)

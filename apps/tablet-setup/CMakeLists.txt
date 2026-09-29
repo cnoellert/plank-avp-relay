@@ -34,6 +34,7 @@ add_library(RelaySetupKit STATIC
     "${RELAY_ROOT}/apple/RelaySetupKit/SetupState.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/SetupCoordinator.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayBluetooth.swift"
+    "${RELAY_ROOT}/apple/RelaySetupKit/RelayBLEConnection.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayDiscovery.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/TabletReadings.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/TabletManagement.swift"
@@ -42,6 +43,7 @@ target_link_libraries(RelaySetupKit PUBLIC CRelayProtocol
     "-framework Foundation" "-framework Security" "-framework Combine"
     "-framework CoreBluetooth")
 target_compile_options(RelaySetupKit PRIVATE -strict-concurrency=complete)
+target_compile_options(RelaySetupKit PRIVATE "$<$<CONFIG:Debug>:-enable-testing>")
 set_target_properties(CRelayProtocol RelaySetupKit PROPERTIES
     XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO"
     XCODE_ATTRIBUTE_GCC_GENERATE_DEBUGGING_SYMBOLS "YES"
@@ -119,6 +121,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
         "${RELAY_ROOT}/apple/Tests/RelayDiscoveryTests.swift")
     target_link_libraries(relay-discovery-tests PRIVATE "-framework Foundation")
     add_test(NAME relay-discovery-tests COMMAND relay-discovery-tests)
+    add_executable(relay-connection-tests "${RELAY_ROOT}/apple/Tests/RelayConnectionTests.swift")
+    target_include_directories(relay-connection-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+    target_link_libraries(relay-connection-tests PRIVATE RelaySetupKit)
+    add_test(NAME relay-connection-tests COMMAND relay-connection-tests)
     add_executable(tablet-readings-tests "${RELAY_ROOT}/apple/Tests/TabletReadingsTests.swift")
     target_include_directories(tablet-readings-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
     target_link_libraries(tablet-readings-tests PRIVATE RelaySetupKit)

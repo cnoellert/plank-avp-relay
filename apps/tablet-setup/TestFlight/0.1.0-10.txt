@@ -1,0 +1,7 @@
+Improves the transition from tablet setup to headset approval and live readings.
+
+- If the previous Bluetooth link closes while the next connection is still opening, the app makes one fresh connection attempt within the original startup timeout.
+- Recovery happens before authorization starts. Saved approval remains available, and an established session is never replayed automatically.
+- Live readings now show connection progress. Connection-stage logs are retained for troubleshooting.
+
+Test after rebooting the relay: select it, complete tablet setup if shown, then Pair. Wait for the three circles before pressing the tablet button three times. Confirm live readings start and pen position and pressure change. Stop and start readings again, and check that Cancel still responds during connection setup.

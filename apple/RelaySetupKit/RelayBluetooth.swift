@@ -15,6 +15,16 @@ private let setupTX = CBUUID(string: "462F3A16-7A31-4AB3-9E7F-C36AF495ECF0")
 
 enum RelayBLEChannel { case relay, echo, setup }
 
+extension RelayBLEConnection {
+    convenience init(identifier: UUID, channel: RelayBLEChannel = .relay,
+                     requireTabletSetup: Bool = false, onProgress: ((String) -> Void)? = nil) {
+        self.init(makeAttempt: {
+            RelayBLEAttempt(identifier: identifier, channel: channel,
+                requireTabletSetup: requireTabletSetup, onProgress: onProgress)
+        }, onProgress: onProgress)
+    }
+}
+
 @MainActor
 public final class RelayBLEScanner: NSObject, ObservableObject, @preconcurrency CBCentralManagerDelegate {
     @Published public private(set) var relays: [BluetoothRelay] = []
@@ -88,7 +98,7 @@ private func bluetoothStateMessage(_ state: CBManagerState) -> String {
 /// One stream owns one central/peripheral and all continuations. Every callback
 /// is delivered on the main queue; cancellation resumes all pending operations.
 @MainActor
-final class RelayBLEConnection: NSObject, RelayByteConnection,
+final class RelayBLEAttempt: NSObject, RelayBLEAttemptConnection,
     @preconcurrency CBCentralManagerDelegate, @preconcurrency CBPeripheralDelegate {
     private let identifier: UUID
     private let channel: RelayBLEChannel
@@ -144,14 +154,14 @@ final class RelayBLEConnection: NSObject, RelayByteConnection,
         central = CBCentralManager(delegate: self, queue: .main)
     }
 
-    func connect() async throws {
+    func connect(until deadline: ContinuousClock.Instant) async throws {
         try Task.checkCancellation()
         if let failure { throw failure }
         progress("waiting for Bluetooth", "Waiting for Bluetooth to become ready…")
         try await withCheckedThrowingContinuation { continuation in
             connectWaiter = continuation
             connectDeadline = Task { [weak self] in
-                do { try await Task.sleep(for: .seconds(20)) } catch { return }
+                do { try await Task.sleep(until: deadline, clock: .continuous) } catch { return }
                 guard let self else { return }
                 let strength = self.signal.map { " Last signal: \($0) dBm." } ?? ""
                 self.fail(RelaySetupError.network("Timed out while \(self.phase).\(strength) Tap Pair to retry."))
@@ -179,7 +189,7 @@ final class RelayBLEConnection: NSObject, RelayByteConnection,
 
     private func progress(_ phase: String, _ message: String) {
         self.phase = phase
-        logger.info("Connection stage: \(phase, privacy: .public)")
+        logger.notice("Connection stage: \(phase, privacy: .public)")
         onProgress?(message)
     }
 
@@ -234,7 +244,7 @@ final class RelayBLEConnection: NSObject, RelayByteConnection,
     private func fail(_ error: any Error) {
         guard failure == nil else { return }
         // Stage only: no device identifier, keys, records or tablet input.
-        logger.info("Connection ended during: \(self.phase, privacy: .public)")
+        logger.notice("Connection ended during: \(self.phase, privacy: .public)")
         failure = error
         connectDeadline?.cancel(); connectDeadline = nil
         writeDeadline?.cancel(); writeDeadline = nil
@@ -274,12 +284,18 @@ final class RelayBLEConnection: NSObject, RelayByteConnection,
     }
 
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
+        completeDisconnect()
         fail(RelaySetupError.network(error?.localizedDescription ?? "Bluetooth connection failed."))
     }
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
         completeDisconnect()
-        fail(RelaySetupError.network(error?.localizedDescription ?? "The relay disconnected. Saved trust is retained."))
+        let reason = error?.localizedDescription ?? "The relay disconnected. Saved trust is retained."
+        if connectWaiter != nil {
+            fail(RelayBLEStartupDisconnect(reason: reason))
+        } else {
+            fail(RelaySetupError.network(reason))
+        }
     }
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
