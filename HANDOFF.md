@@ -8,21 +8,25 @@ requested pull/rebase completed without replay. No merge or public release.
 Root PLANK and its unrelated work remain untouched. Machine access, signing
 jobs and deployment details belong in the operator's private notes.
 
-Session closed at the operator's request on 2026-09-29 at 07:52 UTC. App and
-relay release 0.2.1 are delivered; there is no pending build, upload or install.
-The relay service remains running. Interactive SSH connections and the relay
-SSH control master are closed; no log captures or signing jobs remain active.
+Shared release **0.3.0** adds fresh managed TCP communication and automatic LAN
+discovery. The app is **VALID / IN_BETA_TESTING** and both Ubuntu 26.04 package
+architectures are ready. The operator confirmed the NanoPi is unavailable for
+now: **it has not been upgraded and remains on 0.2.1**. Do not retry host access
+until it is available. Signing jobs and the temporary LAN test service are
+stopped; no relay SSH connection or capture remains active.
 
-On the next session, start with the delivered 0.2.1 app and relay. Confirm the
-tablet MAC stays visible after pairing and while offline, then confirm live
-pen position and pressure on the AVP. Reconnect and sleep/wake qualification
-still need physical testing. Keep the saved tablet bond and headset ownership;
-do not reset them as routine preparation. Advance the shared VERSION only for
-the next delivered code change, and use Apple upload identifier 15 next.
+Next, when the host returns, back up its private state and install the 0.3.0
+arm64 package, preserving the tablet bond and headset ownership. Confirm Avahi
+discovery, TCP and Bluetooth connection tests, saved authorization on both
+transports, and changing pen X/Y and pressure on the AVP. Also test interrupted
+network recovery, relay reboot, tablet sleep/wake, and persistent tablet MAC
+display. Physical AVP TCP acceptance is pending; do not equate the passing Mac
+LAN test with this acceptance. Apple upload identifier **16** is next; advance
+the shared VERSION for the next delivered code change.
 
 The operator authorized autonomous relay refinement, Debian packaging and app
-cleanup. The working BLE readings path now has a managed Linux service and a
-simpler TestFlight app. This remains a diagnostic setup component, separate
+cleanup. The working readings path now has a managed Linux TCP/BLE service and
+a simpler TestFlight app. This remains a diagnostic setup component, separate
 from the legacy TCP/raw-HID workstation relay.
 
 The operator requested a shareable implementation brief for the upstream
@@ -31,7 +35,62 @@ for the verified address-resolution and battery-plugin fixes, fixed reference
 snapshot, implementation/recovery requirements and acceptance tests. Creating
 this document changes no runtime code or deployed host configuration.
 
-## Shared release 0.2.1 — current delivery
+## Shared release 0.3.0 — current delivery, host installation pending
+
+App and relay source is `5e2a402c83a5573512b2524f46b0e72736a62a9f`. The visible
+app version is `0.3.0-visionos-tablet-setup`; Debian uses
+`0.3.0~visionos-tablet-setup`. Apple's separate upload identifier is 15.
+
+- The new TCP adapter uses the current tablet capture, encrypted Noise codec,
+  identity store and enrollment rules. It does not reuse the older standalone
+  TCP/raw-HID service. One shared core admits one owning setup/readings session.
+- Avahi publishes `_plank-tablet._tcp` only while the listener is running.
+  The `.deb` installs its dependencies and starts the service automatically.
+  TCP defaults to port 28991 on IPv4/IPv6, including upgrades retaining older
+  configuration. A radio restart does not stop the network listener.
+- The app browses Bonjour and BLE concurrently, checks network reachability,
+  and prefers TCP. Public keys join known identities; a unique matching name
+  can group unverified candidates but cannot authorize operations. Fallback
+  must prove the selected/saved key. Existing headset keys and trust survive
+  transport and network-address changes; no second headset enrollment is added.
+- Current tablet setup is restricted until tablet verification commits the
+  initiating headset. Readings can recover with a fresh authenticated session
+  on an alternate endpoint. Interrupted setup mutations are never replayed.
+- Network permission denial leaves Bluetooth usable. Discovery withdrawal,
+  probe expiry and BLE advertisement expiry remove unavailable list entries.
+
+Validation: all 25 Linux CTest suites and 13 Apple suites pass, including real
+socket tests of Noise, authorization, input snapshots, read-only status,
+competing owners, bounds, cancellation and TCP fragmentation. macOS and
+visionOS device/simulator SDK compilation passed; simulator was not executed.
+Signed archive/export, bundle/privacy and matching executable/dSYM checks pass.
+
+An isolated Linux fixture using the real Avahi publisher and TCP server was
+discovered and resolved by a separate Mac on the LAN. All three TCP echo round
+trips (64, 512 and 1,024 bytes) passed. The fixture used temporary identity
+state and no physical tablet; it has stopped. AVP TCP readings, physical
+transport recovery and the host upgrade remain untested/pending.
+
+All four [Ubuntu 26.04 CI jobs](https://github.com/instinctual/plank-tablet-relay/actions/runs/36594697071)
+pass: native amd64/arm64 builds and clean install/reinstall/removal on both
+architectures. Each native build passed 25 relay suites, 101 libsodium tests,
+package checks and lintian. Checksums and exact source provenance were verified;
+packages are retained under
+`artifacts/deb/0.3.0~visionos-tablet-setup/ubuntu-26.04/{amd64,arm64}/`.
+No installation was attempted on the unavailable host.
+
+Apple accepted upload at 2026-09-29T16:13:29Z. Exact API readback is
+**VALID / IN_BETA_TESTING**. Build notes and the saved Standard / No France
+compliance baseline were saved and verified. Archive, export and upload GUI
+jobs are unloaded. IPA, dSYMs, logs and provenance are retained under
+`artifacts/testflight/0.3.0/build-15/`.
+IPA SHA-256: `4710ef529a512c7570c149802bcb968da2707e195c07b34a106cd6ef5ff9d6c0`.
+arm64 dSYM UUID: `812995FC-ADF2-3209-99A5-E3B55A2D442F`.
+
+See [network/package details](docs/linux-ble-package.md) and
+[app discovery, trust and recovery](apps/tablet-setup/README.md).
+
+## Shared release 0.2.1 — previous delivery, still installed on host
 
 The operator requires identical `Major.Minor.Ancillary` numbers for the app and
 relay. Both now take release `0.2.1` from `VERSION`; the Debian changelog is
@@ -59,7 +118,7 @@ Apple accepted 0.2.1 at 2026-09-29T07:40:33Z; final API readback is
 compliance baseline were saved and read back. All GUI signing jobs are unloaded.
 IPA SHA-256: `a5a8d2e3174c2bb7f4b0f54d6a255780a5a07ca86cc6f425ccaad48f5eb129d0`.
 arm64 dSYM UUID: `A29AEBDA-4FC5-3DCC-B893-4FAD5AC303E4`.
-Next Apple upload identifier: **15**; advance the shared release for new changes.
+This app delivery is superseded by 0.3.0 above; the host upgrade is pending.
 
 Package `0.2.1~visionos-tablet-setup` is installed on the NanoPi and advertising
 as of 2026-09-29T07:43:29Z. The stock extracted-package smoke passed on the

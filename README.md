@@ -1,9 +1,17 @@
 # PLANK tablet Relay
 
-This is the separate Linux Relay for a USB Wacom tablet used with the native
-PLANK Vision Pro Client. The Relay will read the tablet locally and forward its
-existing raw-HID frames to a paired Client. The Client owns the authenticated
-Host session; the Relay has no Host credentials.
+The current managed Linux relay reads USB or Bluetooth Wacom tablets and
+provides encrypted tablet setup and readings to the PLANK Tablet Setup AVP app.
+Release 0.3.0 supports automatic LAN discovery and a newly written TCP transport
+alongside Bluetooth LE, with shared identity and headset authorization. The
+Ubuntu 26.04 amd64/arm64 `.deb` installs Avahi and configures service startup.
+See [installation and network behavior](docs/linux-ble-package.md) and
+[the current app workflow](apps/tablet-setup/README.md).
+
+The older raw-HID workstation service is a separate implementation described
+below for reference. The new managed TCP path does not reuse its transport,
+pairing commands or worker. The Client owns the authenticated Host session;
+the Relay has no Host credentials.
 
 A separate [PLANK Tablet Setup workflow lab](apps/tablet-setup/README.md) on the
 `visionos-tablet-setup` branch exercises onboarding without remote desktop.

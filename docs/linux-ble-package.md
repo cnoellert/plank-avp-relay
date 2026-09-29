@@ -1,4 +1,4 @@
-# Linux Bluetooth relay package
+# Linux network and Bluetooth relay package
 
 `plank-tablet-relay-ble` installs the relay used by PLANK Tablet Setup: discover
 the relay, pair a tablet to authorize the initiating headset automatically, and
@@ -6,12 +6,63 @@ view authenticated position, pressure and button readings. It is separate from t
 legacy `plank-tablet-relay` TCP/raw-HID workstation daemon. The two services
 should not capture the same tablet at the same time.
 
+Version 0.3.0 adds a newly written TCP adapter to the current managed service.
+It does not import or launch the older TCP/raw-HID implementation. The same
+tablet input, saved relay identity, headset approvals and enrollment rules
+serve both TCP and Bluetooth. Only one setup/readings session owns the core.
+
+## Automatic network discovery
+
+`apt install ./plank-tablet-relay-ble_*.deb` installs Avahi and the other runtime
+dependencies. The systemd unit starts Avahi with the relay at boot. The live
+listener publishes `_plank-tablet._tcp` through an Avahi D-Bus entry group;
+there is no hand-edited service XML file or static IP requirement. Publication
+ends with the listener/process and is renewed after Avahi restarts. Removing
+the package withdraws its service without removing other applications' Avahi
+configuration or the shared daemon.
+
+TCP is enabled by default, including upgrades that retain an older config:
+
+```ini
+[relay]
+tcp_enabled = true
+tcp_port = 28991
+```
+
+The listener supports IPv4 and IPv6. `tcp_enabled = false` keeps Bluetooth-only
+operation. The app browses the LAN and Bluetooth concurrently, checks network
+reachability, and prefers TCP. Allow Local Network access on the headset.
+Bonjour needs multicast reachability on the local network; guest isolation or
+VLAN boundaries can prevent discovery. An existing restrictive firewall must
+allow the configured TCP port and mDNS UDP 5353 on the intended LAN. The
+installer does not disable an administrator's firewall or create router rules.
+
+Names and discovery TXT records are hints. Noise proves the pinned relay key
+and approved headset identity before input or management. Existing Bluetooth
+trust can be used over TCP; an IP change does not create a new relay identity.
+As before, first setup pins a public identity on first use and permits only
+restricted encrypted tablet setup until the selected tablet is verified.
+Discovery alone never grants headset authorization.
+
+Bluetooth registration retries without stopping the network listener. A lost
+tablet reports offline over the active connection; a missing radio can defer
+interrupted pairing cleanup using its durable journal. New tablet mutations
+wait for that cleanup. The package retains its existing name, configuration
+path and state directory so upgrades preserve pairings.
+
+The new TCP wire starts with eight ASCII bytes `PLTRTCP1` and one channel byte:
+0 for current framed Noise traffic, 1 for one length-prefixed read-only setup
+status request, or 2 for a bounded byte echo. Noise uses transport domain 2;
+BLE retains domain 1. Setup status cannot mutate or cancel an operation.
+Connections, record sizes, send queues and timeouts are bounded. This path
+does not start a raw-HID worker or implement the older TCP pairing protocol.
+
 ## Hardware baseline
 
 For new hardware, target **Bluetooth 5.0 or newer**, with both BR/EDR (Classic)
 and Bluetooth LE, Linux firmware support, LE peripheral advertising, and
 simultaneous tablet and headset connections. The version label alone does not
-qualify an adapter. USB-connected tablets need only the relay's BLE link.
+qualify an adapter. USB-connected tablets can use TCP without a Bluetooth radio.
 
 The tested Intel Wireless-AC 7265 is Bluetooth 4.2
 ([Intel specifications](https://www.intel.com/content/www/us/en/products/sku/83635/intel-dual-band-wirelessac-7265/specifications.html)).
@@ -106,9 +157,10 @@ Headset approval happens inside the app; it does not need OS-level Bluetooth
 pairing to the relay. The tablet can sleep without forgetting its bond or the
 headset's saved approval. Wake it to resume input.
 
-The service retries missing adapters/startup failures and re-registers after
-BlueZ restarts. `active (running)` means GATT registration and advertising have
-completed; it does not claim a tablet or headset is currently connected.
+The service retries missing adapters and re-registers after BlueZ restarts.
+`active (running)` means the TCP listener is open, or Bluetooth advertising is
+ready when TCP is disabled. It does not claim a tablet or headset is connected,
+nor that a firewall permits access or Avahi publication has finished.
 
 ## AVP Bluetooth compatibility
 
@@ -166,7 +218,7 @@ administrator BlueZ overrides remain under administrator control.
 
 The app and relay share the `Major.Minor.Ancillary` release in `VERSION` and
 advance together. The package retains the branch description using Debian's
-prerelease separator, for example `0.2.1~visionos-tablet-setup`, with no trailing
+prerelease separator, for example `0.3.0~visionos-tablet-setup`, with no trailing
 build counter. `debian/changelog` must match that shared release; the builder
 rejects a mismatch. Apple keeps its required upload identifier separately.
 This version sorts after the earlier `0.2.0~visionos-tablet-setup.14` package,
@@ -179,7 +231,7 @@ The script snapshots that commit, verifies the pinned libsodium 1.0.22 archive,
 builds it statically with PIC, runs its tests and the relay's assertions-enabled
 tests, and creates `.deb`, `.buildinfo`, `.changes` and SHA-256 artifacts in
 `artifacts/deb/<software-version>/<distribution>-<version>/<architecture>/`,
-for example `artifacts/deb/0.2.1~visionos-tablet-setup/ubuntu-26.04/arm64/`.
+for example `artifacts/deb/0.3.0~visionos-tablet-setup/ubuntu-26.04/arm64/`.
 The package version comes from `debian/changelog`, checked against `VERSION`;
 the exact Git commit is
 retained in `source-commit.txt` and `provenance.json` with compiler/OS metadata.

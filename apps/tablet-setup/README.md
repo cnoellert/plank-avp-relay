@@ -4,16 +4,18 @@ A standalone SwiftUI visionOS app for reviewing tablet-relay onboarding. Also
 builds as a macOS UI preview. No workstation, remote desktop, Qt, SDL, FFmpeg or
 Rust media transport is required. The app is **not** a full PLANK Client.
 
-The app opens directly to a live relay scan. It shows connectable relays from
-current advertisements and removes entries about five seconds after the last
-advertisement. Saved credentials are retained for reconnection, but offline
+The app opens directly to concurrent Bonjour and Bluetooth discovery. Network
+services appear after a read-only reachability/identity probe and are checked
+every three seconds; results expire after eight seconds without a successful
+probe. Bluetooth entries expire five seconds after the last advertisement.
+These are expiry bounds, not a fixed startup delay. Saved credentials are retained for reconnection, but offline
 saved relays are not listed. There are no Local or Simulation tabs. Connection tests and
 pairing management are in expandable sections.
 Synthetic readout fixtures exist only in the separate offscreen preview executable.
-The shipping app has no simulation workflow or TCP client.
+The shipping app supports encrypted TCP and Bluetooth connections.
 
 The visible version uses `Major.Minor.Ancillary` followed by the branch
-description, for example `0.2.1-visionos-tablet-setup`. The numeric version is
+description, for example `0.3.0-visionos-tablet-setup`. The numeric version is
 defined once in the repository's `VERSION` file and shared with the relay
 package. Increment Ancillary for delivered fixes and
 small refinements, Minor for features, and Major for substantial or incompatible
@@ -21,13 +23,33 @@ changes. Apple’s separate, increasing upload build number stays in bundle
 metadata and build records; it is not appended to the app’s visible version.
 App and Linux package versions advance together, including app-only fixes.
 
-## Bluetooth pairing and readings
+## Network and Bluetooth pairing and readings
+
+Allow Local Network access to discover `_plank-tablet._tcp` services. A relay
+on Ethernet and a headset on Wi-Fi can connect when the LAN permits discovery
+and device-to-device traffic. The app prefers reachable TCP endpoints. A known
+relay public key joins its network and Bluetooth entries; a unique matching
+name can group unverified discovery candidates, but grants no trust. Ambiguous
+names or known distinct identities stay separate. Any fallback must prove the
+selected relay key before an operation is authorized.
+
+Ownership is shared across transports. Existing BLE Keychain records and the
+headset private key are retained; authenticated enrollment also records the
+relay key independently of its address. Discovery claims alone are never
+written as approved keys. Network address/service-name changes retain trust.
+
+Readings recover through at most three fresh connection attempts after a
+transport failure, alternating available endpoints. A working stream is kept;
+the app does not switch it just because TCP appears later. Identity/protocol
+failures stop recovery. Interrupted setup mutations are not replayed: reopen
+Manage tablets to inspect saved state. A read-only preflight can try another
+transport before starting setup. See [network service details](../../docs/linux-ble-package.md).
 
 For a tablet-free hardware check, select the discovered relay and choose
-**Connection diagnostics → Test Bluetooth connection**. The relay can run
+**Connection diagnostics → Test relay connection**. The Bluetooth-only lab can run
 `python3 tools/ble-tablet-lab.py --transport-only` with no crypto-library,
 identity-store or tablet arguments. The test sends three random payloads and
-verifies1600returned bytes across three round trips. The tablet may be off;
+verifies 1,600 returned bytes across three round trips. The tablet may be off;
 there is no approval gesture. A passing byte test establishes communication,
 without creating or verifying saved pairing trust. Progress/timeout messages
 show which connection stage was reached and the last signal strength when
@@ -65,7 +87,7 @@ Tablet sleep retains the bond and headset ownership. Selection uses physical
 ancestry and capabilities rather than a product-ID allowlist.
 
 This is a coalesced diagnostic readout, not raw-HID forwarding to a workstation
-or a system-wide visionOS pointer. Discovery and setup use Bluetooth only.
+or a system-wide visionOS pointer. Discovery, setup and readings support both transports.
 
 ## Direct tablet experiment
 
