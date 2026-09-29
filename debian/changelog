@@ -3,10 +3,11 @@ plank-avp-relay (0.5.5) experimental; urgency=medium
   * Establish instinctual/plank-avp-relay as the independent primary repository,
     preserving source history, attribution and licensing.
   * Update package homepage/source and run native package CI on main.
+  * Correct recent changelog dates using their source commit timestamps.
   * Match the Setup app release and its main branch label; retain installed
     identities, pairing state, network behavior and the fixed Router subnet.
 
- -- PLANK contributors <625982+alatteri@users.noreply.github.com>  Tue, 29 Sep 2026 23:00:00 +0000
+ -- PLANK contributors <625982+alatteri@users.noreply.github.com>  Tue, 29 Sep 2026 22:58:25 +0000
 
 plank-avp-relay (0.5.4) experimental; urgency=medium
 
@@ -16,7 +17,7 @@ plank-avp-relay (0.5.4) experimental; urgency=medium
     settings, saved Bridge/Router choice and pairing state.
   * Match the Setup app release number.
 
- -- PLANK contributors <625982+alatteri@users.noreply.github.com>  Wed, 30 Sep 2026 00:45:00 +0000
+ -- PLANK contributors <625982+alatteri@users.noreply.github.com>  Tue, 29 Sep 2026 22:37:49 +0000
 
 plank-avp-relay (0.5.3) experimental; urgency=medium
 
@@ -25,7 +26,7 @@ plank-avp-relay (0.5.3) experimental; urgency=medium
     multiple actual wired ports.
   * Match app and relay release numbers following the 0.5.2 Network fixes.
 
- -- PLANK contributors <625982+alatteri@users.noreply.github.com>  Wed, 30 Sep 2026 00:10:00 +0000
+ -- PLANK contributors <625982+alatteri@users.noreply.github.com>  Tue, 29 Sep 2026 22:06:17 +0000
 
 plank-avp-relay (0.5.2) experimental; urgency=medium
 
@@ -37,7 +38,7 @@ plank-avp-relay (0.5.2) experimental; urgency=medium
     preserving active Bluetooth connections and OS-supplied firmware.
   * Match the Setup app's nonblocking, cancellable Network status refresh.
 
- -- PLANK contributors <625982+alatteri@users.noreply.github.com>  Tue, 29 Sep 2026 23:50:00 +0000
+ -- PLANK contributors <625982+alatteri@users.noreply.github.com>  Tue, 29 Sep 2026 21:57:14 +0000
 
 plank-avp-relay (0.5.1) experimental; urgency=medium
 
@@ -46,7 +47,7 @@ plank-avp-relay (0.5.1) experimental; urgency=medium
   * Add explicit app recovery for a relay reinstalled at the same address,
     clearing its saved aliases without removing other relays or the headset key.
 
- -- PLANK contributors <625982+alatteri@users.noreply.github.com>  Tue, 29 Sep 2026 23:30:00 +0000
+ -- PLANK contributors <625982+alatteri@users.noreply.github.com>  Tue, 29 Sep 2026 21:18:40 +0000
 
 plank-avp-relay (0.5.0) experimental; urgency=medium
 
@@ -59,7 +60,7 @@ plank-avp-relay (0.5.0) experimental; urgency=medium
   * Use the shared release number without a branch suffix in package metadata
     and filenames; expose the installable package directly in artifacts/.
 
- -- PLANK contributors <625982+alatteri@users.noreply.github.com>  Tue, 29 Sep 2026 23:00:00 +0000
+ -- PLANK contributors <625982+alatteri@users.noreply.github.com>  Tue, 29 Sep 2026 20:54:08 +0000
 
 plank-avp-relay (0.4.0~visionos-tablet-setup) experimental; urgency=medium
 
