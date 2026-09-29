@@ -8,21 +8,25 @@ requested pull/rebase completed without replay. No merge or public release.
 Root PLANK and its unrelated work remain untouched. Machine access, signing
 jobs and deployment details belong in the operator's private notes.
 
-Shared release **0.5.3** includes the nonblocking Network refresh, independent
-Ethernet status, combo-dongle WLAN firmware and Zero2 USB startup corrections.
-A 0.5.2 package reinstall exposed one further warm-start issue: the owned USB
-netdev has platform ancestry and was mistaken for another physical Ethernet
-port. 0.5.3 excludes its stable gadget MAC while retaining ambiguity checks for
-real multiple Ethernet ports. Final 0.5.3 builds/deployment are pending.
-App 0.5.2 / upload 19 is VALID / IN_BETA_TESTING, notes/compliance verified;
-0.5.3 / upload 20 will supersede it to keep app and relay versions identical.
-The live host runs 0.5.2 plus the final USB source under hardware validation;
-install the released 0.5.3 package to replace that temporary test copy.
-WLAN firmware loaded and Wi-Fi controls report supported (saved default off).
-Ethernet carrier is connected; the bridge has a LAN DHCP address. No physical
-USB transfer or Wi-Fi joining acceptance has been completed. Relay identity,
-paired clients and tablets retained byte-for-byte across upgrades. Access and
-private backups belong in the operator's private notes.
+Shared release **0.5.3** fixes background Network refresh blocking, independent
+Ethernet status, missing combo-dongle WLAN firmware and Zero2 USB startup /
+warm-start configuration. Relay source
+`3f353bc264e8de835d7c8048c9e603645ba49e6b` passed all four native package and
+clean-install CI jobs and is installed on the live host. App source
+`2ea56f1bbb9cec52a740b4461983cdd9ed789a0f` adds visible Wi-Fi switch progress,
+action messages and clearing cached settings when a relay is deselected.
+All 17 Apple suites and macOS/device/simulator builds pass. Apple upload **20**
+is **VALID / IN_BETA_TESTING**, with notes and Standard / No France compliance
+saved and read back. Signing jobs are unloaded. App and relay expose **0.5.3**.
+Package verification passes, so no temporary hardware test copy remains on the
+host. Ethernet carrier is connected and bridge DHCP works; USB preparation is
+idle/supported but no USB host is attached. Wi-Fi is now enabled for the
+operator's toggle investigation; a real scan found eight networks in its first
+page with more available. The operator then successfully joined Wi-Fi from
+the app; the host confirmed connected, an assigned address and a saved profile
+for automatic reconnection. Identity,
+paired-clients and tablets retained byte-for-byte across the final package
+upgrade. Access details and backups remain in private notes.
 
 Platform targets are **Ubuntu Server 26.04 / amd64** on Intel hardware and
 **Armbian Minimal, Debian 13 / arm64** on the NanoPi boards. The operator
@@ -55,6 +59,58 @@ author's coding agent. See [AVP Bluetooth upstream handoff](docs/avp-bluetooth-u
 for the verified address-resolution and battery-plugin fixes, fixed reference
 snapshot, implementation/recovery requirements and acceptance tests. Creating
 this document changes no runtime code or deployed host configuration.
+
+## Shared release 0.5.3 — final Network delivery and warm-start fix
+
+Final relay source is `3f353bc264e8de835d7c8048c9e603645ba49e6b`; final
+app source is `2ea56f1bbb9cec52a740b4461983cdd9ed789a0f` (only Apple UI,
+command-encoding tests and tester notes differ). Release 0.5.3 retains the
+nonblocking Network controls, independent cable status, missing WLAN firmware
+and USB interface/permission fixes described under 0.5.2. It also excludes the
+owned gadget MAC from automatic physical Ethernet selection on warm starts,
+while requiring explicit configuration when real multiple wired ports exist.
+The Zero2 passed **three consecutive USB service restarts** with these changes.
+The operator's `IMG_0048.jpeg` screenshot showed the intermediate 0.5.2
+ambiguous-Ethernet failure and an available Wi-Fi toggle, corroborating the
+host findings. The screenshot remains outside this repository.
+
+All 17 Apple suites passed; macOS/device/simulator builds, signed archive /
+export, privacy and matching symbols passed. Simulator compiled, not run.
+Final native package/clean-install
+[CI 36637549606](https://github.com/instinctual/plank-tablet-relay/actions/runs/36637549606)
+passed all four jobs. Apple upload 20 is VALID / IN_BETA_TESTING with notes
+and Standard / No France compliance verified; signing jobs are unloaded. Local Linux suites: 30/30 pass, including warm-start physical
+port selection, networkd permissions and canceled background connection order.
+Final installers are `artifacts/plank-avp-relay_0.5.3_{amd64,arm64}.deb`;
+metadata/debug symbols under `artifacts/deb/0.5.3/<platform>/<arch>/`.
+Next Apple upload identifier after this submission: **21**.
+
+The operator reported Enable Wi-Fi had no visible response. No accepted Wi-Fi
+operation was present at initial inspection; the privileged local controller
+successfully enabled the radio and performed a real scan. App controls now
+show the requested switch state and adjacent progress immediately, explain
+missing authorization or busy state beside the control, and report rejected
+action guards. Returning to discovery clears network status/lists instead of
+showing stale disabled settings from a deselected relay. The exact reason for
+the operator's initial tap is not confirmed. The operator subsequently
+confirmed a successful app-driven Wi-Fi join, and the host verified the active
+connection / assigned address / saved reconnect profile. The final app's
+switch feedback still needs operator acceptance. Mac34 was unreachable for device logs.
+
+The live host is installed from the exact 0.5.3 arm64 package and passes
+`dpkg --verify` and config checks. All main/Wi-Fi/USB/Bluetooth services are
+active; USB reports idle/supported, Ethernet connected, USB host disconnected.
+Core state retained byte-for-byte. Wi-Fi stayed enabled across package upgrade;
+its request journal changed through scan operations, so only policy/state
+values, not byte identity, are claimed for Wi-Fi. Private pre-install archive
+paths and inventory belong in operator notes. Wi-Fi joining was confirmed live; final AVP switch
+feedback, USB host enumeration/data transfer and physical Ethernet cable
+removal/restoration still need operator acceptance.
+
+Artifacts: `artifacts/testflight/0.5.3/build-20/`.
+IPA SHA-256: `5af4c258700927ea03f144e708af85d0a4bd11ba7cd5325ceb06072b2ef5d31c`.
+arm64 dSYM UUID: `FC2EA891-B9AA-314D-996E-C103BF020C82`.
+
 
 ## Shared release 0.5.2 — responsive Network controls and hardware startup
 
@@ -102,7 +158,7 @@ hardware corrections and their docs/tests/changelog. Both exposed version 0.5.2.
 notes and Standard / No France compliance saved; signing jobs unloaded.
 App release artifacts: `artifacts/testflight/0.5.2/build-19/`.
 Next Apple upload identifier after this submission was **20**, reserved for 0.5.3.
-Physical AVP Network interaction, Wi-Fi joining, USB host enumeration, Ethernet
+Physical AVP Network interaction, final app Wi-Fi switch feedback, USB host enumeration, Ethernet
 cable removal/restoration and pen readings remain operator acceptance work.
 
 ## Shared release 0.5.1 — tablet availability and identity recovery
