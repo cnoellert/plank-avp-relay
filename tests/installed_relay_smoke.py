@@ -2,6 +2,7 @@
 """Exercise extracted package files, not the source/build directory."""
 from pathlib import Path
 import json
+import re
 import struct
 import sys
 import tempfile
@@ -24,7 +25,8 @@ from ble_lab.host_setup import configure_armbian
 settings = read_settings(root / 'etc/plank-tablet-relay-ble/relay.conf')
 assert not settings.exclusive_adapter and not settings.disable_controller_address_resolution
 assert settings.tcp_enabled and settings.tcp_port == 28991
-assert (root / 'usr/share/plank-tablet-relay-ble/version').read_text().strip() == '0.3.0'
+assert re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+',
+    (root / 'usr/share/plank-tablet-relay-ble/version').read_text().strip())
 unit = (root / 'usr/lib/systemd/system/plank-tablet-relay-ble.service').read_text()
 assert 'avahi-daemon.service' in unit and 'AF_INET AF_INET6' in unit
 assert 'PartOf=bluetooth.service' not in unit

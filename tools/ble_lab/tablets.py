@@ -78,17 +78,30 @@ class Tablets:
         self.original_pairable = None
         self.generation = 0
         self.discovered = set()
-        pending = self.state.get('pending')
-        if pending:
-            target = address(pending['id'])
-            if pending['created']:
-                self.backend.cancel_pair(target)
-                self.backend.remove(target)
-            self.backend.set_pairable(bool(pending['pairableBefore']))
-            self.state['pending'] = None
-            save(self.path, self.state)
+        self.recovery_retry = 0
+        self.recover_pending()
         if self.state['selected'] and not configured:
             self.select(self.state['selected'])
+
+    def recover_pending(self):
+        pending = self.state.get('pending')
+        if pending and self.owner is None:
+            if self.clock() < self.recovery_retry:
+                return False
+            self.recovery_retry = self.clock() + 5
+            target = address(pending['id'])
+            try:
+                if pending['created']:
+                    self.backend.cancel_pair(target)
+                    self.backend.remove(target)
+                self.backend.set_pairable(bool(pending['pairableBefore']))
+                self.backend.close()
+            except RuntimeError:
+                self.message = 'Waiting for Bluetooth to clean up interrupted tablet setup.'
+                return False
+            self.state['pending'] = None
+            save(self.path, self.state)
+        return True
 
     def known(self, devices):
         return set(self.state['tablets']) | {key for key, item in devices.items()
@@ -133,6 +146,8 @@ class Tablets:
             operation = request.get('op')
             if operation not in ('status', 'scan', 'pair', 'connect', 'select', 'remove', 'cancel'):
                 raise ValueError('Unknown tablet operation.')
+            if operation != 'status' and self.owner is None and not self.recover_pending():
+                raise ValueError(self.message)
             devices = self.backend.devices()
             if self.owner and self.owner != owner and operation != 'status':
                 raise ValueError('Tablet setup is already open on another connection.')
@@ -263,12 +278,17 @@ class Tablets:
     def cancel(self, owner):
         if self.owner != owner:
             return
-        self.cleanup()
-        self.owner = None
-        self.session_deadline = 0
-        self.phase, self.message = 'idle', 'Tablet setup closed. Saved pairings are retained.'
+        try:
+            self.cleanup()
+        finally:
+            # A durable pending journal must not keep the dead session's owner.
+            self.owner = self.enroll_owner = None
+            self.deadline = self.session_deadline = 0
+            self.phase, self.message = 'idle', 'Tablet setup closed. Saved pairings are retained.'
 
     def tick(self):
+        if not self.recover_pending():
+            return
         now = self.clock()
         if self.owner and now >= self.session_deadline:
             self.cancel(self.owner)

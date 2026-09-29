@@ -119,6 +119,7 @@ public final class RelayKeyStore {
 
     public func saveRelay(_ key: Data, address: RelayAddress) throws {
         if let advertised = address.advertisedKey, advertised != key { throw RelaySetupError.identityChanged }
+        if let existing = try setupRelayKey(address), existing != key { throw RelaySetupError.identityChanged }
         let canonical = "relay-key-v2:" + key.map { String(format: "%02x", $0) }.joined()
         if try read(canonical) == nil { try add(key, account: canonical) }
         if let existing = try relayKey(address) {

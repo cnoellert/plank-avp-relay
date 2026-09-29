@@ -1,0 +1,10 @@
+Network and Bluetooth connections to the same tablet relay.
+
+- Allow Local Network access when prompted. The app automatically finds the relay on the same LAN and prefers Network when available.
+- Setup, tablet management and encrypted live readings work over TCP. Existing headset authorization is retained across network and Bluetooth connections.
+- The relay package installs Avahi and advertises its network listener automatically. Bluetooth advertising can recover while TCP stays available.
+- Tablet MAC addresses remain visible. App and relay both use version 0.3.0.
+
+Please confirm your relay appears with Network, open live readings, and check changing pen position and pressure. Then test reconnecting after a relay restart. On a network that blocks local discovery, Bluetooth remains available.
+
+Recovery opens a fresh authenticated connection. Interrupted tablet setup is not automatically replayed; reopen Manage tablets to check its status.

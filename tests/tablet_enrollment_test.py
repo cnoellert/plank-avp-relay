@@ -40,6 +40,22 @@ class Backend:
 
 
 class EnrollmentTests(unittest.TestCase):
+    def test_interrupted_setup_waits_for_missing_radio_without_losing_journal(self):
+        self.call('scan')
+        self.call('pair', FIRST)
+        pending = self.manager.state['pending'].copy()
+        original = self.backend.set_pairable
+        self.backend.set_pairable = lambda _: (_ for _ in ()).throw(RuntimeError('radio absent'))
+        restored = self.create()
+        self.assertEqual(restored.state['pending'], pending)
+        self.assertIsNone(restored.owner)
+        response = json.loads(restored.handle(b'{"version":1,"id":1,"op":"status"}', 'probe'))
+        self.assertTrue(response['ok'])
+        self.backend.set_pairable = original
+        self.now += 6
+        restored.tick()
+        self.assertIsNone(restored.state['pending'])
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)

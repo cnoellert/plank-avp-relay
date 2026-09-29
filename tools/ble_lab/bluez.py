@@ -306,6 +306,10 @@ class Server(dbus.service.Object):
         if self.network:
             self.network.poll()
             self.publisher.tick()
+        if (self.tablets and self.controller_workaround and self.tablets.backend.scanned
+                and not self.tablets.owner):
+            self.tablets.backend.scanned = False
+            self.bluetooth_unavailable('Restoring controller policy after tablet discovery.')
         if not self.advertising and not self.registering and time.monotonic() >= self.next_registration:
             try:
                 self.register_bluetooth()
@@ -322,7 +326,12 @@ class Server(dbus.service.Object):
         except TimeoutError:
             self.disconnect()
         if self.core:
-            self.core.tick()
+            try:
+                self.core.tick()
+            except (OSError, RuntimeError, ValueError) as error:
+                self.failure = 'Relay input failed: ' + str(error)
+                self.loop.quit()
+                return False
         return True
 
     def register_bluetooth(self):
@@ -408,3 +417,5 @@ class Server(dbus.service.Object):
             self.unregister_bluetooth()
             if self.core:
                 self.core.close()
+        if self.failure:
+            raise RuntimeError(self.failure)

@@ -163,6 +163,7 @@ class NetworkTests(unittest.TestCase):
         sock, client, connected = self.connect()
         self.assertTrue(connected)
         self.assertTrue(self.request(sock, client)['headsetAuthorized'])
+        with self.assertRaises(ProtocolError): self.core.native.transport(1)
         self.send(sock, client, 13, b'\x01')
         frames = self.feed(sock, client, self.read(sock))
         for _ in range(5):
