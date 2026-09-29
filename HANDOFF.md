@@ -141,6 +141,19 @@ new app build were made in response; a proposed bounded startup retry was
 deferred. The capture is retained privately for recurrence. Do not claim a
 permanent fix or explicit X/Y/pressure acceptance from that report alone.
 
+After a confirmed fresh relay reboot, another attempt failed before the three
+approval circles. Boot preparation, firmware, advertising and packaged BlueZ
+policy passed; saved relay identity, headset approvals and tablet bond matched
+the private backups. The new trace shows successful tablet-setup requests and
+replies, followed by a subscription shutdown and a relay-initiated disconnect.
+No subsequent authorization connection reached the radio in that failed
+attempt. On the same boot with unchanged configuration, the next attempt
+completed approval and started authenticated readings at 06:08:58 UTC. This
+narrows that failure to the setup-to-authorization connection transition, but
+does not prove an app, OS or radio cause. The nearby Mac was unreachable, so
+corresponding AVP logs could not be retrieved. Both attempts are retained in a
+private trace; no runtime workaround was applied.
+
 ### Qualified Intel host
 
 `plank-tablet-relay-ble` version `0.2.0~visionos-tablet-setup.6`, source
