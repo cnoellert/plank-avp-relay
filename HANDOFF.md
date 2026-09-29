@@ -2,11 +2,28 @@
 
 ## Current state — 2026-09-29 UTC
 
-Work is on `visionos-tablet-setup`; parent main
+Work is now on `main` in the independent public
+[`Instinctual/plank-avp-relay`](https://github.com/instinctual/plank-avp-relay)
+repository. The complete ancestry of the previous `visionos-tablet-setup`
+branch through `53b1a22313921addaa3b36f59a175dc8336958db` is preserved.
+Local `origin` points to this new repository; `fork` retains
+`instinctual/plank-tablet-relay` and `upstream` retains
+`cnoellert/plank-tablet-relay`. The old local main is retained as
+`upstream-main`. Historical CI and fixed-snapshot links continue to point to
+the old repository where those records were generated. GPL and third-party
+attributions are retained. The original parent main
 `465c11a9708bfce0c155502844ca8d53e4370390` is already included. The earlier
 requested pull/rebase completed without replay. No merge or public release.
 Root PLANK and its unrelated work remain untouched. Machine access, signing
 jobs and deployment details belong in the operator's private notes.
+
+Shared release **0.5.5** is being prepared in the new repository. Package
+homepage/source and CI now target the new repository's `main`; the app's
+visible branch label is `main`. Bundle ID, signing, TestFlight app and all
+installed identity/state namespaces remain unchanged. Native package CI and
+Apple upload **22** will validate the matching release.
+
+## Previous delivery snapshot — 0.5.4
 
 Shared release **0.5.4** uses the fixed Router subnet `10.20.30.0/24`, with
 relay/gateway `10.20.30.1`, DHCP and wired-only NAT. There is no subnet override.

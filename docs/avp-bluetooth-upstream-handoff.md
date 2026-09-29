@@ -11,7 +11,9 @@ Port the verified compatibility fixes and recovery behavior described below.
 Preserve application authentication, encryption, existing tablet bonds and
 saved client identities.
 
-The reference implementation is in
+Current development is on
+[`Instinctual/plank-avp-relay`, branch `main`](https://github.com/instinctual/plank-avp-relay/tree/main).
+The original reference implementation for this brief remains in
 [`instinctual/plank-tablet-relay`, branch `visionos-tablet-setup`](https://github.com/instinctual/plank-tablet-relay/tree/visionos-tablet-setup).
 Use commit
 [`35a253f`](https://github.com/instinctual/plank-tablet-relay/tree/35a253f)

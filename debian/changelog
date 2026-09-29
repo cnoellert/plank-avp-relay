@@ -1,3 +1,13 @@
+plank-avp-relay (0.5.5) experimental; urgency=medium
+
+  * Establish instinctual/plank-avp-relay as the independent primary repository,
+    preserving source history, attribution and licensing.
+  * Update package homepage/source and run native package CI on main.
+  * Match the Setup app release and its main branch label; retain installed
+    identities, pairing state, network behavior and the fixed Router subnet.
+
+ -- PLANK contributors <625982+alatteri@users.noreply.github.com>  Tue, 29 Sep 2026 23:00:00 +0000
+
 plank-avp-relay (0.5.4) experimental; urgency=medium
 
   * Use 10.20.30.0/24 for Router mode, with relay gateway 10.20.30.1,

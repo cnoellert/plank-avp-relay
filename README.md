@@ -1,5 +1,12 @@
 # PLANK AVP Relay
 
+Development is on `main` in
+[`Instinctual/plank-avp-relay`](https://github.com/instinctual/plank-avp-relay).
+This independent repository preserves the history and GPL licensing of
+[`cnoellert/plank-tablet-relay`](https://github.com/cnoellert/plank-tablet-relay).
+The earlier [Instinctual fork](https://github.com/instinctual/plank-tablet-relay)
+remains available for upstream collaboration and historical build records.
+
 The current managed Linux relay reads USB or Bluetooth Wacom tablets and
 provides encrypted tablet setup and readings to the PLANK AVP Relay Setup app.
 Release 0.4.0 also manages USB Ethernet on a supported dedicated relay box,
@@ -12,9 +19,12 @@ in the Network tab. Wi-Fi may carry relay TCP traffic; USB continues to use
 only wired Ethernet. Secured Wi-Fi rows show a lock and open rows no security label.
 The Ubuntu 26.04 amd64 and Debian 13 arm64 `plank-avp-relay` packages install dependencies,
 configure startup, and migrate saved state from the previous package name.
-Installers are named `plank-avp-relay_0.5.4_amd64.deb` and
-`plank-avp-relay_0.5.4_arm64.deb` and are placed directly in `artifacts/`.
+Installers are named `plank-avp-relay_0.5.5_amd64.deb` and
+`plank-avp-relay_0.5.5_arm64.deb` and are placed directly in `artifacts/`.
 Package versions use the shared release number without a branch suffix.
+Download packages from a successful
+[Linux relay packages run](https://github.com/instinctual/plank-avp-relay/actions/workflows/relay-deb.yml).
+Generated installers, symbols and build logs are CI artifacts rather than Git files.
 See [installation and network behavior](docs/linux-ble-package.md) and
 [the current app workflow](apps/tablet-setup/README.md).
 The [platform matrix](docs/relay-platforms.md) distinguishes each Armbian
@@ -27,8 +37,8 @@ below for reference. The new managed TCP path does not reuse its transport,
 pairing commands or worker. The Client owns the authenticated Host session;
 the Relay has no Host credentials.
 
-A separate [PLANK AVP Relay Setup workflow lab](apps/tablet-setup/README.md) on the
-`visionos-tablet-setup` branch exercises onboarding without remote desktop.
+The [PLANK AVP Relay Setup workflow lab](apps/tablet-setup/README.md) on
+`main` exercises onboarding without remote desktop.
 It opens directly to relay discovery. An explicit
 [Bluetooth headset input lab](docs/bluetooth-headset-lab.md) adds authenticated
 BLE relay discovery/pairing and a live diagnostic readout. The working readings path is available as a separate

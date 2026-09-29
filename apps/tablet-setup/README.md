@@ -42,7 +42,7 @@ The same durable receipt/reconnection rules apply to Wi-Fi changes. See
 [Wi-Fi configuration and acceptance](../../docs/wifi-management.md).
 
 The visible version uses `Major.Minor.Ancillary` followed by the branch
-description, for example `0.3.0-visionos-tablet-setup`. The numeric version is
+description, for example `0.5.5-main`. The numeric version is
 defined once in the repository's `VERSION` file and shared with the relay
 package. Increment Ancillary for delivered fixes and
 small refinements, Minor for features, and Major for substantial or incompatible

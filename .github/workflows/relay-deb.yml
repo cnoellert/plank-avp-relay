@@ -3,7 +3,7 @@ name: Linux relay packages
 on:
   workflow_dispatch:
   push:
-    branches: [main, visionos-tablet-setup]
+    branches: [main]
     paths:
       - '.github/workflows/relay-deb.yml'
       - 'CMakeLists.txt'

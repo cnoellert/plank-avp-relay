@@ -72,7 +72,7 @@ target_include_directories(PlankTabletSetup PRIVATE "${CMAKE_CURRENT_BINARY_DIR}
 target_link_libraries(PlankTabletSetup PRIVATE RelaySetupKit "-framework SwiftUI")
 target_compile_options(PlankTabletSetup PRIVATE -strict-concurrency=complete)
 
-set(PLANK_SETUP_VERSION "${PROJECT_VERSION}-visionos-tablet-setup")
+set(PLANK_SETUP_VERSION "${PROJECT_VERSION}-main")
 set(PLANK_SETUP_BUILD_NUMBER "1" CACHE STRING "Monotonically increasing TestFlight build number")
 if(NOT PLANK_SETUP_BUILD_NUMBER MATCHES "^[1-9][0-9]*$")
     message(FATAL_ERROR "PLANK_SETUP_BUILD_NUMBER must be a positive integer")

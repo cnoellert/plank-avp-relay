@@ -1,6 +1,6 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: PLANK tablet Relay
-Source: https://github.com/instinctual/plank-tablet-relay
+Upstream-Name: PLANK AVP Relay
+Source: https://github.com/instinctual/plank-avp-relay
 
 Files: *
 Copyright: PLANK contributors

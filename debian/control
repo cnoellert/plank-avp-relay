@@ -5,7 +5,7 @@ Maintainer: PLANK contributors <625982+alatteri@users.noreply.github.com>
 Build-Depends: debhelper-compat (= 13), dh-python, cmake, ninja-build, pkg-config, libudev-dev, python3, python3-dbus, python3-gi
 Standards-Version: 4.7.3
 Rules-Requires-Root: no
-Homepage: https://github.com/instinctual/plank-tablet-relay
+Homepage: https://github.com/instinctual/plank-avp-relay
 
 Package: plank-avp-relay
 Architecture: linux-any
