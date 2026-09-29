@@ -2,7 +2,8 @@
 set -e
 if [ "$1" = configure ]; then
     if [ -d /run/systemd/system ]; then
-        systemctl disable --now plank-tablet-relay-ble.service plank-tablet-relay-gadget.service >/dev/null 2>&1 || true
+        deb-systemd-invoke stop plank-tablet-relay-ble.service plank-tablet-relay-gadget.service >/dev/null 2>&1 || true
+        deb-systemd-helper disable plank-tablet-relay-ble.service plank-tablet-relay-gadget.service >/dev/null 2>&1 || true
     fi
     /usr/lib/plank-avp-relay/plank-avp-relay-configure-host
     /usr/lib/plank-avp-relay/plank-avp-relay-hardware --firmware-only
