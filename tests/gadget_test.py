@@ -130,7 +130,7 @@ class GadgetTests(unittest.TestCase):
 
     def test_binding_is_not_reported_as_connected_host(self):
         backend = LinuxGadget(GadgetSettings())
-        backend.wired = 'end0'; backend.controller = 'udc0'
+        backend.wired = 'end0'; backend.controller = 'udc0'; backend.current = 'bridge'
         def value(path, *args):
             path = str(path)
             if path.endswith('carrier'): return '1'
@@ -139,6 +139,60 @@ class GadgetTests(unittest.TestCase):
             return ''
         with patch('avp_relay.gadget_system.read', side_effect=value):
             self.assertEqual(backend.status()['usb'], 'disconnected')
+
+    def test_setup_failure_keeps_live_ethernet_status(self):
+        self.backend.prepare = Mock(side_effect=RuntimeError('USB interface failed'))
+        self.controller.start()
+        self.assertFalse(self.controller.snapshot['supported'])
+        self.assertEqual(self.controller.snapshot['phase'], 'failed')
+        self.assertEqual(self.controller.snapshot['ethernet'], 'connected')
+        self.assertEqual(self.controller.snapshot['usb'], 'error')
+        self.backend.status = Mock(return_value=dict(ethernet='disconnected', usb='waiting', addresses=[]))
+        self.controller.tick()
+        self.assertEqual(self.controller.snapshot['ethernet'], 'disconnected')
+        self.assertEqual(self.controller.snapshot['usb'], 'error')
+
+    def test_unsupported_usb_still_reports_ethernet_and_updates_it(self):
+        self.backend.prepare = Mock(return_value=False)
+        self.backend.unsupported = 'USB networking disabled for this hardware'
+        self.controller.start()
+        self.assertEqual(self.controller.snapshot['ethernet'], 'connected')
+        self.assertEqual(self.controller.snapshot['usb'], 'unavailable')
+        self.backend.status = Mock(return_value=dict(ethernet='disconnected', usb='waiting', addresses=[]))
+        self.controller.tick()
+        self.assertEqual(self.controller.snapshot['ethernet'], 'disconnected')
+        self.assertEqual(self.controller.snapshot['phase'], 'unavailable')
+
+    def test_deferred_interface_can_be_used_for_prebind_configuration(self):
+        backend = LinuxGadget(GadgetSettings())
+        with patch('avp_relay.gadget_system.read', side_effect=lambda path: 'plankusb0' if str(path).endswith('ifname') else ''), \
+             patch.object(Path, 'iterdir', return_value=iter([])), patch.object(Path, 'exists', return_value=False):
+            self.assertEqual(backend.usb_interface(), 'plankusb0')
+        with patch('avp_relay.gadget_system.read', side_effect=lambda path: 'plankusb0' if str(path).endswith('ifname') else ''), \
+             patch.object(Path, 'iterdir', return_value=iter([])), patch.object(Path, 'exists', return_value=True):
+            with self.assertRaisesRegex(RuntimeError, 'already in use'):
+                backend.usb_interface()
+
+    def test_usb_bind_happens_only_after_wired_guard_and_config(self):
+        backend = LinuxGadget(GadgetSettings())
+        backend.wired = 'end0'; backend.controller = 'udc0'; backend.current = 'bridge'
+        backend.guard_ready = True
+        backend.usb_interface = Mock(return_value='plankusb0')
+        events = []
+        with patch('avp_relay.gadget_system.read', side_effect=lambda path, *a: '1' if str(path).endswith('carrier') else ''), \
+             patch('avp_relay.gadget_system.write', side_effect=lambda path, value: events.append(('bind', value))), \
+             patch('avp_relay.gadget_system.run', side_effect=lambda *a, **kw: events.append(a) or 'configured'), \
+             patch.object(backend, 'verify_network_files', side_effect=lambda matches: events.append(('verify', matches))):
+            backend.sync()
+        self.assertIn(('bind', 'udc0'), events)
+        self.assertLess(events.index(('bind', 'udc0')), events.index(('networkctl', 'reconfigure', 'plankusb0')))
+        self.assertIn(('verify', {'plankusb0': '04-plank-usb-device.network'}), events)
+        backend.guard_ready = False
+        with patch('avp_relay.gadget_system.read', return_value='0'), \
+             patch('avp_relay.gadget_system.write') as write, patch('avp_relay.gadget_system.run') as run:
+            backend.sync()
+            run.assert_not_called()
+            self.assertNotIn('udc0', [call.args[1] for call in write.call_args_list])
 
     def test_firewall_blocks_wifi_and_ipv6_forwarding_and_no_tiny_pool(self):
         router = firewall('router', 'end0', 'usb0', '10.55.0.0/24')

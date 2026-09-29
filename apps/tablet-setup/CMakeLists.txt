@@ -38,6 +38,7 @@ target_link_libraries(CRelayProtocol PUBLIC "${PLANK_SODIUM_PREFIX}/lib/libsodiu
 add_library(RelaySetupKit STATIC
     "${RELAY_ROOT}/apple/RelaySetupKit/SetupState.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/SetupCoordinator.swift"
+    "${RELAY_ROOT}/apple/RelaySetupKit/RelayBackgroundRefresh.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayBluetooth.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayBLEConnection.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayTCPConnection.swift"
@@ -154,6 +155,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     target_include_directories(relay-network-settings-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
     target_link_libraries(relay-network-settings-tests PRIVATE RelaySetupKit)
     add_test(NAME relay-network-settings-tests COMMAND relay-network-settings-tests)
+    add_executable(relay-background-refresh-tests "${RELAY_ROOT}/apple/Tests/RelayBackgroundRefreshTests.swift")
+    target_include_directories(relay-background-refresh-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+    target_link_libraries(relay-background-refresh-tests PRIVATE RelaySetupKit)
+    add_test(NAME relay-background-refresh-tests COMMAND relay-background-refresh-tests)
     add_executable(relay-wifi-tests "${RELAY_ROOT}/apple/Tests/RelayWifiTests.swift")
     target_include_directories(relay-wifi-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
     target_link_libraries(relay-wifi-tests PRIVATE RelaySetupKit)

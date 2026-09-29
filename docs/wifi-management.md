@@ -32,7 +32,9 @@ dependencies. `plank-avp-relay-wifi.service` starts with the relay; its process
 name is `plank-avp-wifi`. No manual supplicant launch is needed. Ubuntu Server
 26.04 amd64 and Debian 13 arm64 (Armbian) are the package targets. See the
 [board/kernel matrix](relay-platforms.md). A working in-kernel WLAN driver,
-its firmware and active systemd-networkd are prerequisites. The package does
+its firmware and active systemd-networkd are prerequisites. Version 0.5.2
+includes missing RTL8851BU WLAN firmware offline and reprobes only a failed
+WLAN interface on that supported dongle, without resetting Bluetooth. The package does
 not replace kernel WLAN drivers. NetworkManager-managed hosts are reported as
 unsupported and left unchanged.
 
@@ -110,3 +112,10 @@ do not exercise a real RF association or DHCP lease. When the relay is back:
 5. Confirm TCP discovery over joined Wi-Fi and management recovery over BLE.
 6. In Bridge and Router, remove wired Ethernet while Wi-Fi remains joined.
    USB must withdraw; it must never forward traffic through Wi-Fi.
+
+Network status refreshes use a separate read-only background task. They never
+mark the foreground workflow busy. Opening Wi-Fi entry, leaving Network,
+becoming inactive or starting a foreground operation cancels the refresh; a
+foreground connection waits for transport teardown before starting. Polls
+prefer the LAN and wait ten seconds after completion before polling again.
+USB/Wi-Fi mutations retain their BLE preference and durable request identity.

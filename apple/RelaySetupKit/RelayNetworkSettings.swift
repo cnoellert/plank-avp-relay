@@ -28,7 +28,7 @@ public struct RelayNetworkStatus: Decodable, Equatable, Sendable {
         case "connected": "Connected to USB host"
         case "suspended": "USB connection suspended"
         case "disconnected": "No USB connection"
-        case "waiting": "Disabled — Ethernet disconnected"
+        case "waiting": "Waiting for Ethernet"
         case "reboot": "Relay restart required"
         case "preparing": "Preparing USB connection"
         case "error": "USB configuration failed"

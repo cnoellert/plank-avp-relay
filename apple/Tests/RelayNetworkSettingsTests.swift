@@ -22,6 +22,10 @@ enum RelayNetworkSettingsTests {
         precondition(!done.confirms(request, mode: .bridge))
         let unavailable = try decode(["supported": false, "phase": "unavailable", "usb": "unavailable"])
         precondition(!unavailable.canChange)
+        let unplugged = try decode(["phase": "idle", "ethernet": "disconnected", "usb": "waiting"])
+        precondition(unplugged.ethernetLabel == "Disconnected" && unplugged.usbLabel == "Waiting for Ethernet")
+        let failedUsb = try decode(["supported": false, "phase": "failed", "usb": "error"])
+        precondition(failedUsb.ethernetLabel == "Connected" && failedUsb.usbLabel == "USB configuration failed")
         for fields: [String: Any] in [["phase": "bogus"], ["usb": "active"], ["ethernet": "Internet"],
                                       ["mode": "wifi"], ["requestID": "bogus"], ["id": 2],
                                       ["ok": false, "error": "Authorized headset required"]] {

@@ -50,6 +50,8 @@ with tempfile.TemporaryDirectory() as directory:
     firmware = Path(directory)
     prepare_firmware(firmware, root / 'usr/share/plank-avp-relay/firmware')
     assert (firmware / 'updates/rtl_bt/rtl8851bu_fw.bin').stat().st_size == 49760
+    assert (firmware / 'updates/rtw89/rtw8851b_fw.bin').stat().st_size == 1164440
+    assert (firmware / 'updates/rtw89/rtw8851b_fw-1.bin').stat().st_size > 1000000
     prepare_firmware(firmware, root / 'usr/share/plank-avp-relay/firmware', remove=True)
     assert not (firmware / 'updates/rtl_bt/rtl8851bu_fw.bin').is_symlink()
 with tempfile.TemporaryDirectory() as directory:

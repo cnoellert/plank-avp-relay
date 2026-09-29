@@ -118,6 +118,7 @@ class LinuxGadget:
         self.host_mac = '06:' + self.device_mac[3:]
 
     def prepare(self):
+        self.select_wired(required=False)
         model = read('/sys/firmware/devicetree/base/model').lower().replace(' ', '').replace('-', '')
         if self.settings.enabled == 'false' or (self.settings.enabled == 'auto' and
                 (not Path('/etc/armbian-release').exists() or 'nanopizero2' not in model)):
@@ -125,20 +126,7 @@ class LinuxGadget:
             return False
         if not run('systemctl', 'is-active', 'systemd-networkd.service', check=False) == 'active':
             raise RuntimeError('USB networking requires systemd-networkd.')
-        candidates = []
-        for port in sorted(Path('/sys/class/net').iterdir()):
-            if (port / 'device').exists() and not (port / 'wireless').exists() and not (port / 'phy80211').exists():
-                if (port / 'device/subsystem').resolve().name != 'usb':
-                    candidates.append(port.name)
-        if self.settings.wired_interface:
-            self.wired = self.settings.wired_interface
-            port = Path('/sys/class/net') / self.wired
-            if not port.exists() or (port / 'wireless').exists() or (port / 'phy80211').exists():
-                raise RuntimeError('The selected wired interface is unavailable or wireless.')
-        elif len(candidates) == 1:
-            self.wired = candidates[0]
-        else:
-            raise RuntimeError('Set wired_interface in usb-network.conf; Ethernet selection is ambiguous.')
+        self.select_wired(required=True)
         run('modprobe', 'libcomposite')
         try:
             run('modprobe', 'usb_f_' + self.function)
@@ -176,6 +164,24 @@ class LinuxGadget:
         self.setup()
         run('udevadm', 'settle', '--timeout=5')
         return True
+
+    def select_wired(self, required=False):
+        candidates = []
+        for port in sorted(Path('/sys/class/net').iterdir()):
+            if (port / 'device').exists() and not (port / 'wireless').exists() and not (port / 'phy80211').exists():
+                if (port / 'device/subsystem').resolve().name != 'usb':
+                    candidates.append(port.name)
+        if self.settings.wired_interface:
+            self.wired = self.settings.wired_interface
+            port = Path('/sys/class/net') / self.wired
+            if not port.exists() or (port / 'wireless').exists() or (port / 'phy80211').exists():
+                self.wired = ''
+                if required:
+                    raise RuntimeError('The selected wired interface is unavailable or wireless.')
+        elif len(candidates) == 1:
+            self.wired = candidates[0]
+        elif required:
+            raise RuntimeError('Set wired_interface in usb-network.conf; Ethernet selection is ambiguous.')
 
     def install_overlay(self):
         if not Path('/etc/armbian-release').exists():
@@ -324,6 +330,10 @@ class LinuxGadget:
             self.function_path.mkdir()
             write(self.function_path / 'dev_addr', self.device_mac)
             write(self.function_path / 'host_addr', self.host_mac)
+            # Reserve the name before binding: newer kernels register the
+            # network device only when UDC is bound. Configuration and the
+            # wired-only firewall must be ready before that attachment.
+            write(self.function_path / 'ifname', 'plankusb0')
             (config / 'network').symlink_to(self.function_path)
         except Exception:
             self.teardown()
@@ -337,6 +347,11 @@ class LinuxGadget:
         for path in Path('/sys/class/net').iterdir():
             if read(path / 'address') == self.device_mac:
                 return path.name
+        name = read(self.function_path / 'ifname')
+        if name == 'plankusb0':
+            if (Path('/sys/class/net') / name).exists():
+                raise RuntimeError('The reserved USB network interface name is already in use.')
+            return name
         raise RuntimeError('USB network interface has not appeared.')
 
     def unbind(self):
@@ -416,20 +431,15 @@ class LinuxGadget:
         # bridge. Flush those addresses explicitly; configuration is on br0.
         if mode == 'bridge':
             run('ip', 'address', 'flush', 'dev', self.wired, 'scope', 'global')
-        run('networkctl', 'reconfigure', self.wired, usb)
+        run('networkctl', 'reconfigure', self.wired)
+        if (Path('/sys/class/net') / usb).exists():
+            run('networkctl', 'reconfigure', usb)
         if mode == 'bridge':
             run('networkctl', 'reconfigure', BRIDGE)
-        matches = {usb: FILES[3]}
+        matches = {usb: FILES[3]} if (Path('/sys/class/net') / usb).exists() else {}
         if mode == 'bridge':
             matches.update({self.wired: FILES[2], BRIDGE: FILES[1]})
-        for interface, name in matches.items():
-            for attempt in range(5):
-                status = run('networkctl', 'status', interface, '--no-pager')
-                if str(NETDIR / name) in status:
-                    break
-                if attempt == 4:
-                    raise RuntimeError('An earlier network configuration overrides the USB appliance settings.')
-                time.sleep(0.2)
+        self.verify_network_files(matches)
         if mode == 'router':
             run('ip', '-4', 'rule', 'add', 'pref', '31000', 'iif', usb, 'lookup', 'main', 'suppress_prefixlength', '0')
             run('ip', '-4', 'rule', 'add', 'pref', '31001', 'iif', usb, 'lookup', '155')
@@ -438,6 +448,16 @@ class LinuxGadget:
         self.current = mode
         self.guard_ready = True
         self.sync()
+
+    def verify_network_files(self, matches):
+        for interface, name in matches.items():
+            for attempt in range(5):
+                status = run('networkctl', 'status', interface, '--no-pager')
+                if str(NETDIR / name) in status:
+                    break
+                if attempt == 4:
+                    raise RuntimeError('An earlier network configuration overrides the USB appliance settings.')
+                time.sleep(0.2)
 
     def sync(self):
         if self.restart_required or not self.current:
@@ -465,17 +485,30 @@ class LinuxGadget:
                 self.gateway = gateway
         if self.guard_ready and not read(GADGET / 'UDC'):
             write(GADGET / 'UDC', self.controller)
+            # Binding creates the netdev on kernels with deferred registration.
+            # Its networkd file and forwarding guard already exist.
+            usb = self.usb_interface()
+            run('udevadm', 'settle', '--timeout=5')
+            run('networkctl', 'reconfigure', usb)
+            self.verify_network_files({usb: FILES[3]})
         self.fault = ''
 
     def status(self):
-        connected = read(Path('/sys/class/net') / self.wired / 'carrier') == '1' if self.wired else None
+        if not self.wired:
+            self.select_wired(required=False)
+        carrier = read(Path('/sys/class/net') / self.wired / 'carrier') if self.wired else ''
+        connected = (carrier == '1') if carrier in ('0', '1') else None
         ethernet = 'unknown' if connected is None else ('connected' if connected else 'disconnected')
         if self.restart_required:
             usb = 'reboot'
-        elif not connected:
-            usb = 'waiting'
         elif self.fault:
             usb = 'error'
+        elif not self.current:
+            usb = 'unavailable'
+        elif connected is False:
+            usb = 'waiting'
+        elif connected is None:
+            usb = 'unavailable'
         elif read(GADGET / 'UDC'):
             state = read(Path('/sys/class/udc') / self.controller / 'state')
             usb = 'connected' if state == 'configured' else ('suspended' if state == 'suspended' else 'disconnected')

@@ -90,11 +90,11 @@ struct TabletSetupView: View {
               }
               .tabItem { Label("Network", systemImage: "network") }.tag("network")
             }
-            .task(id: "\(selectedTab)-\(scenePhase)") {
-                guard selectedTab == "network", scenePhase == .active else { return }
+            .task(id: "\(selectedTab)-\(scenePhase)-\(editingWifi)-\(setup.state.busy)-\(setup.state.hasTrust)-\(String(describing: setup.state.address))") {
+                guard selectedTab == "network", scenePhase == .active, !editingWifi, !setup.state.busy, setup.state.hasTrust else { return }
                 while !Task.isCancelled {
-                    if setup.state.hasTrust, !setup.state.busy, !editingWifi { setup.pollNetworkSettings() }
-                    do { try await Task.sleep(for: .seconds(4)) } catch { return }
+                    if setup.state.hasTrust, !setup.state.busy, !editingWifi { await setup.pollNetworkSettings() }
+                    do { try await Task.sleep(for: .seconds(10)) } catch { return }
                 }
             }
             HStack(alignment: .top, spacing: 10) {

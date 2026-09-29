@@ -37,7 +37,8 @@ class GadgetController:
         try:
             self.supported = self.backend.prepare()
             if not self.supported:
-                self.snapshot = unavailable(self.backend.unsupported)
+                self.message = self.backend.unsupported
+                self.refresh()
                 return
             if self.backend.restart_required:
                 self.message = 'Restart the relay to enable its USB device port.'
@@ -57,16 +58,19 @@ class GadgetController:
         except (OSError, RuntimeError, ValueError) as error:
             self.supported = False
             self.message = str(error)
-            self.snapshot = unavailable(self.message)
-            self.snapshot['phase'] = 'failed'
+            self.backend.fault = self.message
+            self.refresh()
 
     def refresh(self):
         status = self.backend.status()
         self.snapshot = dict(self.saved, supported=self.supported, message=self.message, **status)
+        if not self.supported:
+            self.snapshot.update(phase='unavailable', usb='unavailable')
         if self.backend.restart_required:
             self.snapshot['phase'] = 'reboot'
         elif self.backend.fault:
             self.snapshot['phase'] = 'failed'
+            self.snapshot['usb'] = 'error'
             self.snapshot['message'] = self.backend.fault
 
     def request(self, command):
@@ -95,6 +99,7 @@ class GadgetController:
 
     def tick(self):
         if not self.supported or self.backend.restart_required:
+            self.refresh()
             return
         if self.due is not None and self.clock() >= self.due:
             self.due = None

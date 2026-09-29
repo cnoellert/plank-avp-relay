@@ -38,7 +38,8 @@ def prepare_firmware(root=FIRMWARE, bundle=BUNDLE, release=None, remove=False, e
         if Path(name).name != name or not name.endswith('.bin'):
             raise ValueError('Invalid bundled firmware filename')
         source = bundle / name
-        fallback = root / 'updates/rtl_bt' / name
+        family = 'rtw89' if name in ('rtw8851b_fw.bin', 'rtw8851b_fw-1.bin') else 'rtl_bt'
+        fallback = root / 'updates' / family / name
         ours = owned_link(fallback, source)
         if remove:
             if ours:
@@ -49,7 +50,7 @@ def prepare_firmware(root=FIRMWARE, bundle=BUNDLE, release=None, remove=False, e
         bases = [root / 'updates' / release, root / 'updates', root / release, root]
         if extra:
             bases.insert(0, Path(extra))
-        candidates = [base / 'rtl_bt' / (name + suffix)
+        candidates = [base / family / (name + suffix)
                       for base in bases for suffix in ('', '.xz', '.zst')]
         supplied = any(path.is_file() and not owned_link(path, source) for path in candidates)
         if supplied:
@@ -60,9 +61,9 @@ def prepare_firmware(root=FIRMWARE, bundle=BUNDLE, release=None, remove=False, e
                 raise RuntimeError('Refusing to replace existing firmware: ' + str(fallback))
             fallback.parent.mkdir(parents=True, exist_ok=True)
             fallback.symlink_to(source)
-            print('Installed missing Bluetooth firmware: ' + name, flush=True)
+            print('Installed missing radio firmware: ' + name, flush=True)
     if remove:
-        for directory in (root / 'updates/rtl_bt', root / 'updates'):
+        for directory in (root / 'updates/rtl_bt', root / 'updates/rtw89', root / 'updates'):
             try:
                 directory.rmdir()  # Only empty directories; never remove other firmware.
             except OSError:
@@ -138,6 +139,21 @@ def recover_radios(usb=USB, drivers=Path('/sys/bus/usb/drivers')):
             raise RuntimeError('Bluetooth firmware initialization failed; inspect the kernel journal')
 
 
+def recover_wifi(usb=USB):
+    """Retry only a failed WLAN probe on the supported combo dongle."""
+    for device in sorted(usb.glob('*')):
+        if identity(device) not in RADIOS:
+            continue
+        interface = usb / (device.name + ':1.2')
+        if not interface.exists() or (interface / 'driver').exists():
+            continue
+        if (interface / 'modalias').exists() and read(interface / 'bInterfaceClass') == 'ff':
+            # Firmware has already been installed. Never unload a driver or
+            # rebind the parent USB device: Bluetooth bonds stay connected.
+            print('Retrying Wi-Fi firmware initialization: ' + interface.name, flush=True)
+            (usb.parent / 'drivers_probe').write_text(interface.name)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     options = parser.add_mutually_exclusive_group()
@@ -155,9 +171,10 @@ def main():
                 # A mode-switched radio can enumerate after udev's current queue
                 # has drained. Firmware is already available for that hotplug.
                 recover_radios()
+                recover_wifi()
         return 0
     except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as error:
-        print('Bluetooth hardware preparation failed: ' + str(error), flush=True)
+        print('Radio hardware preparation failed: ' + str(error), flush=True)
         return 1
 
 

@@ -1,3 +1,14 @@
+plank-avp-relay (0.5.2) experimental; urgency=medium
+
+  * Keep Ethernet status available when USB setup fails or is unsupported.
+  * Configure deferred USB netdev registration before binding, and attach USB
+    only with Ethernet carrier present.
+  * Bundle pinned RTL8851BU WLAN firmware and retry only failed Wi-Fi probes,
+    preserving active Bluetooth connections and OS-supplied firmware.
+  * Match the Setup app's nonblocking, cancellable Network status refresh.
+
+ -- PLANK contributors <625982+alatteri@users.noreply.github.com>  Tue, 29 Sep 2026 23:50:00 +0000
+
 plank-avp-relay (0.5.1) experimental; urgency=medium
 
   * Match the Setup app fix that requires current tablet availability before

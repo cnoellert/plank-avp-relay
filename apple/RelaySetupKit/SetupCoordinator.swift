@@ -28,11 +28,13 @@ public final class SetupCoordinator: ObservableObject {
     private let keys = RelayKeyStore()
     private let client = RelayPairingClient()
     private var task: Task<Void, Never>?
+    private let networkRefresh = RelayBackgroundRefresh()
     private var tabletCommand: (String, String?)?
 
     public init() {}
 
     public func selectRelay(_ relay: AvailableRelay) {
+        networkRefresh.cancel()
         guard !state.busy, let address = relay.addresses.first else { return }
         addresses = relay.addresses
         scanner.stop()
@@ -90,7 +92,9 @@ public final class SetupCoordinator: ObservableObject {
         message = "Checking the relay’s saved tablets…"
         task = Task { [weak self] in
             guard let self else { return }
+            await self.networkRefresh.cancelAndWait()
             do {
+                try Task.checkCancellation()
                 let address = try await self.availableAddress(address)
                 self.state.useAddress(address, operation: id)
                 let relayKey = try self.keys.relayKey(address)
@@ -161,7 +165,9 @@ public final class SetupCoordinator: ObservableObject {
         message = "Checking whether the relay has a tablet…"
         task = Task { [weak self] in
             guard let self else { return }
+            await self.networkRefresh.cancelAndWait()
             do {
+                try Task.checkCancellation()
                 let address = try await self.availableAddress(address)
                 guard let relayKey = try self.keys.relayKey(address) else { throw RelaySetupError.invalidStoredKey }
                 let status = try await self.client.tabletStatus(address: address,
@@ -196,7 +202,9 @@ public final class SetupCoordinator: ObservableObject {
         peerVersion = nil
         task = Task { [weak self] in
             guard let self else { return }
+            await self.networkRefresh.cancelAndWait()
             do {
+                try Task.checkCancellation()
                 guard let relayKey = try self.keys.relayKey(address) else {
                     throw RelaySetupError.invalidStoredKey
                 }
@@ -217,6 +225,7 @@ public final class SetupCoordinator: ObservableObject {
     }
 
     public func forgetSelectedRelay() {
+        networkRefresh.cancel()
         guard !state.busy, let address = state.address else { return }
         do {
             try keys.forgetRelay(addresses.isEmpty ? [address] : addresses)
@@ -240,7 +249,9 @@ public final class SetupCoordinator: ObservableObject {
         message = "Starting a connection test. No tablet is needed."
         task = Task { [weak self] in
             guard let self else { return }
+            await self.networkRefresh.cancelAndWait()
             do {
+                try Task.checkCancellation()
                 let address = try await self.availableAddress(address)
                 self.state.useAddress(address, operation: id)
                 let result = try await self.client.testBluetooth(address: address) { [weak self] message in
@@ -261,6 +272,7 @@ public final class SetupCoordinator: ObservableObject {
     }
 
     public func cancel() {
+        networkRefresh.cancel()
         if state.activity == .managingTablets {
             finishTabletSetup()
             return
@@ -279,7 +291,48 @@ public final class SetupCoordinator: ObservableObject {
     }
 
     public func refreshNetworkSettings() { networkSettings(mode: nil, refreshWifiLists: true) }
-    public func pollNetworkSettings() { networkSettings(mode: nil) }
+    public func pollNetworkSettings() async {
+        guard !state.busy, state.hasTrust, let address = state.address else { return }
+        await networkRefresh.run { [weak self] in
+            guard let self else { return }
+            do {
+                guard let key = try self.keys.relayKey(address) else { throw RelaySetupError.invalidStoredKey }
+                let privateKey = try self.keys.clientKey()
+                // Prefer the existing LAN for passive reads. Mutations retain
+                // their BLE preference so changing a subnet cannot lose the command.
+                let candidates = (self.addresses.isEmpty ? [address] : self.addresses)
+                    .sorted { $0.linkType > $1.linkType }
+                var failure: any Error = RelaySetupError.timedOut
+                for candidate in candidates {
+                    do {
+                        let statuses = try await self.client.networkAndWifiStatus(address: candidate,
+                            privateKey: privateKey, relayKey: key)
+                        try Task.checkCancellation()
+                        guard !self.state.busy, self.state.address == address else { return }
+                        self.networkStatus = statuses.0
+                        self.networkMessage = statuses.0.message
+                        if let wifi = statuses.1 {
+                            try await self.readWifi(candidate, privateKey: privateKey, relayKey: key, lists: false, status: wifi)
+                        } else {
+                            self.wifiStatus = nil
+                            self.wifiMessage = "Update the relay to use Wi-Fi controls."
+                        }
+                        return
+                    } catch {
+                        try Task.checkCancellation()
+                        guard Self.transportFailure(error) else { throw error }
+                        failure = error
+                    }
+                }
+                throw failure
+            } catch is CancellationError {
+                // Leave the current status and the user's edits in place.
+            } catch {
+                guard !Task.isCancelled, !self.state.busy, self.state.address == address else { return }
+                self.networkMessage = "Could not refresh: \(error.localizedDescription)"
+            }
+        }
+    }
 
     public func applyNetworkMode(_ mode: RelayNetworkMode) {
         guard networkStatus?.canChange == true, networkStatus?.mode != mode else { return }
@@ -292,7 +345,9 @@ public final class SetupCoordinator: ObservableObject {
         networkMessage = mode == nil ? "Reading connection status…" : "Changing network mode…"
         task = Task { [weak self] in
             guard let self else { return }
+            await self.networkRefresh.cancelAndWait()
             do {
+                try Task.checkCancellation()
                 guard let key = try self.keys.relayKey(address) else { throw RelaySetupError.invalidStoredKey }
                 let privateKey = try self.keys.clientKey()
                 // Prefer BLE control so changing the USB subnet does not break
@@ -429,7 +484,9 @@ public final class SetupCoordinator: ObservableObject {
         wifiMessage = action == nil ? "Reading networks…" : "Applying Wi-Fi settings…"
         task = Task { [weak self] in
             guard let self else { return }
+            await self.networkRefresh.cancelAndWait()
             do {
+                try Task.checkCancellation()
                 guard let key = try self.keys.relayKey(address) else { throw RelaySetupError.invalidStoredKey }
                 let privateKey = try self.keys.clientKey()
                 var candidates = self.addresses.isEmpty ? [address] : self.addresses
@@ -517,6 +574,7 @@ public final class SetupCoordinator: ObservableObject {
     }
 
     public func pauseForInactivity() {
+        networkRefresh.cancel()
         scanner.stop()
         if state.busy {
             cancel()
@@ -531,7 +589,9 @@ public final class SetupCoordinator: ObservableObject {
         message = "Verifying the relay and starting live tablet readings…"
         task = Task { [weak self] in
             guard let self else { return }
+            await self.networkRefresh.cancelAndWait()
             do {
+                try Task.checkCancellation()
                 guard let relayKey = try self.keys.relayKey(address) else { throw RelaySetupError.invalidStoredKey }
                 let candidates = self.addresses.isEmpty ? [address] : self.addresses
                 for attempt in 0..<4 {
@@ -586,6 +646,7 @@ public final class SetupCoordinator: ObservableObject {
     }
 
     public func back() {
+        networkRefresh.cancel()
         state.back()
         relayIdentityChanged = false
         bluetoothTestResult = nil

@@ -226,9 +226,11 @@ later hotplug. Bluetooth firmware is prepared before switching or starting the
 relay; no manual eject command or firmware download is needed.
 
 The package includes the unmodified RTL8851BU Bluetooth firmware and config
+and `rtw89/rtw8851b_fw.bin` / `rtw89/rtw8851b_fw-1.bin` Wi-Fi firmware
 from a pinned linux-firmware commit, with SHA-256 checks and its Realtek
 redistribution license. When the OS lacks a file, preparation creates a fallback
-link under `/lib/firmware/updates/rtl_bt/` to the bundled copy. Existing OS or
+link under `/lib/firmware/updates/rtl_bt/` or `/lib/firmware/updates/rtw89/`
+to the bundled copy. Existing OS or
 administrator firmware, including compressed files, takes precedence. If an OS
 update later supplies a file, the next preparation removes its fallback link.
 Removal deletes only links still owned by this package; bonds, identities and
@@ -237,7 +239,10 @@ other firmware remain untouched. It never downloads firmware during install.
 On the tested `3625:010b` RTL8851BU (and the Realtek `0bda:b851` identity), a
 previously failed firmware probe can be retried by rebinding just the Bluetooth
 interface. Initialized controllers are never rebound, even when powered off.
-Other Bluetooth adapters and the dongle's Wi-Fi interface are not reset. This
+Other Bluetooth adapters are not reset. Version 0.5.2 also retries a failed
+Wi-Fi probe on the supported dongle's WLAN interface after installing its
+missing firmware. A working WLAN interface and the parent USB device are not
+rebound; the Bluetooth interface is untouched by this Wi-Fi recovery. This
 requires an existing kernel `btusb`/`btrtl` driver supporting the chipset; the
 package does not install a replacement kernel or USB Wi-Fi driver.
 
@@ -371,3 +376,10 @@ first use, not out-of-band authentication against a nearby active impersonator.
 Existing pins are checked, provisional sessions cannot read input, and owned
 relays require an approved headset key. See the enrollment guide for recovery
 and the distinction between tablet bonds and persistent headset ownership.
+
+USB interface preparation on newer kernels reserves `plankusb0` through the
+function's configfs `ifname` before controller binding. Networkd configuration
+and the wired-only firewall are installed first. With no Ethernet carrier the
+controller stays unbound; binding when carrier is present creates the netdev
+and its owned networkd configuration is verified. Ethernet carrier is still
+reported when USB setup fails or USB networking is disabled for the board.

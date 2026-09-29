@@ -5,6 +5,9 @@
   "config_source": "rtl_bt/rtl8761bu_config.bin (upstream WHENCE alias)",
   "files": {
     "rtl8851bu_fw.bin": "7fcf88c00b2548a5ff157102a35722db5e4be655dab1ce8d9bddb6df85f88f24",
-    "rtl8851bu_config.bin": "6c28a3f07c6a30ed208c4b64862a23f02b7d93543ea980edd24df16bab45095f"
-  }
+    "rtl8851bu_config.bin": "6c28a3f07c6a30ed208c4b64862a23f02b7d93543ea980edd24df16bab45095f",
+    "rtw8851b_fw.bin": "945c854d7cf69dd97bf1da0181b011787d9b3c5d59c47e8b9dbea4eb4eee170b",
+    "rtw8851b_fw-1.bin": "1c4ccb5fa06bf5649146025e95993db66876a1fbc0bd766ec05686587f69c1b7"
+  },
+  "wifi_source": "rtw89/rtw8851b_fw.bin and rtw89/rtw8851b_fw-1.bin"
 }

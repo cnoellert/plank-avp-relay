@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
-from avp_relay.hardware import prepare_firmware, switch_disks, recover_radios, initialized
+from avp_relay.hardware import prepare_firmware, switch_disks, recover_radios, initialized, recover_wifi
 from avp_relay.host_setup import configure_armbian
 
 
@@ -147,6 +147,13 @@ class HardwareTests(unittest.TestCase):
         prepare_firmware(self.firmware, bundle)
         self.assertEqual((self.firmware / 'updates/rtl_bt/rtl8851bu_fw.bin').stat().st_size, 49760)
         self.assertEqual((self.firmware / 'updates/rtl_bt/rtl8851bu_config.bin').stat().st_size, 6)
+        self.assertEqual((self.firmware / 'updates/rtw89/rtw8851b_fw.bin').stat().st_size, 1164440)
+        supplied = self.firmware / 'rtw89/rtw8851b_fw.bin.zst'
+        supplied.parent.mkdir()
+        supplied.write_bytes(b'OS compressed firmware')
+        prepare_firmware(self.firmware, bundle)
+        self.assertFalse((self.firmware / 'updates/rtw89/rtw8851b_fw.bin').exists())
+        self.assertEqual(supplied.read_bytes(), b'OS compressed firmware')
 
     def usb_device(self, name='1-1', vendor='0bda', product='1a2b', kind='08'):
         usb = self.root / 'usb'
@@ -194,6 +201,23 @@ class HardwareTests(unittest.TestCase):
         self.assertEqual((drivers / 'btusb/unbind').read_text(), interface.name)
         self.assertEqual((drivers / 'btusb/bind').read_text(), interface.name)
         self.assertEqual(list(wifi.iterdir()), [])
+
+    def test_wifi_reprobe_leaves_initialized_bluetooth_and_wifi_alone(self):
+        usb, interface, drivers = self.radio()
+        wifi = usb / '1-1:1.2'
+        wifi.mkdir()
+        (wifi / 'modalias').write_text('usb:v3625p010B')
+        (wifi / 'bInterfaceClass').write_text('ff')
+        probe = usb.parent / 'drivers_probe'
+        probe.write_text('untouched')
+        recover_wifi(usb)
+        self.assertEqual(probe.read_text(), wifi.name)
+        self.assertEqual((drivers / 'btusb/unbind').read_text(), 'untouched')
+        (wifi / 'driver').symlink_to(drivers / 'rtw89_8851bu')
+        (drivers / 'rtw89_8851bu').mkdir()
+        probe.write_text('untouched')
+        recover_wifi(usb)
+        self.assertEqual(probe.read_text(), 'untouched')
 
     def test_management_failure_does_not_reset_an_unknown_controller(self):
         usb, _, drivers = self.radio()
