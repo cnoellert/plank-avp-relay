@@ -161,8 +161,9 @@ struct TabletSetupView: View {
 
     private var completePage: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Label("Headset authorized", systemImage: "checkmark.shield.fill")
-                .font(.title2).foregroundStyle(.green)
+            Label(setup.tabletStatus?.headsetAuthorized == true ? "Headset authorized" : "Saved headset pairing",
+                  systemImage: setup.tabletStatus?.headsetAuthorized == true ? "checkmark.shield.fill" : "key.fill")
+                .font(.title2).foregroundStyle(setup.tabletStatus?.headsetAuthorized == true ? Color.green : Color.secondary)
             LabeledContent("Relay", value: setup.state.address?.description ?? "")
             LabeledContent("Connection", value: setup.state.address?.transportName ?? "")
             if setup.state.activity == .observing {
