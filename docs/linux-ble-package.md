@@ -350,9 +350,8 @@ builds it statically with PIC, runs its tests and the relay's assertions-enabled
 tests, and creates `.deb`, `.buildinfo`, `.changes` and SHA-256 artifacts in
 `artifacts/deb/<software-version>/<distribution>-<version>/<architecture>/`,
 for example `artifacts/deb/0.5.0/debian-13/arm64/`.
-The installer is also copied directly to
-`artifacts/plank-avp-relay_0.5.0_arm64.deb` (or `_amd64.deb`), with an adjacent
-`.sha256` checksum file. Debug-symbol packages remain in the versioned directory.
+Installers, debug-symbol packages, `SHA256SUMS` and build metadata stay in that
+versioned directory; the builder does not create top-level convenience copies.
 The package version comes from `debian/changelog`, checked against `VERSION`;
 the exact Git commit is
 retained in `source-commit.txt` and `provenance.json` with compiler/OS metadata.

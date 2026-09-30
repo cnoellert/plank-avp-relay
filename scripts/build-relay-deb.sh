@@ -78,7 +78,5 @@ Path(destination, "provenance.json").write_text(json.dumps(metadata, indent=2) +
 PY
 (cd "$destination" && sha256sum *.{deb,ddeb,buildinfo,changes} source-commit.txt provenance.json > SHA256SUMS)
 installer="plank-avp-relay_${package_version}_${architecture}.deb"
-install -m 0644 "$destination/$installer" "$relay_root/artifacts/$installer"
-(cd "$relay_root/artifacts" && sha256sum "$installer" > "$installer.sha256")
 printf 'Installer: %s\nPackage artifacts: %s\nBuild source: %s\n' \
-    "$relay_root/artifacts/$installer" "$destination" "$stage/source"
+    "$destination/$installer" "$destination" "$stage/source"

@@ -33,11 +33,38 @@ visible, disabled Join action with the relay's status/reason. Editing pauses
 background polling and passwords are cleared on submission/dismissal/back.
 Linux behavior is unchanged; packages advance to match the app.
 
-Draft validation passed all **18 Apple suites** and macOS bundle/privacy checks.
-Native offscreen main, picker, scanning and unavailable previews were inspected.
-Final source builds, packages, TestFlight upload **30** and live relay upgrade
-are pending. Physical AVP tab switching and Wi-Fi joining remain operator
-acceptance checks; no hardware scan/join has been claimed for this change.
+Release source `2bad76fb452f4d48fb0be487f7f6038564c8bfcc` passed **31 Linux
+suites per architecture** and **18 Apple suites**, macOS build, visionOS simulator
+compilation and signed device archive/export with matching executable/dSYM
+UUIDs. Native offscreen main, picker, scanning, empty and unavailable previews
+were inspected. The simulator was compiled, not run. Physical AVP tab switching
+and Wi-Fi joining remain operator acceptance checks.
+
+Apple upload **30** is **VALID / IN_BETA_TESTING** with tester notes and the saved
+Standard / No France compliance applied and read back. Artifacts are under
+`artifacts/testflight/0.6.1/build-30/`; all one-shot Mac jobs are unloaded.
+Next Apple upload: **31**.
+
+Both native package builds and both clean-install jobs passed in
+[CI 36681720970](https://github.com/instinctual/plank-avp-relay/actions/runs/36681720970).
+The [v0.6.1 release](https://github.com/instinctual/plank-avp-relay/releases/tag/v0.6.1)
+tag matches the source and all eight asset digests were verified.
+
+The exact published arm64 package is installed on the live relay. Package and
+all three configuration checks pass, with all three services active. Identity,
+headset/tablet bonds, USB mode and Wi-Fi profiles retained their hashes. The
+strict upgrade wrapper flagged Wi-Fi policy.json because its request receipt ID
+and fingerprint changed during installation; comparison confirmed every other
+policy field was retained. The package installation itself succeeded. Private
+backup and verification evidence remain in the operator notes.
+
+Installers, optional symbols, checksums and provenance now belong only in
+`artifacts/deb/<version>/<distribution>-<version>/<architecture>/`. The top-level
+installer/checksum convenience copies have been removed after verifying their
+versioned counterparts. The builder and CI use the versioned location; each
+folder's `SHA256SUMS` covers its packages and metadata. Historical delivery
+sections below describe the previous layout. The subsequent output-layout change
+does not change app or installed relay behavior or replace published 0.6.1 assets.
 
 ## Previous delivery — 0.6.0
 
