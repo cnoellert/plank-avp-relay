@@ -12,25 +12,34 @@ enum SetupPreview {
         _ = NSApplication.shared
         let directory = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        for page in ["relay", "readings", "offline", "wifi-networks", "wifi-disabled", "wifi-joining", "network-bridge", "network-router", "network-disconnected", "network-changing", "network-unavailable", "tablets-empty", "tablets-scan", "tablets-saved", "tablets-pairing", "tablets-replacement", "tablets-recovery", "tablets-usb", "tablets-usb-setup"] {
+        for page in ["relay", "readings", "offline", "wifi-networks", "wifi-disabled", "wifi-joining", "wifi-unavailable", "wifi-picker", "wifi-picker-scanning", "wifi-picker-empty", "network-bridge", "network-router", "network-disconnected", "network-changing", "network-unavailable", "tablets-empty", "tablets-scan", "tablets-saved", "tablets-pairing", "tablets-replacement", "tablets-recovery", "tablets-usb", "tablets-usb-setup"] {
             let content: AnyView
             if page.hasPrefix("wifi-") {
                 let id = String(repeating: "a", count: 32)
                 let status = try RelayWifiStatus.decode(JSONSerialization.data(withJSONObject: [
-                    "version": 1, "id": 1, "ok": true, "supported": true, "enabled": page != "wifi-disabled",
+                    "version": 1, "id": 1, "ok": true, "supported": page != "wifi-unavailable", "enabled": !["wifi-disabled", "wifi-unavailable"].contains(page),
                     "phase": page == "wifi-joining" ? "applying" : "idle",
-                    "connection": page == "wifi-disabled" ? "disabled" : page == "wifi-joining" ? "associating" : "connected",
-                    "message": page == "wifi-joining" ? "Connecting to the selected network…" : "Saved networks are retained when Wi-Fi is disabled.",
-                    "network": page == "wifi-disabled" ? NSNull() : id as Any,
-                    "name": page == "wifi-disabled" ? NSNull() : "Studio" as Any,
-                    "addresses": page == "wifi-disabled" ? [] : ["192.168.1.42"], "requestID": NSNull()]), request: 1)
+                    "connection": page == "wifi-unavailable" ? "unavailable" : page == "wifi-disabled" ? "disabled" : page == "wifi-joining" ? "associating" : "connected",
+                    "message": page == "wifi-unavailable" ? "No Wi-Fi adapter is available." : page == "wifi-joining" ? "Connecting to the selected network…" : "Saved networks are retained when Wi-Fi is disabled.",
+                    "network": ["wifi-disabled", "wifi-unavailable"].contains(page) ? NSNull() : id as Any,
+                    "name": ["wifi-disabled", "wifi-unavailable"].contains(page) ? NSNull() : "Studio" as Any,
+                    "addresses": ["wifi-disabled", "wifi-unavailable"].contains(page) ? [] : ["192.168.1.42"], "requestID": NSNull()]), request: 1)
                 let rows: [[String: Any]] = [["id": id, "name": "Studio", "secured": true, "supported": true, "saved": true, "hidden": false, "signal": 85],
                     ["id": String(repeating: "b", count: 32), "name": "Guest", "secured": false, "supported": true, "saved": false, "hidden": false, "signal": 60]]
                 let networks = try RelayWifiPage.decode(JSONSerialization.data(withJSONObject: ["version": 1, "id": 1, "ok": true,
                     "networks": rows, "generation": UUID().uuidString, "next": NSNull()]), request: 1).networks
+                if page.hasPrefix("wifi-picker") {
+                    let scanning = page == "wifi-picker-scanning"
+                    content = AnyView(WifiNetworkPicker(networks: page == "wifi-picker" ? networks : [],
+                        connectedID: id, working: scanning,
+                        message: scanning ? "Scanning for nearby networks…" : "Network list updated.",
+                        canChoose: !scanning, canEnterOther: true, moreAvailable: false,
+                        scan: {}, more: {}, choose: { _ in }, other: {}, cancel: {}))
+                } else {
                 content = AnyView(RelayWifiView(status: status, enablePending: nil, available: networks, saved: [networks[0]],
                     moreAvailable: false, moreSaved: false, authorized: true, busy: page == "wifi-joining",
                     message: status.message, action: { _ in }, more: { _ in }, editing: { _ in }).padding(30))
+                }
             } else if page.hasPrefix("network-") {
                 let status = try RelayNetworkStatus.decode(JSONSerialization.data(withJSONObject: [
                     "version": 1, "id": 1, "ok": true, "supported": page != "network-unavailable",

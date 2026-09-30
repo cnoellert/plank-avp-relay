@@ -29,7 +29,9 @@ struct TabletSetupView: View {
                           if let address = setup.state.address {
                               LabeledContent("Selected relay", value: address.description)
                           }
-                          if setup.state.busy {
+                          if setup.state.activity == .observing || setup.state.activity == .stoppingObservation {
+                              ProgressView("Stopping tablet test…")
+                          } else if setup.state.busy {
                               Text("Stop the current operation before selecting another relay.")
                               Button("Stop current operation") { setup.cancel() }
                           } else {
@@ -122,7 +124,7 @@ struct TabletSetupView: View {
               }
               }.disabled(setup.state.address == nil)
             }
-            .onChange(of: selectedTab == "network" && setup.state.activity == .observing) { _, shouldStop in
+            .onChange(of: selectedTab != "tablet" && setup.state.activity == .observing) { _, shouldStop in
                 if shouldStop { setup.stopTesting() }
             }
             .onChange(of: setup.state.address) { _, address in

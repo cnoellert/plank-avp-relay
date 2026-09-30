@@ -19,6 +19,28 @@ that ancestry; no upstream merge was performed during this migration.
 Root PLANK and its unrelated work remain untouched. Machine access, signing
 jobs and deployment details belong in the operator's private notes.
 
+Shared release **0.6.1** extends automatic tablet-test stopping to the Select
+Relay tab. Both destination tabs wait for the existing disconnect reservation;
+returning to Tablet does not restart testing or discard relay selection/trust.
+
+Wi-Fi now offers **Join Network…**, which opens a picker and immediately requests
+a fresh scan. Stale nearby results are cleared while the scan runs. Rows show
+name, signal, a lock for secured networks and the connected checkmark. Saved
+credentials are reused; new networks open the Join/password form. The picker
+has Scan Again and **Other Network…** for a hidden network. Saved networks and
+their three-dot menus remain on the main page. Missing/disabled Wi-Fi keeps a
+visible, disabled Join action with the relay's status/reason. Editing pauses
+background polling and passwords are cleared on submission/dismissal/back.
+Linux behavior is unchanged; packages advance to match the app.
+
+Draft validation passed all **18 Apple suites** and macOS bundle/privacy checks.
+Native offscreen main, picker, scanning and unavailable previews were inspected.
+Final source builds, packages, TestFlight upload **30** and live relay upgrade
+are pending. Physical AVP tab switching and Wi-Fi joining remain operator
+acceptance checks; no hardware scan/join has been claimed for this change.
+
+## Previous delivery — 0.6.0
+
 Shared release **0.6.0** adds USB Wacom setup, management and automatic input
 selection. A single USB tablet takes priority over a saved Bluetooth selection;
 unplugging permits the saved Bluetooth tablet to resume. Explicit relay.conf

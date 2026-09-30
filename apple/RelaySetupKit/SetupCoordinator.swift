@@ -531,7 +531,11 @@ public final class SetupCoordinator: ObservableObject {
         if case .enable(let enabled)? = action { wifiEnablePending = enabled }
         let request = UUID().uuidString.lowercased()
         switch action {
-        case .scan: wifiMessage = "Scanning for networks…"
+        case .scan:
+            wifiMessage = "Scanning for nearby networks…"
+            wifiAvailable = []
+            wifiAvailableNext = nil
+            wifiAvailableGeneration = ""
         case .join, .connect: wifiMessage = "Connecting to the selected network…"
         case .forget: wifiMessage = "Forgetting the network…"
         case .enable(let enabled): wifiMessage = enabled ? "Enabling Wi-Fi…" : "Disabling Wi-Fi…"
@@ -657,7 +661,7 @@ public final class SetupCoordinator: ObservableObject {
         message = "Stopping tablet test…"
         task?.cancel()
         // Keep state.busy until observe/preflight has completed disconnect.
-        // The Network tab's refresh starts when that reservation is released.
+        // Relay selection and Network refresh wait for this reservation to end.
     }
 
     public func startReadings() {

@@ -27,8 +27,9 @@ selected relay and requires tablet setup authorization before showing controls.
 Unknown Wi-Fi status is never rendered as an off switch, and an unknown USB
 mode is not presented as a selected configuration.
 
-Selecting Network automatically stops an active tablet test and waits for its
-connection to close before refreshing network status. The same path handles
+Leaving Tablet for Select Relay or Network automatically stops an active or
+connecting tablet test. The destination waits for its connection to close
+before relay selection or network refresh becomes available. The same path handles
 **Stop Testing**, including a test still connecting. Returning to Tablet does
 not restart testing. Relay selection and saved authorization are retained.
 Use the Select Relay tab to change relays; there is no duplicate footer button.
@@ -50,7 +51,20 @@ accepted changes finish on the relay and can be checked with Refresh status.
 USB is withdrawn when Ethernet link disappears; Internet access is irrelevant.
 See [USB appliance configuration](../../docs/linux-ble-package.md#usb-ethernet-appliance-040).
 
-Release 0.5.0 adds Wi-Fi on/off, scan/select/join, hidden networks, saved
+Wi-Fi has one **Join Network…** action alongside its enable toggle. It opens
+a picker and starts a fresh scan automatically; old results are cleared while
+the scan runs. Nearby networks are selectable rows with signal strength and a
+lock for secured networks. Saved networks reuse credentials; new networks open
+a Join/password form. The picker contains a small Scan Again icon, pagination
+and **Other Network…** for entering a hidden network. Back returns from the
+password form without starting another scan. Passwords are cleared on Back,
+Cancel, dismissal and submission; background polling stays paused throughout
+the picker/form. Only a submitted Join/connect changes the selected network.
+If Wi-Fi is off, unknown or unavailable, Join remains visible but disabled and
+the current status/reason is shown. A missing adapter is not presented as an
+off toggle. Saved-network menus omit Connect for the current network.
+
+Wi-Fi supports on/off, scan/select/join, hidden networks, saved
 networks, password updates and Forget in Network. Secured network rows show
 only a lock; open rows have no security label. Wi-Fi connection/address status
 is a separate read-only group. Profile passwords are cleared from the join
