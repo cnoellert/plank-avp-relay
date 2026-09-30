@@ -150,7 +150,7 @@ final class RelayBLEAttempt: NSObject, RelayBLEAttemptConnection,
                 do { try await Task.sleep(until: deadline, clock: .continuous) } catch { return }
                 guard let self else { return }
                 let strength = self.signal.map { " Last signal: \($0) dBm." } ?? ""
-                self.fail(RelaySetupError.network("Timed out while \(self.phase).\(strength) Tap Pair to retry."))
+                self.fail(RelaySetupError.network("Timed out while \(self.phase).\(strength) Try again."))
             }
             beginConnect()
         }
@@ -166,6 +166,16 @@ final class RelayBLEAttempt: NSObject, RelayBLEAttemptConnection,
         }
         guard !started else { return }
         started = true
+        // Closing a CBL2CAPChannel does not immediately close the physical
+        // connection. In the captured status -> echo handoff the link stayed
+        // up for 33 seconds, suppressing advertisements for our entire scan.
+        // Attach through this manager to that system-connected peripheral;
+        // cached identifiers alone are not evidence of an available link.
+        if let connected = central.retrieveConnectedPeripherals(withServices: [relayService])
+            .first(where: { $0.identifier == identifier }) {
+            attach(connected, reusingConnection: true)
+            return
+        }
         // Discover with the same manager that will own the connection. This
         // also confirms the selected relay is advertising now, instead of
         // waiting on a peripheral returned from the system's saved cache.
@@ -179,12 +189,13 @@ final class RelayBLEAttempt: NSObject, RelayBLEAttemptConnection,
         onProgress?(message)
     }
 
-    private func attach(_ device: CBPeripheral) {
+    private func attach(_ device: CBPeripheral, reusingConnection: Bool = false) {
         central.stopScan()
         peripheral = device
         device.delegate = self
         let strength = signal.map { " Signal: \($0) dBm." } ?? ""
-        progress("establishing the Bluetooth link", "Relay found. Connecting…\(strength)")
+        progress(reusingConnection ? "attaching to the existing Bluetooth link" : "establishing the Bluetooth link",
+                 reusingConnection ? "Using the relay's existing Bluetooth connection…" : "Relay found. Connecting…\(strength)")
         central.connect(device)
     }
 

@@ -1,5 +1,24 @@
 # Bluetooth headset input lab
 
+## 0.6.5 connection handoff
+
+IMG_0067 exposed a scan-only handoff problem after the new L2CAP bootstrap.
+The radio trace shows successful status request/reply on PSM128, followed by
+closure of that channel. The physical connection remained up for another
+33 seconds; the relay resumed advertising only after its disconnection. The
+app had started a new central manager and waited for an advertisement, so its
+20-second discovery deadline expired before it could open the echo channel.
+This happens before tablet streaming and is separate from the GATT backlog.
+
+Before scanning, the app now asks CoreBluetooth for system-connected peripherals
+with the relay service, matches the selected peripheral identifier, and calls
+connect on that peripheral through the manager that will own the new session.
+It still reads the current PSM, opens a new L2CAP channel, and performs the
+normal identity/authorization checks. If the selected relay is not already
+connected, it scans as before. This does not add saved/offline devices to the
+discovery list or fall back to TCP in Bluetooth-only mode. The existing bounded
+startup-disconnect retry remains for a physical link that closes during handoff.
+
 ## 0.6.4 development transport
 
 The Setup app now requires LE credit-based L2CAP for Bluetooth sessions. The

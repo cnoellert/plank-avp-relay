@@ -2,6 +2,17 @@
 
 ## Active work — Bluetooth streaming and direct headset installs
 
+**0.6.5 / build34 is being prepared.** IMG_0067 and its captured repeat fail
+between the successful L2CAP status bootstrap and the echo/test connection.
+The physical link remains up for 33 seconds after channel closure, suppressing
+advertising beyond the next 20-second scan deadline. The app now checks the
+selected relay in CoreBluetooth's system-connected peripherals before scanning.
+Normal identity checks, strict Bluetooth mode and startup-disconnect recovery
+remain. See the 0.6.5 section of `docs/bluetooth-headset-lab.md`. Physical handoff
+and sustained pressure acceptance remain pending; no TestFlight upload.
+
+### Previous development candidate
+
 **Development candidate 0.6.4 / build33 is installed on the relay and AVP.**
 Source `76edb5e9886a4ffe6bb45aef6f002728800231f8` is pushed on
 `bluetooth-l2cap`. The user reproduced 0.6.3's failure under pen pressure in
