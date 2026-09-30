@@ -1,3 +1,11 @@
+plank-avp-relay (0.6.4) experimental; urgency=medium
+
+  * Enumerate TCP routes within the main service address-family restrictions.
+  * Keep authenticated status available when optional route hints are absent.
+  * Verify real Linux interface reads under the installed service policy.
+
+ -- PLANK contributors <625982+alatteri@users.noreply.github.com>  Wed, 30 Sep 2026 23:00:00 +0000
+
 plank-avp-relay (0.6.3) experimental; urgency=medium
 
   * Return bounded TCP routes to the authenticated, authorized headset.

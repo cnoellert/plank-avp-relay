@@ -30,8 +30,19 @@ def usable_addresses(values, families):
 
 def local_addresses(families):
     values, active = [], set()
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as channel:
-        for _, name in socket.if_nameindex():
+    # glibc's if_nameindex opens AF_NETLINK, which the main relay service
+    # deliberately excludes. Enumerate the kernel's read-only interface list
+    # instead; address reads still use the already permitted AF_INET socket.
+    try:
+        names = [entry.name for entry in Path('/sys/class/net').iterdir()]
+    except OSError:
+        return []
+    try:
+        channel = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    except OSError:
+        return []
+    with channel:
+        for name in sorted(names):
             request = struct.pack('256s', name.encode()[:15])
             try:
                 flags = fcntl.ioctl(channel, 0x8913, request)  # SIOCGIFFLAGS

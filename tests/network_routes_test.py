@@ -30,11 +30,26 @@ class RouteTests(unittest.TestCase):
                 result[20:24] = socket.inet_pton(socket.AF_INET,
                     '127.0.0.1' if name == b'lo' else '192.0.2.2')
             return bytes(result)
-        with patch('avp_relay.network_routes.socket.if_nameindex', return_value=[(1, 'lo'), (2, 'lan0'), (3, 'down0')]), \
+        with patch('avp_relay.network_routes.socket.if_nameindex', side_effect=OSError('AF_NETLINK is restricted')), \
+             patch('avp_relay.network_routes.Path.iterdir', return_value=[Path(name) for name in ('lo', 'lan0', 'down0')]), \
              patch('avp_relay.network_routes.fcntl.ioctl', side_effect=ioctl), \
              patch('avp_relay.network_routes.Path.read_text', return_value='20010db8000000000000000000000002 02 40 00 80 lan0\n'):
             self.assertEqual(local_addresses({socket.AF_INET, socket.AF_INET6}),
                              ['192.0.2.2', '2001:db8::2'])
+
+    def test_unavailable_route_hints_do_not_break_authenticated_status(self):
+        with patch('avp_relay.network_routes.Path.iterdir', side_effect=PermissionError()):
+            self.assertEqual(local_addresses({socket.AF_INET}), [])
+        with patch('avp_relay.network_routes.Path.iterdir', return_value=[Path('lan0')]), \
+             patch('avp_relay.network_routes.socket.socket', side_effect=OSError()):
+            self.assertEqual(local_addresses({socket.AF_INET}), [])
+
+    @unittest.skipUnless(sys.platform.startswith('linux'), 'Linux interface reader')
+    def test_real_interface_reader_under_the_service_address_family_policy(self):
+        # Also run this test with systemd RestrictAddressFamilies set to the
+        # installed relay policy. Mocks cannot exercise glibc's socket family.
+        values = local_addresses({socket.AF_INET, socket.AF_INET6})
+        self.assertEqual(values, usable_addresses(values, {socket.AF_INET, socket.AF_INET6}))
 
 
 if __name__ == '__main__':

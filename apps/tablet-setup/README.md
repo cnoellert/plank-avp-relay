@@ -146,6 +146,10 @@ TCP traffic. Loopback, link-local, multicast and nonliteral addresses are reject
 New status replaces old literal routes after DHCP or interface changes. Older
 relays retain the existing Bonjour and authenticated Wi-Fi status behavior.
 
+Release 0.6.4 fixes address enumeration under the installed Linux service's
+restrictions. A failure to read optional route hints no longer closes an
+authenticated status connection or prevents Tablet testing.
+
 Changing addresses never creates new authorization. USB Ethernet still follows
 the physical Ethernet cable; relay Wi-Fi is not forwarded to USB. Physical cable
 handover needs device acceptance testing.

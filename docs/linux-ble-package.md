@@ -50,6 +50,12 @@ include these addresses. This bypasses multicast discovery across subnets, not
 network routing or firewall requirements. The addresses refresh after DHCP or
 interface changes; no fixed IP is required.
 
+Release 0.6.4 reads the kernel's read-only interface list without opening a
+netlink socket, preserving the main service's existing address-family policy.
+Unavailable address hints return an empty list rather than closing an
+authenticated status connection. Delivery verification includes the real Linux
+interface reader under the installed service's address-family restrictions.
+
 Names and discovery TXT records are hints. Noise proves the pinned relay key
 and approved headset identity before input or management. Existing Bluetooth
 trust can be used over TCP; an IP change does not create a new relay identity.
