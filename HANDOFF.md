@@ -2,6 +2,9 @@
 
 ## Current state — 2026-09-30 UTC
 
+The operator approved **0.6.1 / TestFlight 30** on 2026-09-30 and requested
+commit/push on `main`. This is the accepted release baseline.
+
 Work is now on `main` in the independent public
 [`Instinctual/plank-avp-relay`](https://github.com/instinctual/plank-avp-relay)
 repository. The complete ancestry of the previous `visionos-tablet-setup`
@@ -38,7 +41,7 @@ suites per architecture** and **18 Apple suites**, macOS build, visionOS simulat
 compilation and signed device archive/export with matching executable/dSYM
 UUIDs. Native offscreen main, picker, scanning, empty and unavailable previews
 were inspected. The simulator was compiled, not run. Physical AVP tab switching
-and Wi-Fi joining remain operator acceptance checks.
+and Wi-Fi joining were not independently observed during this validation.
 
 Apple upload **30** is **VALID / IN_BETA_TESTING** with tester notes and the saved
 Standard / No France compliance applied and read back. Artifacts are under
