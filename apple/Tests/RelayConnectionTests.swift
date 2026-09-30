@@ -42,6 +42,23 @@ private final class Attempt: RelayBLEAttemptConnection {
     }
 }
 
+@MainActor
+private final class SlowDisconnect: RelayByteConnection {
+    let receiving = Gate(), closing = Gate(), allowClose = Gate()
+    func connect() async throws {}
+    func send(_ data: Data) async throws {}
+    func receive() async throws -> Data {
+        receiving.open()
+        try await Task.sleep(for: .seconds(60))
+        return Data()
+    }
+    nonisolated func cancel() {}
+    func finishDisconnect() async {
+        closing.open()
+        await allowClose.wait()
+    }
+}
+
 @main
 enum RelayConnectionTests {
     @MainActor static func main() async throws {
@@ -113,6 +130,27 @@ enum RelayConnectionTests {
             fatalError("Cancellation must stop recovery")
         } catch is CancellationError {}
         precondition(canceledAttempts == 1)
-        print("PASS: early disconnect recovery, shared deadline, no protocol replay, bounded failures and cancellation")
+        // A canceled tablet stream must finish disconnect before the caller
+        // can release the relay to Network, even if teardown is asynchronous.
+        let draining = SlowDisconnect(), client = RelayPairingClient()
+        var finished = false
+        let observation = Task {
+            do {
+                _ = try await client.bounded(socket: draining, seconds: 60) {
+                    try await draining.connect()
+                    return try await draining.receive()
+                }
+                fatalError("Canceled observation succeeded")
+            } catch is CancellationError {} catch { fatalError("Unexpected cancellation error") }
+            finished = true
+        }
+        await draining.receiving.wait()
+        observation.cancel()
+        await draining.closing.wait()
+        precondition(!finished, "Network must wait for transport teardown")
+        draining.allowClose.open()
+        await observation.value
+        precondition(finished)
+        print("PASS: early disconnect recovery, shared deadline, no protocol replay, bounded failures, cancellation and drained observation teardown")
     }
 }

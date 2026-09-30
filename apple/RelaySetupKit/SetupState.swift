@@ -14,7 +14,7 @@ public enum SetupStep: Int, CaseIterable, Sendable {
 }
 
 public enum SetupActivity: Equatable, Sendable {
-    case idle, checking, observing, testingBluetooth, managingTablets, managingNetwork, failed(String), paired
+    case idle, checking, observing, stoppingObservation, testingBluetooth, managingTablets, managingNetwork, failed(String), paired
 }
 
 public struct RelayAddress: Hashable, Sendable {
@@ -113,6 +113,22 @@ public struct SetupState: Equatable, Sendable {
         guard canObserve, let id = beginCheck() else { return nil }
         activity = .observing
         return id
+    }
+
+    /// Reserve the relay until the observation task finishes transport teardown.
+    @discardableResult
+    public mutating func stopObservation() -> Bool {
+        guard activity == .observing, operation != nil else { return false }
+        activity = .stoppingObservation
+        connectionVerified = false
+        return true
+    }
+
+    @discardableResult
+    public mutating func finishObservation(_ id: UUID) -> Bool {
+        guard operation == id, activity == .observing || activity == .stoppingObservation else { return false }
+        cancel()
+        return true
     }
 
     /// Availability comes from the current relay status, separately from

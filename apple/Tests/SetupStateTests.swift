@@ -48,8 +48,21 @@ enum SetupStateTests {
         expect(!state.connectionVerified, "Ignore stale readings")
         state.verifyObservation(observation)
         expect(state.connectionVerified, "Authenticated readings verify the live connection")
-        state.cancel()
-        expect(state.hasTrust && !state.connectionVerified, "Stopping readings retains ownership")
+        expect(state.stopObservation(), "Stopping an active test reserves its connection until teardown")
+        expect(state.activity == .stoppingObservation && state.busy, "Stop remains busy while disconnecting")
+        expect(state.beginNetworkSettings() == nil && state.beginObservation() == nil, "Network and another test cannot overlap teardown")
+        expect(!state.stopObservation(), "Repeated stop requests are harmless")
+        state.verifyObservation(observation)
+        expect(!state.connectionVerified, "Late samples cannot revive a stopping test")
+        expect(!state.finishObservation(UUID()), "Stale teardown cannot release the current operation")
+        expect(state.finishObservation(observation), "Disconnect releases the test reservation")
+        expect(state.hasTrust && state.hasTablet && state.address == address && !state.connectionVerified,
+               "Stopping retains selection, tablet availability and ownership")
+        let networkAfterTest = state.beginNetworkSettings()!
+        expect(!state.finishObservation(observation), "A late test completion cannot cancel the Network operation")
+        expect(state.succeed(networkAfterTest), "Network is usable after the test disconnects")
+        let connectingTest = state.beginObservation()!
+        expect(state.stopObservation() && state.finishObservation(connectingTest), "A test can be stopped before its first sample")
 
         // Removing every tablet and adding another is management, not re-approval.
         let replacement = state.beginTabletSetup()!

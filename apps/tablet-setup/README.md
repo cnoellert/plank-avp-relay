@@ -20,6 +20,12 @@ is selected. Switching tabs retains the selection. Network identifies the
 selected relay and requires tablet setup authorization before showing controls.
 Unknown Wi-Fi status is never rendered as an off switch, and an unknown USB
 mode is not presented as a selected configuration.
+
+Selecting Network automatically stops an active tablet test and waits for its
+connection to close before refreshing network status. The same path handles
+**Stop Testing**, including a test still connecting. Returning to Tablet does
+not restart testing. Relay selection and saved authorization are retained.
+Use the Select Relay tab to change relays; there is no duplicate footer button.
 Network mode is an editable Bridge/Router selector with Apply changes. Its
 separate Connection status group uses read-only Ethernet and USB labels/icons,
 with a Refresh status action and automatic four-second refresh while idle.

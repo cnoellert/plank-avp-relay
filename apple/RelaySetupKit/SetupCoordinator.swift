@@ -188,7 +188,7 @@ public final class SetupCoordinator: ObservableObject {
                 } else {
                     self.state.updateTabletAvailability(status.canStartReadings, operation: id)
                     _ = self.state.succeed(id)
-                    self.message = status.canStartReadings ? "Tablet found. Start live readings to check its input." :
+                    self.message = status.canStartReadings ? "Tablet found. Choose Test Tablet to check its input." :
                         "Pair or select a tablet before starting live readings."
                 }
             } catch {
@@ -279,6 +279,10 @@ public final class SetupCoordinator: ObservableObject {
     public func cancel() {
         networkRefresh.cancel()
         wifiEnablePending = nil
+        if state.activity == .observing || state.activity == .stoppingObservation {
+            stopTesting()
+            return
+        }
         if state.activity == .managingTablets {
             finishTabletSetup()
             return
@@ -618,6 +622,15 @@ public final class SetupCoordinator: ObservableObject {
         }
     }
 
+    public func stopTesting() {
+        guard state.stopObservation() else { return }
+        readings = nil
+        message = "Stopping tablet test…"
+        task?.cancel()
+        // Keep state.busy until observe/preflight has completed disconnect.
+        // The Network tab's refresh starts when that reservation is released.
+    }
+
     public func startReadings() {
         guard let address = state.address, let id = state.beginObservation() else { return }
         readings = nil
@@ -652,10 +665,10 @@ public final class SetupCoordinator: ObservableObject {
                         }
                         try await self.client.observe(address: candidate, privateKey: self.keys.clientKey(), relayKey: relayKey,
                             onProgress: { [weak self] message in
-                                guard let self, self.state.operation == id else { return }
+                                guard let self, self.state.operation == id, self.state.activity == .observing else { return }
                                 self.message = message
                             }) { [weak self] sample in
-                                guard let self, self.state.operation == id else { return }
+                                guard let self, self.state.operation == id, self.state.activity == .observing else { return }
                                 self.state.verifyObservation(id)
                                 self.readings = sample
                                 self.readingCount += 1
@@ -671,6 +684,12 @@ public final class SetupCoordinator: ObservableObject {
                         try await Task.sleep(for: .seconds(1))
                     }
                 }
+                try Task.checkCancellation()
+                if self.state.finishObservation(id) { self.message = "Tablet test stopped." }
+            } catch is CancellationError {
+                guard self.state.finishObservation(id) else { return }
+                self.readings = nil
+                self.message = "Tablet test stopped."
             } catch {
                 guard self.state.operation == id else { return }
                 self.readings = nil

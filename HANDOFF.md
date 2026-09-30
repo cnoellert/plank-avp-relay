@@ -19,6 +19,23 @@ that ancestry; no upstream merge was performed during this migration.
 Root PLANK and its unrelated work remain untouched. Machine access, signing
 jobs and deployment details belong in the operator's private notes.
 
+Shared release **0.5.7** implements the requested tablet-to-network workflow.
+The active input button is **Stop Testing**. Entering Network stops any active
+or connecting tablet test, keeps the relay reserved until disconnect completes,
+and then starts the existing background network refresh. Late input/progress
+callbacks cannot revive the stopped test. Selection, tablet availability and
+headset trust remain intact; returning to Tablet does not restart the test.
+The duplicate Select Relay footer button is removed; use the first tab.
+
+The macOS draft build and all 18 Apple suites passed, including new regressions
+for cancellation during connection, delayed disconnect, stale completion and
+network availability after stopping. Final Apple upload **26**, matching native
+relay packages and live version alignment are being prepared. Linux behavior is
+unchanged; its package version advances only to retain the shared **0.5.7**
+number. Keep the previous 0.5.6 records below until delivery is verified.
+
+## Previous delivery — 0.5.6
+
 Shared release **0.5.6** implements the approved network fixes and navigation:
 **Select Relay → Tablet → Network**, with dependent tabs disabled until selection.
 Selection persists across tabs; authorization is still required for controls.

@@ -100,7 +100,9 @@ struct TabletSetupView: View {
                               Button("Set up tablet") { selectedTab = "tablet" }
                           }
                       } else {
-                      if setup.state.busy && setup.state.activity != .managingNetwork {
+                      if setup.state.activity == .stoppingObservation {
+                          ProgressView("Stopping tablet test…")
+                      } else if setup.state.busy && setup.state.activity != .managingNetwork {
                           Text("Stop the current tablet operation before changing network settings.")
                           Button("Stop current operation") { setup.cancel() }
                       }
@@ -117,6 +119,9 @@ struct TabletSetupView: View {
                   }.padding(22)
               }
               }.disabled(setup.state.address == nil)
+            }
+            .onChange(of: selectedTab == "network" && setup.state.activity == .observing) { _, shouldStop in
+                if shouldStop { setup.stopTesting() }
             }
             .onChange(of: setup.state.address) { _, address in
                 if address == nil { selectedTab = "relay" }
@@ -138,10 +143,7 @@ struct TabletSetupView: View {
                 Text("No workstation connection required").font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 if setup.state.activity == .managingNetwork { Button("Stop waiting") { setup.cancel() } }
-                else if setup.state.busy && setup.state.activity != .observing { Button("Cancel") { setup.cancel() } }
-                else if !setup.state.busy && selectedTab != "relay" {
-                    Button("Select Relay") { selectedTab = "relay" }
-                }
+                else if setup.state.busy && setup.state.activity != .observing && setup.state.activity != .stoppingObservation { Button("Cancel") { setup.cancel() } }
             }
         }
         .padding(28)
@@ -202,9 +204,11 @@ struct TabletSetupView: View {
                 .font(.title2).foregroundStyle(setup.tabletStatus?.headsetAuthorized == true ? Color.green : Color.secondary)
             LabeledContent("Relay", value: setup.state.address?.description ?? "")
             LabeledContent("Connection", value: setup.state.address?.transportName ?? "")
-            if setup.state.activity == .observing {
-                Button(setup.state.connectionVerified ? "Stop readings" : "Cancel connection") {
-                    setup.cancel()
+            if setup.state.activity == .stoppingObservation {
+                ProgressView("Stopping tablet test…")
+            } else if setup.state.activity == .observing {
+                Button(setup.state.connectionVerified ? "Stop Testing" : "Cancel connection") {
+                    setup.stopTesting()
                 }.buttonStyle(.borderedProminent)
             } else {
                 Button("Test Tablet") { setup.startReadings() }
