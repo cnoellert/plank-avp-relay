@@ -1,6 +1,7 @@
 plank-avp-relay (0.6.1) experimental; urgency=medium
 
-  * Match the Setup app tab-switch testing teardown and Wi-Fi Join Network picker.
+  * Match the Setup app tab-switch testing teardown and Wi-Fi
+    Join Network picker.
   * Linux relay behavior and stored settings are unchanged.
 
  -- PLANK contributors <625982+alatteri@users.noreply.github.com>  Wed, 30 Sep 2026 06:57:19 -0000
