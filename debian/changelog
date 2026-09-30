@@ -1,3 +1,10 @@
+plank-avp-relay (0.6.3) experimental; urgency=medium
+
+  * Match the Setup app's temporary strict Bluetooth test selector.
+  * Linux relay behavior and stored settings are unchanged.
+
+ -- PLANK contributors <625982+alatteri@users.noreply.github.com>  Wed, 30 Sep 2026 20:00:00 +0000
+
 plank-avp-relay (0.6.2) experimental; urgency=medium
 
   * Preserve completed tablet input reports and their source timestamps.

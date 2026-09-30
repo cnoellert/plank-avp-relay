@@ -11,6 +11,8 @@ public final class SetupCoordinator: ObservableObject {
     @Published public private(set) var state = SetupState()
     @Published public private(set) var message = "Scan for the relay beside your tablet."
     public let tabletTest = TabletTestReadings()
+    @Published public private(set) var testTransport = RelayTestTransport.load()
+    @Published public private(set) var tabletTestConnection: String?
     @Published public private(set) var connectionDiagnostic: RelayDiagnostic = .idle
     @Published public private(set) var authorizationDiagnostic: RelayDiagnostic = .idle
     @Published public private(set) var tabletStatus: TabletSetupStatus?
@@ -39,6 +41,14 @@ public final class SetupCoordinator: ObservableObject {
     private var tabletCommand: (String, String?)?
 
     public init() {}
+
+    public func setTestTransport(_ value: RelayTestTransport) {
+        guard !state.busy, RelayTestTransport.isAvailable else { return }
+        testTransport = value
+        value.save()
+        connectionDiagnostic = .idle
+        authorizationDiagnostic = .idle
+    }
 
     public func selectRelay(_ relay: AvailableRelay) {
         networkRefresh.cancel()
@@ -70,10 +80,13 @@ public final class SetupCoordinator: ObservableObject {
 
     // Probe only read-only status during transport selection. Never replay a
     // tablet mutation when a setup session is interrupted.
-    private func availableAddress(_ selected: RelayAddress, onProgress: ((String) -> Void)? = nil) async throws -> RelayAddress {
+    private func availableAddress(_ selected: RelayAddress, testTransport: RelayTestTransport = .automatic,
+                                  onProgress: ((String) -> Void)? = nil) async throws -> RelayAddress {
         let expected = try keys.setupRelayKey(selected) ?? selected.advertisedKey
         var failure: any Error = RelaySetupError.timedOut
-        for address in networkRoutes.ordered(addresses.isEmpty ? [selected] : addresses, preferBluetooth: false) {
+        let candidates = try testTransport.candidates(networkRoutes.ordered(
+            addresses.isEmpty ? [selected] : addresses, preferBluetooth: false))
+        for address in candidates {
             do {
                 let status = try await client.setupStatus(address) { [weak self] in
                     self?.message = $0
@@ -187,6 +200,7 @@ public final class SetupCoordinator: ObservableObject {
 
     private func refreshTabletStatus(reportAuthorization: Bool) {
         guard let address = state.address, let id = state.beginCheck() else { return }
+        let transport = reportAuthorization ? testTransport : .automatic
         if !reportAuthorization {
             state.updateTabletAvailability(false, operation: id)
             tabletStatus = nil
@@ -199,7 +213,7 @@ public final class SetupCoordinator: ObservableObject {
             await self.networkRefresh.cancelAndWait()
             do {
                 try Task.checkCancellation()
-                let address = try await self.availableAddress(address)
+                let address = try await self.availableAddress(address, testTransport: transport)
                 guard let relayKey = try self.keys.relayKey(address) else { throw RelaySetupError.invalidStoredKey }
                 let status = try await self.client.tabletStatus(address: address,
                     privateKey: self.keys.clientKey(), relayKey: relayKey)
@@ -257,6 +271,7 @@ public final class SetupCoordinator: ObservableObject {
 
     public func testRelayConnection() {
         guard let address = state.address, let id = state.beginBluetoothTest() else { return }
+        let transport = testTransport
         message = "Starting a connection test. No tablet is needed."
         connectionDiagnostic = .running(message)
         task = Task { [weak self] in
@@ -264,7 +279,7 @@ public final class SetupCoordinator: ObservableObject {
             await self.networkRefresh.cancelAndWait()
             do {
                 try Task.checkCancellation()
-                let address = try await self.availableAddress(address) { [weak self] progress in
+                let address = try await self.availableAddress(address, testTransport: transport) { [weak self] progress in
                     guard let self, self.state.operation == id else { return }
                     self.connectionDiagnostic = .running(progress)
                 }
@@ -657,6 +672,7 @@ public final class SetupCoordinator: ObservableObject {
     public func stopTesting() {
         guard state.stopObservation() else { return }
         tabletTest.reset()
+        tabletTestConnection = nil
         message = "Stopping tablet test…"
         task?.cancel()
         // Keep state.busy until observe/preflight has completed disconnect.
@@ -665,7 +681,9 @@ public final class SetupCoordinator: ObservableObject {
 
     public func startReadings() {
         guard let address = state.address, let id = state.beginObservation() else { return }
+        let transport = testTransport
         tabletTest.reset()
+        tabletTestConnection = nil
         message = "Verifying the relay and starting live tablet readings…"
         task = Task { [weak self] in
             guard let self else { return }
@@ -673,8 +691,8 @@ public final class SetupCoordinator: ObservableObject {
             do {
                 try Task.checkCancellation()
                 guard let relayKey = try self.keys.relayKey(address) else { throw RelaySetupError.invalidStoredKey }
-                let candidates = self.networkRoutes.ordered(self.addresses.isEmpty ? [address] : self.addresses,
-                    preferBluetooth: false)
+                let candidates = try transport.candidates(self.networkRoutes.ordered(
+                    self.addresses.isEmpty ? [address] : self.addresses, preferBluetooth: false))
                 for attempt in 0..<4 {
                     let candidate = candidates[attempt % candidates.count]
                     self.state.useAddress(candidate, operation: id)
@@ -702,6 +720,9 @@ public final class SetupCoordinator: ObservableObject {
                             }) { [weak self] sample in
                                 guard let self, self.state.operation == id, self.state.activity == .observing else { return }
                                 if !self.state.connectionVerified { self.state.verifyObservation(id) }
+                                if self.tabletTestConnection != candidate.transportName {
+                                    self.tabletTestConnection = candidate.transportName
+                                }
                                 self.tabletTest.accept(sample)
                                 let message = sample.attached ? "Receiving live tablet readings over \(candidate.transportName)." :
                                     "The relay is connected. Reconnect the USB tablet or wake the Bluetooth tablet to resume input. Saved pairings are retained."
@@ -712,7 +733,10 @@ public final class SetupCoordinator: ObservableObject {
                         try Task.checkCancellation()
                         guard self.state.operation == id, attempt < 3, Self.transportFailure(error) else { throw error }
                         self.tabletTest.reset()
-                        self.message = "Connection interrupted. Reconnecting to the same authorized relay…"
+                        self.tabletTestConnection = nil
+                        self.message = transport == .bluetoothOnly
+                            ? "Bluetooth interrupted. Reconnecting over Bluetooth only…"
+                            : "Connection interrupted. Reconnecting to the same authorized relay…"
                         try await Task.sleep(for: .seconds(1))
                     }
                 }
@@ -728,6 +752,7 @@ public final class SetupCoordinator: ObservableObject {
                 self.state.fail(id, message: error.localizedDescription)
                 self.message = error.localizedDescription
             }
+            self.tabletTestConnection = nil
             self.task = nil
         }
     }

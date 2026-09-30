@@ -12,9 +12,17 @@ enum SetupPreview {
         _ = NSApplication.shared
         let directory = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        for page in ["relay", "readings", "offline", "wifi-networks", "wifi-disabled", "wifi-joining", "wifi-unavailable", "wifi-picker", "wifi-picker-scanning", "wifi-picker-empty", "network-bridge", "network-router", "network-disconnected", "network-changing", "network-unavailable", "tablets-empty", "tablets-scan", "tablets-saved", "tablets-pairing", "tablets-replacement", "tablets-recovery", "tablets-usb", "tablets-usb-setup"] {
+        for page in ["relay", "test-automatic", "test-bluetooth", "test-busy", "readings", "offline", "wifi-networks", "wifi-disabled", "wifi-joining", "wifi-unavailable", "wifi-picker", "wifi-picker-scanning", "wifi-picker-empty", "network-bridge", "network-router", "network-disconnected", "network-changing", "network-unavailable", "tablets-empty", "tablets-scan", "tablets-saved", "tablets-pairing", "tablets-replacement", "tablets-recovery", "tablets-usb", "tablets-usb-setup"] {
             let content: AnyView
-            if page.hasPrefix("wifi-") {
+            if page.hasPrefix("test-") {
+                content = AnyView(VStack(alignment: .leading, spacing: 20) {
+                    Text("Your tablet relay").font(.largeTitle.bold())
+                    RelayTestTransportPicker(selection: .constant(page == "test-automatic" ? .automatic : .bluetoothOnly), busy: page == "test-busy")
+                    LabeledContent("Relay", value: "plank-avp-relay-02")
+                    Button(page == "test-busy" ? "Stop Testing" : "Test Tablet") {}.buttonStyle(.borderedProminent)
+                    Spacer()
+                }.padding(30))
+            } else if page.hasPrefix("wifi-") {
                 let id = String(repeating: "a", count: 32)
                 let status = try RelayWifiStatus.decode(JSONSerialization.data(withJSONObject: [
                     "version": 1, "id": 1, "ok": true, "supported": page != "wifi-unavailable", "enabled": !["wifi-disabled", "wifi-unavailable"].contains(page),

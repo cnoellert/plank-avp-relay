@@ -289,6 +289,23 @@ not evidence about gaze/pinch, headset behavior or Bluetooth hardware.
 
 ## Direct headset testing
 
+During transport qualification the Tablet page has a **Relay → Headset
+connection** selector: Automatic or Bluetooth only. It applies to tablet test
+preflight/readings/retries, Test Relay Connection and Check Headset Authorization.
+Bluetooth-only fails if the selected relay has no Bluetooth route; it never
+falls back to TCP. Selection is saved locally and locked while an operation is
+active. The testing sheet reports the actual connection after readings arrive
+and clears it on interruption. Discovery, tablet management and the Network tab
+retain normal routing. This does not change the tablet-to-relay connection.
+
+This is temporary app-only qualification code. Build with
+`PLANK_ENABLE_TRANSPORT_TESTING=OFF bash scripts/build-tablet-setup.sh device`
+to hide the selector and ignore even a previously saved Bluetooth-only choice.
+The CMake option has the same name. `RelayTestTransport.swift` owns the policy
+and single defaults key; `RelayTestTransportView.swift` owns the selector UI.
+Removal needs no Linux, wire-protocol or identity migration. The current
+Bluetooth transport is still GATT; this selector does not implement L2CAP.
+
 Development builds are installed directly through the Mac paired with the AVP.
 Build/signing can run on another authorized Mac, then transfer the signed app
 to the paired Mac. The headset must be reachable, have Developer Mode enabled,
