@@ -287,9 +287,28 @@ For the local macOS preview, apply an ad-hoc signature to the unsigned app
 before opening it if required by the local launcher. This is a UI preview,
 not evidence about gaze/pinch, headset behavior or Bluetooth hardware.
 
+## Direct headset testing
+
+Development builds are installed directly through the Mac paired with the AVP.
+Build/signing can run on another authorized Mac, then transfer the signed app
+to the paired Mac. The headset must be reachable, have Developer Mode enabled,
+and be included in the development provisioning profile. Keep the same bundle
+identifier and signing team so an update can retain app data and relay trust.
+Do not uninstall the existing app as part of this workflow.
+
+Use `scripts/export-tablet-development.sh <archive> <new-output-directory>` to export a development
+app from a validated archive, then run
+`scripts/install-tablet-development.sh <signed.app> <device-identifier>` on the
+paired Mac. These commands do not upload to App Store Connect. Record the source
+revision, software version and build number for each installed candidate.
+
+After physical testing and operator approval, distribute that approved source
+through TestFlight using the separate workflow below. Direct development builds
+still need valid Apple signing/provisioning; they bypass TestFlight processing.
+
 ## TestFlight delivery
 
-TestFlight is the selected headset delivery method. Ordinary build commands
+TestFlight is used for operator-approved versions. Ordinary build commands
 above produce unsigned SDK bundles; the separate archive/export commands below
 produce signed distribution packages. Neither is automatically available in
 TestFlight. The app requires visionOS27; verify the tester's headset OS.

@@ -1,5 +1,45 @@
 # PLANK AVP Relay and Setup app
 
+## Active work — Bluetooth streaming and direct headset installs
+
+On 2026-09-30 the operator reported that Bluetooth-only tablet testing
+disconnects within seconds while the app stays open. Live relay logs identify
+the half-second input backlog guard added in 0.6.2; the daemon did not restart.
+Captured GATT indication confirmations took roughly 80ms with a 512-byte
+application payload limit. This transport cannot sustain the expanded observer
+stream. No compression change has been applied.
+
+The operator approved investigating a simpler L2CAP LE credit-based channel,
+reusing the existing authentication and uncompressed messages first. Prove it
+on the physical relay and AVP before replacing the production GATT stream or
+changing the event format. Preserve the TCP reference path and model-independent
+Linux tablet decoding. SDK/API availability alone is not hardware validation.
+
+**Delivery policy:** install development builds directly on the paired AVP
+through mac34. mac12 may remain the build/signing machine. Publish to TestFlight
+only after the operator approves that version. The previous standing instruction
+to fill in tester notes and export compliance still applies to approved uploads;
+it does not authorize uploading every development iteration. Preserve the app's
+bundle identity and existing relay trust during installation; do not uninstall
+the app as a routine deployment step. Keep device IDs and signing resources in
+private deployment notes. Development provisioning must include the target AVP.
+
+Direct installation has now been verified using the accepted 0.6.2/build31
+archive, exported with development signing on mac12 and installed in place by
+mac34. The headset is paired, Developer Mode is enabled, and its device is now
+registered for development provisioning. No new binary was uploaded to
+TestFlight. This establishes delivery only; it contains no L2CAP change.
+The export/profile/install scripts are on the `bluetooth-l2cap` work branch.
+Development signature/profile checks also rejected an unregistered headset and
+the distribution archive. Installed-app readback confirms 0.6.2/build31 and an
+accessible container. Remote app launch initially timed out, then succeeded
+after the operator's "try now". Retained relay trust still needs app-level
+confirmation; successful in-place installation alone does not establish it.
+On relay02, a read-only capability probe successfully bound/listened on a
+dynamic LE L2CAP PSM and closed the socket. Python's Bluetooth bind tuple lacks
+the address-type field there; an explicit Linux sockaddr_l2 via libc was needed.
+No relay service, app transport or protocol change has been applied yet.
+
 ## Current accepted release — 0.6.2 tablet test fidelity
 
 On 2026-09-30 the operator reported that the tablet test works much better and
