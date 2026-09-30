@@ -66,6 +66,14 @@ folder's `SHA256SUMS` covers its packages and metadata. Historical delivery
 sections below describe the previous layout. The subsequent output-layout change
 does not change app or installed relay behavior or replace published 0.6.1 assets.
 
+The output-layout change `e06f43692b2999084f965767f5e298d3eff82a4b` passed both
+native builds and both clean installs in
+[CI 36682634733](https://github.com/instinctual/plank-avp-relay/actions/runs/36682634733).
+Both downloaded CI artifacts were checked: no top-level installer/checksum
+copies, and all versioned package/metadata checksums passed. These validation
+packages remain in `artifacts/ci/36682634733/`; canonical release artifacts retain
+the exact published source and hashes from `2bad76f`.
+
 ## Previous delivery — 0.6.0
 
 Shared release **0.6.0** adds USB Wacom setup, management and automatic input
