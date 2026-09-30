@@ -78,6 +78,31 @@ If an OS reinstall changes the relay identity at the same address, choose
 replacement, then set up its tablet again. This clears the old relay's pending,
 canonical and transport pins while retaining other relays and the headset key.
 
+## USB tablets
+
+Connect a supported Wacom tablet to a USB host port on the relay. Linux input
+capabilities identify the pen, pressure and optional pad/touch interfaces; no
+model or generation is hardcoded. A single USB tablet takes priority over the
+saved Bluetooth selection. Its name, USB connection and serial number (or USB
+port when no serial is available) appear in Manage Tablets. USB devices have
+no invented Bluetooth MAC address or pairing/removal action: unplug to detach.
+Multiple USB tablets require selection if none is already active. Explicit
+administrator selection in relay.conf remains authoritative.
+
+Existing authorized headsets can test USB input immediately. On first setup,
+choose Finish Setup for the connected USB tablet; only its initiating encrypted
+session gains authorization after input opens successfully. Existing ownership
+still requires the saved headset identity or the documented SSH ownership reset.
+The read-only discovery endpoint cannot authorize a headset.
+
+No Bluetooth adapter is required for USB input over TCP. Bluetooth discovery
+and saved-tablet actions are unavailable while the adapter is absent, without
+resetting the relay identity, network connection or saved Bluetooth bonds.
+Unplugging clears the current readings; replugging restores USB capture and
+removing USB allows the saved Bluetooth tablet to resume when available.
+Use Manage Tablets or Check tablet status to refresh after plugging a tablet
+into an idle main Tablet page. During testing, input hotplug is automatic.
+
 ## Network and Bluetooth pairing and readings
 
 Allow Local Network access to discover `_plank-avp-relay._tcp` services. A relay

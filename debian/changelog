@@ -1,3 +1,11 @@
+plank-avp-relay (0.6.0) experimental; urgency=medium
+
+  * Add automatic USB Wacom input selection, USB status and headset setup.
+  * Preserve Bluetooth bonds while USB is connected; support pen-only tablets.
+  * Keep TCP and USB input available without a Bluetooth adapter.
+
+ -- PLANK contributors <625982+alatteri@users.noreply.github.com>  Wed, 30 Sep 2026 05:53:42 -0000
+
 plank-avp-relay (0.5.9) experimental; urgency=medium
 
   * Match the Setup app tablet-management layout and per-tablet action menus.

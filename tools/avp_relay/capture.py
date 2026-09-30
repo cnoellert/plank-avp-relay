@@ -2,6 +2,7 @@
 """Read-only evdev diagnostics, grouped by physical Wacom ancestry."""
 import errno
 import fcntl
+import hashlib
 import os
 from pathlib import Path
 import selectors
@@ -62,12 +63,32 @@ def candidates(root=Path('/sys/class/input')):
             continue
     return {identity: nodes for identity, nodes in groups.items()
             if sum(kind == 'pen' for _, kind, _ in nodes) == 1 and
-               sum(kind == 'pad' for _, kind, _ in nodes) == 1}
+               sum(kind == 'pad' for _, kind, _ in nodes) <= 1}
+
+
+def usb_identifier(identity):
+    return 'usb:' + hashlib.sha256(identity[0].encode()).hexdigest()[:16]
+
+
+def usb_details(identity, nodes, root=Path('/sys/class/input')):
+    parent = Path(identity[0][4:])
+    def read(path, limit):
+        try:
+            return path.read_text().strip().encode('utf-8')[:limit].decode('utf-8', errors='ignore')
+        except OSError:
+            return ''
+    pen = next(name for name, kind, _ in nodes if kind == 'pen')
+    name = read(root / pen / 'device/name', 48).removesuffix(' Pen') or 'Wacom tablet'
+    return dict(id=usb_identifier(identity), name=name, serial=read(parent / 'serial', 64) or None,
+                port=parent.name[:40])
 
 
 class Capture:
-    def __init__(self, selected=None, on_button=lambda code, value: None):
+    def __init__(self, selected=None, on_button=lambda code, value: None, fixed=False):
         self.selected = selected.lower() if selected else None
+        self.fixed = fixed
+        self.usb_selection = None
+        self.usb_tablets = []
         self.identity = None
         self.on_button = on_button
         self.selector = selectors.DefaultSelector()
@@ -99,17 +120,32 @@ class Capture:
         self.pad_mask = 0
         self.dirty = True
 
+    def choose(self, found):
+        if not self.fixed:
+            usb = {key: nodes for key, nodes in found.items() if key[2] == 3}
+            if usb:
+                chosen = next((key for key in usb if usb_identifier(key) == self.usb_selection), None)
+                if chosen is None and self.identity in usb:
+                    chosen = self.identity
+                return {chosen: usb[chosen]} if chosen else usb
+        if self.identity is not None and self.identity[2] == 5:
+            return {key: nodes for key, nodes in found.items() if key == self.identity}
+        if self.selected:
+            return {key: nodes for key, nodes in found.items()
+                    if key[0].lower() in (self.selected, 'bluetooth:' + self.selected)}
+        return {key: nodes for key, nodes in found.items() if key[2] != 3 or not self.fixed}
+
     def discover(self):
-        if self.nodes or time.monotonic() - self.last_scan < 0.5:
+        if time.monotonic() - self.last_scan < 0.5:
             return
         self.last_scan = time.monotonic()
         found = candidates()
-        if self.identity is not None:
-            found = {key: value for key, value in found.items() if key == self.identity}
-        elif self.selected:
-            found = {key: value for key, value in found.items()
-                     if key[0].lower() == self.selected or
-                        key[0].lower() == 'bluetooth:' + self.selected}
+        self.usb_tablets = [usb_details(key, nodes) for key, nodes in found.items() if key[2] == 3][:8]
+        found = self.choose(found)
+        if self.nodes and self.identity in found and len(found) == 1:
+            return
+        if self.nodes:
+            self.close_nodes()
         if len(found) > 1:
             # Remain available so an administrator can select a tablet without
             # losing the headset's saved trust or restarting on every scan.
@@ -154,7 +190,22 @@ class Capture:
         self.identity = identity
         self.generation += 1
         self.dirty = True
-        print('Tablet input attached; pen and tablet buttons available.', flush=True)
+        print(('USB' if identity[2] == 3 else 'Bluetooth') + ' tablet input attached; pen input available.', flush=True)
+
+    def usb_status(self):
+        active = usb_identifier(self.identity) if self.attached and self.identity[2] == 3 else None
+        return [dict(tablet, active=tablet['id'] == active) for tablet in self.usb_tablets]
+
+    def use_usb(self, target):
+        self.last_scan = 0
+        self.discover()
+        if self.fixed or not any(tablet['id'] == target for tablet in self.usb_tablets):
+            raise ValueError('Select a connected USB tablet from this relay’s list.')
+        self.usb_selection = target
+        self.last_scan = 0
+        self.discover()
+        if not any(tablet['id'] == target and tablet['active'] for tablet in self.usb_status()):
+            raise ValueError('The USB tablet is no longer ready. Check its cable and retry.')
 
     def poll(self):
         self.discover()

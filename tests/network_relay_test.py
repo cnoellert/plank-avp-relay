@@ -9,7 +9,7 @@ import tempfile
 import time
 from types import SimpleNamespace
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, PropertyMock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
 from avp_relay.core import RelayCore
@@ -136,7 +136,7 @@ class NetworkTests(unittest.TestCase):
         self.fail('No authenticated management response')
 
     def test_public_identity_and_no_public_mutations(self):
-        for operation in ('status', 'scan', 'cancel', 'remove', 'network-status', 'network-mode', 'wifi-status', 'wifi-join'):
+        for operation in ('status', 'scan', 'cancel', 'remove', 'network-status', 'network-mode', 'wifi-status', 'wifi-join', 'use-usb'):
             sock = self.socket(1)
             payload = json.dumps({'version': 1, 'id': 1, 'op': operation}).encode()
             record = len(payload).to_bytes(2, 'little') + payload
@@ -177,6 +177,42 @@ class NetworkTests(unittest.TestCase):
         self.assertEqual(self.core.owner, owner)
         sock.close(); self.pump()
         self.assertIsNone(self.core.owner)
+
+    def test_usb_setup_and_pressure_over_noise_tcp_without_bluetooth(self):
+        from avp_relay.capture import Capture, SAMPLE, usb_identifier
+        self.backend.available = False
+        self.backend.items = {}
+        identity = ('usb:/sys/devices/usb1/1-2', '', 3)
+        target = usb_identifier(identity)
+        self.core.capture.identity = identity
+        self.core.capture.usb_tablets = [dict(id=target, name='Wacom USB', serial='sample', port='1-2')]
+        patch.object(Capture, 'attached', new_callable=PropertyMock, return_value=True).start()
+        def select_usb(value):
+            self.assertEqual(value, target)  # Simulated hardware readiness; real Noise/socket below.
+        self.core.tablets.select_usb = select_usb
+        self.core.capture.axes = {0: 1234, 1: 2345, 24: 4567}
+        self.core.capture.ranges = {0: (0, 44800), 1: (0, 29600), 24: (0, 8191)}
+        self.core.capture.keys = {320, 330}
+        sock, client, connected = self.connect()
+        self.assertTrue(connected)
+        status = self.request(sock, client)
+        self.assertFalse(status['bluetoothAvailable'])
+        self.assertTrue(status['usbTablets'][0]['active'])
+        self.assertFalse(status['headsetAuthorized'])
+        self.assertTrue(self.request(sock, client, 'use-usb', target)['ok'])
+        self.assertTrue(self.request(sock, client)['headsetAuthorized'])
+        sock.close(); self.pump()
+        sock, client, connected = self.connect()
+        self.assertTrue(connected)
+        self.send(sock, client, 13, b'\x01')
+        frames = []
+        for _ in range(5):
+            frames += self.feed(sock, client, self.read(sock))
+            if any(kind == 14 for kind, _ in frames): break
+        sample = next(SAMPLE.unpack(data) for kind, data in frames if kind == 14)
+        self.assertEqual(sample[5:8], (1234, 2345, 4567))
+        self.assertTrue(sample[1] & 1)
+        self.assertEqual(json.loads((self.path/'paired-clients.json').read_text())['clients'], [self.client_public])
 
     def test_network_mode_requires_approved_noise_identity(self):
         from avp_relay.gadget_client import unavailable

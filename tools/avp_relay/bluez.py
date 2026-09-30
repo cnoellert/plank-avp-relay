@@ -5,6 +5,7 @@ import dbus.exceptions
 import dbus.mainloop.glib
 import dbus.service
 import json
+from pathlib import Path
 from gi.repository import GLib
 import signal
 import time
@@ -148,6 +149,7 @@ class Server(dbus.service.Object):
         self.registration_generation = 0
         self.notified = False
         self.failure = None
+        self.adapter_missing = False
         self.service = Object(self.bus, BASE + '/service', SERVICE,
             {'UUID': SERVICE_UUID, 'Primary': dbus.Boolean(True)})
         self.rx = Characteristic(self, False) if self.native else None
@@ -311,10 +313,17 @@ class Server(dbus.service.Object):
             self.tablets.backend.scanned = False
             self.bluetooth_unavailable('Restoring controller policy after tablet discovery.')
         if not self.advertising and not self.registering and time.monotonic() >= self.next_registration:
-            try:
-                self.register_bluetooth()
-            except (OSError, RuntimeError, dbus.exceptions.DBusException) as error:
-                self.bluetooth_unavailable(str(error))
+            if not (Path('/sys/class/bluetooth') / self.adapter.rsplit('/', 1)[1]).exists():
+                if not self.adapter_missing:
+                    self.bluetooth_unavailable('No Bluetooth adapter available.')
+                self.adapter_missing = True
+                self.next_registration = time.monotonic() + 5
+            else:
+                self.adapter_missing = False
+                try:
+                    self.register_bluetooth()
+                except (OSError, RuntimeError, dbus.exceptions.DBusException) as error:
+                    self.bluetooth_unavailable(str(error))
         for channel in (self.echo, self.setup):
             if channel:
                 try:

@@ -19,6 +19,32 @@ that ancestry; no upstream merge was performed during this migration.
 Root PLANK and its unrelated work remain untouched. Machine access, signing
 jobs and deployment details belong in the operator's private notes.
 
+Shared release **0.6.0** adds USB Wacom setup, management and automatic input
+selection. A single USB tablet takes priority over a saved Bluetooth selection;
+unplugging permits the saved Bluetooth tablet to resume. Explicit relay.conf
+selection is still authoritative. Input detection uses vendor/physical ancestry
+and pen/pressure capabilities, including pen-only tablets without ExpressKeys.
+No product/generation allowlist is used.
+
+USB status supplies name, serial/port and active selection. Manage Tablets shows
+USB devices separately, with no fictitious MAC or Bluetooth pairing/removal.
+An unowned relay can approve only its initiating encrypted session through
+Finish Setup after opening verified USB input. Public status never enrolls a
+headset; existing ownership checks remain. TCP/input stay available without a
+Bluetooth adapter and unavailable Bluetooth actions are disabled in the app.
+
+All 31 local Linux and 18 draft Apple suites passed. Regressions cover USB
+priority/fallback, multiple-device selection, pen-only detection, absent radio,
+failed USB verification, ownership retention and real Noise/TCP setup plus
+position/pressure frames with simulated hardware. The revised capture code
+opened the actual operator USB tablet despite its saved Bluetooth selection,
+with valid X/Y/pressure ranges. No moving-pen/pressure event or physical headset
+acceptance is claimed yet. Native offscreen USB previews were inspected.
+Final source build, packages, live deployment and TestFlight upload **29** are
+pending delivery; update this section after verification.
+
+## Previous delivery — 0.5.9
+
 Shared release **0.5.9** simplifies Manage Tablets. Saved tablet rows have
 consistent alignment, persistent MAC addresses, selected/connection status and
 three-dot action menus matching saved Wi-Fi networks. Remove Tablet confirms

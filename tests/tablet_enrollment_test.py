@@ -96,6 +96,37 @@ class EnrollmentTests(unittest.TestCase):
         self.now += 1
         self.manager.tick()
 
+    def test_usb_setup_without_radio_verifies_selected_input_and_retains_bonds(self):
+        self.backend.available = False
+        self.manager.state['tablets'] = [FIRST]
+        self.manager.state['selected'] = FIRST
+        usb = dict(id='usb:0123456789abcdef', name='Wacom USB', serial='serial', port='1-2', active=True)
+        self.manager.usb_status = lambda: [usb]
+        used = []
+        self.manager.select_usb = used.append
+        status = self.call()
+        self.assertFalse(status['bluetoothAvailable'])
+        self.assertEqual(status['usbTablets'], [usb])
+        self.assertFalse(self.call('scan')['ok'])
+        self.assertFalse(self.call('use-usb', 'usb:unlisted')['ok'])
+        self.assertEqual(self.enrolled, [])
+        self.assertTrue(self.call('use-usb', usb['id'])['ok'])
+        self.assertEqual(used, [usb['id']])
+        self.assertEqual(self.enrolled, ['headset'])
+        self.assertTrue(self.call(authenticated=True)['headsetAuthorized'])
+        self.assertEqual(self.manager.state['tablets'], [FIRST])
+        self.assertEqual(self.manager.state['selected'], FIRST)
+        self.assertFalse(any(isinstance(c, tuple) and c[0] in ('pair', 'connect', 'remove') for c in self.backend.calls))
+
+    def test_unplugged_usb_does_not_authorize_a_headset(self):
+        self.manager.usb_status = lambda: [dict(id='usb:0123456789abcdef')]
+        def unplugged(_): raise ValueError('USB tablet disconnected')
+        self.manager.select_usb = unplugged
+        self.assertFalse(self.call('use-usb', 'usb:0123456789abcdef')['ok'])
+        self.assertEqual(self.enrolled, [])
+        self.clients = True
+        self.assertFalse(self.call('use-usb', 'usb:0123456789abcdef', owner='stranger')['ok'])
+
     def test_first_tablet_setup_verifies_input_and_approves_initiating_headset(self):
         self.assertTrue(self.call()['initialSetup'])
         self.start()

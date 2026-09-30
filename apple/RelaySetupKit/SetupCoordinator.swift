@@ -63,7 +63,7 @@ public final class SetupCoordinator: ObservableObject {
             let trusted = try keys.relayKey(address) != nil
             guard state.selectRelay(address, trusted: trusted) else { return }
             message = trusted ? "Checking the relay’s saved authorization and tablets…" :
-                "Pair a tablet to finish setting up this headset and relay."
+                "Connect a USB tablet or pair a Bluetooth tablet to finish setup."
             tabletStatus = nil
             if trusted { refreshTabletStatus() } else { manageTablets() }
         } catch { message = error.localizedDescription }
@@ -221,7 +221,7 @@ public final class SetupCoordinator: ObservableObject {
                         self.authorizationDiagnostic = .passed(self.message)
                     } else {
                         self.message = status.canStartReadings ? "Tablet found. Choose Test Tablet to check its input." :
-                            "Pair or select a tablet before starting live readings."
+                            "Connect a USB tablet, or pair and select a Bluetooth tablet before testing."
                     }
                 }
             } catch {
@@ -691,7 +691,7 @@ public final class SetupCoordinator: ObservableObject {
                             return
                         }
                         guard status.canStartReadings else {
-                            throw RelaySetupError.rejected("Pair or select a tablet before starting live readings.")
+                            throw RelaySetupError.rejected("Connect a USB tablet, or pair and select a Bluetooth tablet before testing.")
                         }
                         try await self.client.observe(address: candidate, privateKey: self.keys.clientKey(), relayKey: relayKey,
                             onProgress: { [weak self] message in
@@ -703,7 +703,7 @@ public final class SetupCoordinator: ObservableObject {
                                 self.readings = sample
                                 self.readingCount += 1
                                 self.message = sample.attached ? "Receiving live tablet readings over \(candidate.transportName)." :
-                                    "The relay is connected. The tablet is offline; wake it to resume input. Pairing is retained."
+                                    "The relay is connected. Reconnect the USB tablet or wake the Bluetooth tablet to resume input. Saved pairings are retained."
                             }
                         break
                     } catch {

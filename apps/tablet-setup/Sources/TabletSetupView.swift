@@ -188,7 +188,7 @@ struct TabletSetupView: View {
         VStack(alignment: .leading, spacing: 18) {
             LabeledContent("Relay", value: setup.state.address?.description ?? "")
             LabeledContent("Connection", value: setup.state.address?.transportName ?? "")
-            Text("Pair or reconnect a tablet. The relay will save this headset automatically once the tablet is verified.")
+            Text("Connect a tablet by USB or pair it over Bluetooth. The relay saves this headset’s authorization once the tablet is verified.")
             Button("Set up a tablet") { setup.manageTablets() }
                 .buttonStyle(.borderedProminent).disabled(setup.state.busy)
         }
@@ -210,6 +210,11 @@ struct TabletSetupView: View {
                 .font(.title2).foregroundStyle(setup.tabletStatus?.headsetAuthorized == true ? Color.green : Color.secondary)
             LabeledContent("Relay", value: setup.state.address?.description ?? "")
             LabeledContent("Connection", value: setup.state.address?.transportName ?? "")
+            if let tablet = setup.tabletStatus?.activeUSBTablet {
+                LabeledContent("Tablet", value: tablet.name)
+                LabeledContent("Tablet connection", value: "USB")
+                if let serial = tablet.serial { LabeledContent("Serial number", value: serial).textSelection(.enabled) }
+            }
             if setup.state.activity == .stoppingObservation {
                 ProgressView("Stopping tablet test…")
             } else if setup.state.activity == .observing {
@@ -221,9 +226,9 @@ struct TabletSetupView: View {
                     .buttonStyle(.borderedProminent).disabled(!setup.state.canObserve)
                 if !setup.state.hasTablet {
                     Text(setup.state.activity == .checking ? "Checking the relay’s tablets…" :
-                         "Pair or select a tablet before starting live readings.")
+                         "Connect a USB tablet, or pair and select a Bluetooth tablet before testing.")
                         .font(.callout).foregroundStyle(.secondary)
-                    if setup.tabletStatus == nil && !setup.state.busy {
+                    if !setup.state.busy {
                         Button("Check tablet status") { setup.refreshTabletStatus() }
                     }
                 }
@@ -304,6 +309,30 @@ struct TabletManagementView: View {
                     Label(status.message, systemImage: "exclamationmark.circle")
                         .foregroundStyle(.red)
                 }
+                if let tablets = status.usbTablets, !tablets.isEmpty {
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            ForEach(tablets) { tablet in
+                                if tablet.id != tablets.first?.id { Divider() }
+                                HStack(alignment: .top, spacing: 16) {
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Text(tablet.name).font(.headline)
+                                        Text(tablet.serial.map { "Serial: \($0)" } ?? "USB port: \(tablet.port)")
+                                            .font(.system(.caption, design: .monospaced)).textSelection(.enabled)
+                                        Text(tablet.active ? "Selected · USB connected" : "USB connected")
+                                            .font(.callout).foregroundStyle(.secondary)
+                                    }.frame(maxWidth: .infinity, alignment: .leading)
+                                    if status.canManage && (!trusted || !tablet.active) {
+                                        Button(trusted ? "Select Tablet" : "Finish Setup") { operation("use-usb", tablet.id) }
+                                            .disabled(status.operating || pending)
+                                    }
+                                }
+                            }
+                            Text("A single USB tablet is used automatically. Unplug the cable to disconnect; Bluetooth pairings stay saved.")
+                                .font(.callout).foregroundStyle(.secondary)
+                        }.frame(maxWidth: .infinity, alignment: .leading).padding(10)
+                    } label: { Label("USB Tablets", systemImage: "cable.connector").font(.headline) }
+                }
                 if !status.tablets.isEmpty {
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
@@ -312,14 +341,14 @@ struct TabletManagementView: View {
                                 savedTabletRow(tablet, status: status)
                             }
                         }.frame(maxWidth: .infinity, alignment: .leading).padding(10)
-                    } label: { Text("Saved Tablets").font(.headline) }
-                } else if !status.attached {
-                    Text("No tablet paired").font(.headline)
+                    } label: { Text("Saved Bluetooth Tablets").font(.headline) }
+                } else if !status.attached && (status.usbTablets ?? []).isEmpty {
+                    Text("No tablet connected").font(.headline)
                 }
-                if status.canManage {
+                if status.canManage && status.bluetoothAvailable != false {
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
-                            Text("Put your tablet into Bluetooth pairing mode, then find and select it below.")
+                            Text("Connect a tablet by USB, or put it into Bluetooth pairing mode and find it below.")
                                 .font(.callout).foregroundStyle(.secondary)
                             Button(status.phase == "scanning" ? "Scan Again" : "Find Tablets") {
                                 operation("scan", nil)
@@ -344,6 +373,9 @@ struct TabletManagementView: View {
                         Text("Pairing or reconnecting a tablet also authorizes this headset automatically.")
                             .font(.callout).foregroundStyle(.secondary)
                     }
+                } else if status.canManage && status.bluetoothAvailable == false {
+                    Text("Bluetooth pairing is unavailable without an adapter. USB tablets can still be used.")
+                        .font(.callout).foregroundStyle(.secondary)
                 } else if status.needsHeadsetRecovery {
                     Text("This relay needs its approved headset or an ownership reset.")
                     OwnershipRecoveryView()
@@ -363,7 +395,7 @@ struct TabletManagementView: View {
     }
 
     private func savedTabletRow(_ tablet: ManagedTablet, status: TabletSetupStatus) -> some View {
-        let selected = status.selected == tablet.id
+        let selected = status.selected == tablet.id && status.activeUSBTablet == nil
         return HStack(alignment: .top, spacing: 16) {
             VStack(alignment: .leading, spacing: 8) {
                 tabletIdentity(tablet)
@@ -372,15 +404,18 @@ struct TabletManagementView: View {
             }.frame(maxWidth: .infinity, alignment: .leading)
             if status.canManage {
                 Menu {
-                    if !trusted {
+                    if !trusted && status.bluetoothAvailable != false {
                         Button("Finish Setup") { operation("connect", tablet.id) }
-                    } else if !selected {
+                    } else if trusted && !selected && status.activeUSBTablet == nil {
                         Button("Select Tablet") { operation("connect", tablet.id) }
-                    } else if !tablet.connected {
+                            .disabled(status.bluetoothAvailable == false)
+                    } else if trusted && !tablet.connected && status.activeUSBTablet == nil {
                         Button("Reconnect") { operation("connect", tablet.id) }
+                            .disabled(status.bluetoothAvailable == false)
                     }
                     if trusted {
                         Button("Remove Tablet…", role: .destructive) { remove(tablet) }
+                            .disabled(status.bluetoothAvailable == false)
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")

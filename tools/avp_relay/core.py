@@ -16,12 +16,13 @@ class RelayCore:
         self.tcp_port = None
         self.owner = None
         self.emit = self.busy = self.close_connection = None
-        self.capture = Capture(args.tablet, self.button)
+        self.capture = Capture(args.tablet, self.button, fixed=bool(args.tablet))
         self.gadget = GadgetClient()
         self.wifi = GadgetClient('/run/plank-avp-relay/wifi/control.sock', 'wifi-status', wifi_unavailable, 'Wi-Fi')
         self.tablets = Tablets(backend, args.state_dir, lambda: self.native.has_clients,
             self.select, lambda: self.capture.attached, args.tablet,
-            enroll_headset=self.enroll_headset)
+            enroll_headset=self.enroll_headset, usb_status=self.capture.usb_status,
+            select_usb=self.capture.use_usb)
         self.native.on_management = lambda data: self.request(data, self.owner,
             self.native.management_authorized, self.native.enrolling)
         self.last_sample = 0

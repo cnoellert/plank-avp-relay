@@ -279,3 +279,16 @@ References: [BlueZ Device API](https://github.com/bluez/bluez/blob/master/doc/or
 [Agent API](https://github.com/bluez/bluez/blob/master/doc/org.bluez.Agent.rst),
 [Adapter API](https://github.com/bluez/bluez/blob/master/doc/org.bluez.Adapter.rst),
 [Wacom Bluetooth guidance](https://support.wacom.com/hc/en-us/articles/8495786896791-How-can-I-diagnose-an-issue-with-my-Bluetooth-connection-on-Wacom-device).
+
+## USB alternative (0.6.0)
+
+A Wacom tablet can connect directly to a USB host port. A single USB tablet is
+selected automatically ahead of the saved Bluetooth tablet, whose bond is
+retained. Supported input is detected from Wacom ancestry and pen/pressure
+capabilities, including models without ExpressKeys. No product-ID list is used.
+The Setup app shows USB devices separately with serial/port identification.
+First-time owners choose Finish Setup for the connected USB tablet. This uses
+the same restricted encrypted enrollment and ownership checks as Bluetooth
+setup; public discovery/status never grants approval. TCP discovery, management
+and readings work with no Bluetooth adapter installed. Explicit relay.conf
+tablet selection still takes precedence over automatic USB preference.

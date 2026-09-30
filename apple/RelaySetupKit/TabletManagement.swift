@@ -9,6 +9,14 @@ public struct ManagedTablet: Decodable, Identifiable, Equatable, Sendable {
     public let paired: Bool
 }
 
+public struct USBTablet: Decodable, Identifiable, Equatable, Sendable {
+    public let id: String
+    public let name: String
+    public let serial: String?
+    public let port: String
+    public let active: Bool
+}
+
 public struct TabletSetupStatus: Decodable, Equatable, Sendable {
     public let version: Int
     public let id: Int
@@ -23,6 +31,8 @@ public struct TabletSetupStatus: Decodable, Equatable, Sendable {
     public let secondsRemaining: Int
     public let tablets: [ManagedTablet]
     public let candidates: [ManagedTablet]
+    public let usbTablets: [USBTablet]?
+    public let bluetoothAvailable: Bool?
     public let enrollmentVersion: Int?
     public let headsetAuthorized: Bool?
     public let relayKey: String?
@@ -37,6 +47,9 @@ public struct TabletSetupStatus: Decodable, Equatable, Sendable {
         guard ["idle", "scanning", "pairing", "connecting", "verifying", "ready", "failed"].contains(result.phase),
               (0...60).contains(result.secondsRemaining), result.tablets.count <= 16,
               result.candidates.count <= 16, result.hostname.utf8.count <= 255,
+              (result.usbTablets?.count ?? 0) <= 8,
+              (result.usbTablets ?? []).allSatisfy({ $0.id.hasPrefix("usb:") && $0.id.utf8.count <= 64 &&
+                  $0.name.utf8.count <= 64 && ($0.serial?.utf8.count ?? 0) <= 64 && $0.port.utf8.count <= 40 }),
               result.message.utf8.count <= 1024 else { throw RelaySetupError.protocolError }
         return result
     }
@@ -45,9 +58,10 @@ public struct TabletSetupStatus: Decodable, Equatable, Sendable {
     // A sleeping paired tablet can reconnect during observation. USB input
     // needs no Bluetooth bond, so a currently attached tablet also qualifies.
     public var canStartReadings: Bool {
-        !operating && (attached || tablets.contains { $0.paired && $0.id == selected })
+        !operating && (attached || (bluetoothAvailable != false && tablets.contains { $0.paired && $0.id == selected }))
     }
     public var needsHeadsetRecovery: Bool { !canManage && !initialSetup && headsetAuthorized != true }
+    public var activeUSBTablet: USBTablet? { usbTablets?.first { $0.active } }
 
     public var enrollmentIdentity: Data? {
         guard enrollmentVersion == 1, let relayKey, relayKey.utf8.count == 64 else { return nil }

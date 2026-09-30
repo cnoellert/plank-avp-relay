@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
-from avp_relay.capture import Capture, SAMPLE
+from avp_relay.capture import Capture, SAMPLE, candidates, usb_identifier
 from avp_relay.config import hostname_name, read_settings
 from avp_relay.controller import clear_advertisements
 from avp_relay.notify import ready
@@ -109,6 +109,68 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(capture.identity, ('bluetooth:a', 'local-controller', 5))
         capture.close()
 
+    def test_usb_overrides_saved_bluetooth_and_returns_to_it_after_unplug(self):
+        bluetooth = ('bluetooth:aa:bb:cc:dd:ee:01', 'controller', 5)
+        usb = ('usb:/sys/devices/usb1/1-2', '', 3)
+        other = ('bluetooth:aa:bb:cc:dd:ee:02', 'controller', 5)
+        capture = Capture('AA:BB:CC:DD:EE:01')
+        self.addCleanup(capture.close)
+        capture.identity = bluetooth
+        self.assertEqual(set(capture.choose({bluetooth: [], usb: [], other: []})), {usb})
+        capture.identity = usb
+        self.assertEqual(set(capture.choose({bluetooth: [], other: []})), {bluetooth})
+        self.assertEqual(capture.selected, 'aa:bb:cc:dd:ee:01')
+        capture.selected = 'none'  # Removing the last Bluetooth bond must not block USB.
+        self.assertEqual(set(capture.choose({usb: [], other: []})), {usb})
+        self.assertEqual(capture.choose({other: []}), {})
+
+    def test_usb_selection_and_explicit_config_do_not_pick_an_arbitrary_tablet(self):
+        first = ('usb:/sys/devices/usb1/1-1', '', 3)
+        second = ('usb:/sys/devices/usb1/1-2', '', 3)
+        capture = Capture()
+        self.addCleanup(capture.close)
+        self.assertEqual(len(capture.choose({first: [], second: []})), 2)
+        capture.usb_selection = usb_identifier(second)
+        self.assertEqual(set(capture.choose({first: [], second: []})), {second})
+        capture.identity = second
+        self.assertEqual(set(capture.choose({first: []})), {first})  # Replugged in another port.
+        fixed = Capture(first[0], fixed=True)
+        self.addCleanup(fixed.close)
+        self.assertEqual(set(fixed.choose({first: [], second: []})), {first})
+        self.assertEqual(fixed.choose({second: []}), {})
+        with patch.object(capture, 'discover'), self.assertRaises(ValueError):
+            capture.use_usb('usb:invented-by-client')
+
+    def test_usb_inventory_accepts_pen_only_wacom_without_a_product_allowlist(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            device = root / 'devices/usb1/1-2'
+            device.mkdir(parents=True)
+            (device / 'idVendor').write_text('056a')
+            (device / 'idProduct').write_text('ffff')
+            input = device / '1-2:1.0/hid/input/input0'
+            (input / 'id').mkdir(parents=True)
+            (input / 'capabilities').mkdir()
+            for name, value in [('bustype', '0003'), ('vendor', '056a')]:
+                (input / 'id' / name).write_text(value)
+            # sysfs represents bitmaps as native-word chunks, high word first.
+            import struct
+            width = struct.calcsize('L') * 8
+            def bits(codes):
+                value = sum(1 << code for code in codes)
+                return ' '.join(format((value >> offset) & ((1 << width)-1), 'x')
+                                for offset in reversed(range(0, value.bit_length(), width)))
+            (input / 'capabilities/key').write_text(bits([0x140]))
+            (input / 'capabilities/abs').write_text(bits([0, 1, 24]))
+            event = root / 'class/input/event0'
+            event.mkdir(parents=True)
+            (event / 'device').symlink_to(input)
+            found = candidates(root / 'class/input')
+            self.assertEqual(len(found), 1)
+            self.assertEqual(next(iter(found.values()))[0][1], 'pen')
+            (input / 'id/vendor').write_text('1234')
+            self.assertEqual(candidates(root / 'class/input'), {})
+
     def test_bluetooth_failure_retries_without_stopping_network(self):
         for event in ('daemon', 'power', 'removed'):
             server = MagicMock()
@@ -122,6 +184,23 @@ class ServiceTests(unittest.TestCase):
                 Server.removed(server, server.adapter, ['org.bluez.Adapter1'])
             server.bluetooth_unavailable.assert_called_once()
             server.loop.quit.assert_not_called()
+
+    def test_missing_adapter_skips_registration_and_keeps_tcp_and_input_polling(self):
+        server = MagicMock()
+        server.adapter = '/org/bluez/hci0'
+        server.advertising = server.registering = server.adapter_missing = False
+        server.next_registration = 0
+        server.controller_workaround = False
+        server.echo = server.setup = None
+        with patch('avp_relay.bluez.Path.exists', return_value=False), \
+                patch('avp_relay.bluez.time.monotonic', return_value=100):
+            Server.tick(server)
+            server.next_registration = 0
+            Server.tick(server)
+        server.register_bluetooth.assert_not_called()
+        server.bluetooth_unavailable.assert_called_once()
+        self.assertEqual(server.network.poll.call_count, 2)
+        self.assertEqual(server.core.tick.call_count, 2)
 
     def test_busy_adapter_is_rejected_before_controller_changes(self):
         server = MagicMock()

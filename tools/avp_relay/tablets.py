@@ -50,11 +50,12 @@ def save(path, value):
 
 class Tablets:
     def __init__(self, backend, directory, has_clients, select, attached, configured='', clock=time.monotonic,
-                 enroll_headset=None):
+                 enroll_headset=None, usb_status=lambda: [], select_usb=None):
         self.backend, self.has_clients = backend, has_clients
         self.select, self.attached, self.clock = select, attached, clock
         self.configured = configured
         self.enroll_headset = enroll_headset
+        self.usb_status, self.select_usb = usb_status, select_usb
         self.enroll_owner = None
         self.path = Path(directory) / 'tablets.json'
         self.state = {'version': 1, 'selected': None, 'tablets': [], 'pending': None}
@@ -126,6 +127,8 @@ class Tablets:
                 'canManage': bool(authenticated or (enrolling and self.initial(devices))),
                 'headsetAuthorized': bool(authenticated),
                 'initialSetup': self.initial(devices), 'attached': bool(self.attached()),
+                'usbTablets': self.usb_status(),
+                'bluetoothAvailable': getattr(self.backend, 'available', True),
                 'selected': self.configured or self.state['selected'],
                 'secondsRemaining': max(0, int(self.deadline - self.clock())) if self.deadline else 0,
                 'tablets': [item(key) for key in sorted(known)[:16]],
@@ -144,9 +147,9 @@ class Tablets:
                 raise ValueError('Invalid tablet request.')
             request_id = request['id']
             operation = request.get('op')
-            if operation not in ('status', 'scan', 'pair', 'connect', 'select', 'remove', 'cancel'):
+            if operation not in ('status', 'scan', 'pair', 'connect', 'select', 'remove', 'cancel', 'use-usb'):
                 raise ValueError('Unknown tablet operation.')
-            if operation != 'status' and self.owner is None and not self.recover_pending():
+            if operation not in ('status', 'use-usb') and self.owner is None and not self.recover_pending():
                 raise ValueError(self.message)
             devices = self.backend.devices()
             if self.owner and self.owner != owner and operation != 'status':
@@ -163,7 +166,21 @@ class Tablets:
                 self.owner = owner
                 if not self.session_deadline:
                     self.session_deadline = self.clock() + 300
-                if operation == 'scan':
+                if operation == 'use-usb':
+                    target = request.get('tablet')
+                    if self.select_usb is None or not any(t['id'] == target for t in self.usb_status()):
+                        raise ValueError('Select a connected USB tablet from this relay’s list.')
+                    self.stop_scan()
+                    self.select_usb(target)
+                    if not authenticated:
+                        if self.enroll_headset is None:
+                            raise ValueError('Headset authorization is unavailable.')
+                        self.enroll_headset(owner)
+                    self.phase, self.message = 'ready', 'USB tablet ready and headset authorized.'
+                    self.deadline = 0
+                elif not getattr(self.backend, 'available', True):
+                    raise ValueError('No Bluetooth adapter available. Connect a USB tablet or reconnect the adapter.')
+                elif operation == 'scan':
                     self.stop_scan()
                     self.discovered.clear()
                     self.backend.start_scan()
@@ -205,6 +222,9 @@ class Tablets:
         encoded = json.dumps(response, separators=(',', ':'), ensure_ascii=False).encode()
         while len(encoded) > 4096 and response.get('candidates'):
             response['candidates'].pop()
+            encoded = json.dumps(response, separators=(',', ':'), ensure_ascii=False).encode()
+        while len(encoded) > 3800 and response.get('usbTablets'):
+            response['usbTablets'].pop()
             encoded = json.dumps(response, separators=(',', ':'), ensure_ascii=False).encode()
         if len(encoded) > 4096:
             raise ValueError('Tablet response exceeded its bound.')

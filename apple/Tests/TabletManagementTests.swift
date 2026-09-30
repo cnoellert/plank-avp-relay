@@ -28,6 +28,17 @@ enum TabletManagementTests {
         let usb = fields.merging(["tablets": [], "attached": true]) { _, new in new }
         let usbTablet = try TabletSetupStatus.decode(JSONSerialization.data(withJSONObject: usb), request: 3)
         precondition(usbTablet.canStartReadings)
+        let wired = usb.merging(["bluetoothAvailable": false, "usbTablets": [[
+            "id": "usb:0123456789abcdef", "name": "Wacom USB", "serial": "serial", "port": "1-2", "active": true]]]) { _, new in new }
+        let wiredTablet = try TabletSetupStatus.decode(JSONSerialization.data(withJSONObject: wired), request: 3)
+        precondition(wiredTablet.canStartReadings && wiredTablet.bluetoothAvailable == false)
+        precondition(wiredTablet.activeUSBTablet?.serial == "serial")
+        let noRadio = selected.merging(["bluetoothAvailable": false]) { _, new in new }
+        let noRadioStatus = try TabletSetupStatus.decode(JSONSerialization.data(withJSONObject: noRadio), request: 3)
+        precondition(!noRadioStatus.canStartReadings)
+        let unplugged = wired.merging(["attached": false, "usbTablets": []]) { _, new in new }
+        let unpluggedTablet = try TabletSetupStatus.decode(JSONSerialization.data(withJSONObject: unplugged), request: 3)
+        precondition(!unpluggedTablet.canStartReadings && unpluggedTablet.activeUSBTablet == nil)
         let identity = String(repeating: "12", count: 32)
         for (key, version, valid) in [(identity, 1, true), ("bad", 1, false),
                                      (String(repeating: "zz", count: 32), 1, false), (identity, 2, false)] {

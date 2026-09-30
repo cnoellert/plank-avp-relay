@@ -12,7 +12,7 @@ enum SetupPreview {
         _ = NSApplication.shared
         let directory = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        for page in ["relay", "readings", "offline", "wifi-networks", "wifi-disabled", "wifi-joining", "network-bridge", "network-router", "network-disconnected", "network-changing", "network-unavailable", "tablets-empty", "tablets-scan", "tablets-saved", "tablets-pairing", "tablets-replacement", "tablets-recovery"] {
+        for page in ["relay", "readings", "offline", "wifi-networks", "wifi-disabled", "wifi-joining", "network-bridge", "network-router", "network-disconnected", "network-changing", "network-unavailable", "tablets-empty", "tablets-scan", "tablets-saved", "tablets-pairing", "tablets-replacement", "tablets-recovery", "tablets-usb", "tablets-usb-setup"] {
             let content: AnyView
             if page.hasPrefix("wifi-") {
                 let id = String(repeating: "a", count: 32)
@@ -54,11 +54,13 @@ enum SetupPreview {
                     "message": "Pairing the selected tablet…", "canManage": page != "tablets-recovery", "initialSetup": !["tablets-saved", "tablets-replacement", "tablets-recovery"].contains(page),
                     "attached": false, "secondsRemaining": 45,
                     "selected": page == "tablets-saved" ? "AA:BB:CC:DD:EE:02" : NSNull(),
+                    "bluetoothAvailable": !page.hasPrefix("tablets-usb"),
+                    "usbTablets": page.hasPrefix("tablets-usb") ? [["id": "usb:0123456789abcdef", "name": "Wacom Intuos Pro M", "serial": "EXAMPLE123", "port": "1-2", "active": true]] : [],
                     "tablets": page == "tablets-saved" ? [tablet, secondTablet] : [],
                     "candidates": page == "tablets-scan" ? [tablet, secondTablet] : []])
                 let status = try TabletSetupStatus.decode(data, request: 1)
                 content = AnyView(VStack(alignment: .leading, spacing: 20) {
-                    TabletManagementView(status: status, relayName: status.hostname, message: status.message, trusted: ["tablets-saved", "tablets-replacement"].contains(page), pending: false,
+                    TabletManagementView(status: status, relayName: status.hostname, message: status.message, trusted: ["tablets-saved", "tablets-replacement", "tablets-usb"].contains(page), pending: false,
                         operation: { _, _ in }, finish: {}, remove: { _ in })
                 }.padding(30))
             } else if page == "readings" || page == "offline" {

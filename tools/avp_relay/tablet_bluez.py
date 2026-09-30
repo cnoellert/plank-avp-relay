@@ -82,6 +82,7 @@ class TabletBlueZ:
         self.pairing_path = None
         self.registered = False
         self.scanned = False
+        self.available = False
         self.agent = TabletAgent(self)
 
     def interface(self, path, kind):
@@ -92,6 +93,7 @@ class TabletBlueZ:
 
     @bluez_errors
     def devices(self):
+        self.available = False
         try:
             objects = self.interface('/', 'org.freedesktop.DBus.ObjectManager').GetManagedObjects(timeout=2)
         except dbus.exceptions.DBusException as error:
@@ -100,6 +102,7 @@ class TabletBlueZ:
                     'org.freedesktop.DBus.Error.NoReply'):
                 return {}
             raise
+        self.available = ADAPTER in objects.get(self.adapter, {})
         return {address(str(values[DEVICE]['Address'])): dict(values[DEVICE])
                 for path, values in objects.items()
                 if str(path).startswith(self.adapter + '/dev_') and DEVICE in values and
