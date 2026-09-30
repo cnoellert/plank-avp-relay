@@ -244,6 +244,9 @@ class Tablets:
         if self.scanning:
             self.backend.stop_scan()
             self.scanning = False
+            if self.phase == 'scanning':
+                self.phase, self.message = 'idle', 'Tablet scan stopped. Choose a tablet operation.'
+                self.deadline = 0
 
     def begin_pair(self, target, properties, reconnect=False):
         if len(self.known(self.backend.devices())) >= 16 and target not in self.known(self.backend.devices()):

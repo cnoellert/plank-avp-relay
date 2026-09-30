@@ -74,6 +74,9 @@ class Backend:
     def start_scan(self):
         self.calls.append('scan')
 
+    def stop_scan(self):
+        self.calls.append('stop-scan')
+
 
 class CaptureLeaseTests(unittest.TestCase):
     def test_same_abstract_address_contends_and_reacquires_after_close(self):
@@ -183,6 +186,46 @@ class CaptureLeaseTests(unittest.TestCase):
                 capture.use_usb(target)
         self.assertIsNone(capture.usb_selection)
         self.assertFalse(capture.attached)
+
+    def test_failed_remove_after_stopping_scan_releases_capture_ownership(self):
+        with tempfile.TemporaryDirectory() as directory:
+            lease = FakeLease()
+            lease.allowed = True
+            capture = Capture(lease=lease)
+            self.addCleanup(capture.close)
+            backend = Backend()
+
+            def failed_remove(target):
+                backend.calls.append(('remove', target))
+                raise RuntimeError('Bluetooth remove failed')
+
+            backend.remove = failed_remove
+            manager = Tablets(backend, directory, lambda: True, lambda _: None,
+                lambda: capture.available, require_capture=capture.require_lease)
+
+            def request(op, tablet=None):
+                payload = {'version': 1, 'id': 1, 'op': op}
+                if tablet:
+                    payload['tablet'] = tablet
+                return json.loads(manager.handle(json.dumps(payload).encode(),
+                    'headset', authenticated=True))
+
+            self.assertTrue(request('scan')['ok'])
+            self.assertTrue(lease.held)
+            self.assertEqual(manager.phase, 'scanning')
+            result = request('remove', 'AA:BB:CC:DD:EE:01')
+            self.assertFalse(result['ok'])
+            self.assertEqual(backend.calls, ['scan', 'stop-scan', ('remove', 'AA:BB:CC:DD:EE:01')])
+            self.assertFalse(manager.scanning)
+            self.assertEqual(manager.phase, 'idle')
+            self.assertEqual(manager.deadline, 0)
+            self.assertTrue(lease.held)  # Request handler does not release a live operation.
+            core = object.__new__(RelayCore)
+            core.owner, core.tablets, core.capture = None, manager, capture
+            core.native = Mock(observing=False, approval_pending=0)
+            with patch('avp_relay.capture.candidates', return_value={}):
+                core.sync_capture()
+            self.assertFalse(lease.held)
 
     def test_wrong_setup_owner_cannot_release_capture(self):
         core = object.__new__(RelayCore)
