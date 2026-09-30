@@ -103,6 +103,17 @@ public final class SetupCoordinator: ObservableObject {
             "Connected over \(address.transportName.lowercased())."
     }
 
+    private func rememberNetworkRoutes(_ status: TabletSetupStatus, address: RelayAddress, relayKey: Data) {
+        guard status.headsetAuthorized == true, let identity = status.enrollmentIdentity,
+              identity == relayKey, status.networkAddresses != nil, status.tcpPort != nil else { return }
+        // Replace previous literal hints after DHCP or interface changes. Keep
+        // Bonjour and Bluetooth discovery, and bound learned routes to eight.
+        addresses.removeAll { $0.networkHost != nil }
+        for route in status.routes(name: address.description, relayKey: relayKey) where !addresses.contains(route) {
+            addresses.append(route)
+        }
+    }
+
     public func manageTablets() {
         guard let address = state.address, let id = state.beginTabletSetup() else { return }
         tabletStatus = nil
@@ -133,6 +144,9 @@ public final class SetupCoordinator: ObservableObject {
                     }, onStatus: { [weak self] status in
                         guard let self, self.state.operation == id else { return }
                         self.tabletStatus = status
+                        if let key = try? self.keys.relayKey(address) {
+                            self.rememberNetworkRoutes(status, address: address, relayKey: key)
+                        }
                         self.state.updateTabletAvailability(status.canStartReadings, operation: id)
                         // An earlier status poll must not acknowledge a command
                         // queued while that poll was in flight.
@@ -211,6 +225,7 @@ public final class SetupCoordinator: ObservableObject {
                 guard self.state.operation == id else { return }
                 self.state.useAddress(address, operation: id)
                 self.tabletStatus = status
+                self.rememberNetworkRoutes(status, address: address, relayKey: relayKey)
                 if status.headsetAuthorized != true {
                     self.state.cancel()
                     self.state.forget()
@@ -682,6 +697,14 @@ public final class SetupCoordinator: ObservableObject {
             do {
                 try Task.checkCancellation()
                 guard let relayKey = try self.keys.relayKey(address) else { throw RelaySetupError.invalidStoredKey }
+                // Learn fresh routes over the selected authenticated connection
+                // before opening high-rate readings. This works without mDNS.
+                let selected = try await self.availableAddress(address)
+                let rendezvous = try await self.client.tabletStatus(address: selected,
+                    privateKey: self.keys.clientKey(), relayKey: relayKey)
+                try Task.checkCancellation()
+                guard self.state.operation == id else { return }
+                self.rememberNetworkRoutes(rendezvous, address: selected, relayKey: relayKey)
                 let candidates = self.networkRoutes.ordered(self.addresses.isEmpty ? [address] : self.addresses,
                     preferBluetooth: false)
                 for attempt in 0..<4 {

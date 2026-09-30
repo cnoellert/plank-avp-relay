@@ -136,12 +136,19 @@ name can group unverified discovery candidates, but grants no trust. Ambiguous
 names or known distinct identities stay separate. Any fallback must prove the
 selected relay key before an operation is authorized.
 
-The relay reports its active TCP port with authenticated Wi-Fi status. The app
-keeps those literal Wi-Fi addresses as separate routes to the same saved relay
-identity. If Bonjour still resolves the withdrawn Ethernet address after a cable
-change, Wi-Fi is tried before Bluetooth. Changing addresses never creates new
-authorization. USB still follows the physical Ethernet cable; relay Wi-Fi is not
-forwarded to USB. Physical cable handover needs device acceptance testing.
+Release 0.6.3 also returns the active TCP port and up to eight local listener
+addresses in tablet status, only to the currently authenticated, authorized
+headset. Before live readings, the app learns fresh routes through that saved
+relay, including over Bluetooth. It then tries network readings before Bluetooth
+and verifies the same relay key on the new connection. This permits Bluetooth
+rendezvous when Bonjour cannot cross subnets; the LAN must still permit routed
+TCP traffic. Loopback, link-local, multicast and nonliteral addresses are rejected.
+New status replaces old literal routes after DHCP or interface changes. Older
+relays retain the existing Bonjour and authenticated Wi-Fi status behavior.
+
+Changing addresses never creates new authorization. USB Ethernet still follows
+the physical Ethernet cable; relay Wi-Fi is not forwarded to USB. Physical cable
+handover needs device acceptance testing.
 
 Ownership is shared across transports. Existing BLE Keychain records and the
 headset private key are retained; authenticated enrollment also records the

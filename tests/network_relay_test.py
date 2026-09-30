@@ -146,7 +146,10 @@ class NetworkTests(unittest.TestCase):
                 sock.sendall(record[offset:offset+3]); self.pump()
             reply = self.read(sock)
             if operation == 'status':
-                self.assertEqual(json.loads(reply[2:])['relayKey'], self.core.native.public_key)
+                status = json.loads(reply[2:])
+                self.assertEqual(status['relayKey'], self.core.native.public_key)
+                self.assertNotIn('networkAddresses', status)
+                self.assertNotIn('tcpPort', status)
             else: self.assertEqual(reply, b'')
             self.assertIsNone(self.core.owner)
 
@@ -179,6 +182,23 @@ class NetworkTests(unittest.TestCase):
         self.assertEqual(self.core.owner, owner)
         sock.close(); self.pump()
         self.assertIsNone(self.core.owner)
+
+    def test_route_rendezvous_requires_authenticated_current_owner_without_capture(self):
+        self.approve()
+        self.core.network_endpoints = lambda: ['192.0.2.2']
+        sock, client, connected = self.connect()
+        self.assertTrue(connected)
+        status = self.request(sock, client)
+        self.assertEqual(status['networkAddresses'], ['192.0.2.2'])
+        self.assertEqual(status['tcpPort'], self.server.port)
+        self.assertFalse(self.core.native.observing)
+        self.assertFalse(self.core.capture.attached)
+        payload = json.dumps({'version': 1, 'id': 1, 'op': 'status'}).encode()
+        other = json.loads(self.core.request(payload, 'other', authenticated=True))
+        self.assertNotIn('networkAddresses', other)
+        self.server.close()
+        self.assertEqual(self.core.network_endpoints(), [])
+        self.assertIsNone(self.core.tcp_port)
 
     def test_burst_of_reports_survives_noise_tcp_in_order(self):
         from avp_relay.capture import SAMPLE

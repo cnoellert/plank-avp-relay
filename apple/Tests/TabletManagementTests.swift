@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import Foundation
-import RelaySetupKit
+@testable import RelaySetupKit
 
 @main
 enum TabletManagementTests {
@@ -16,6 +16,7 @@ enum TabletManagementTests {
         precondition(!status.initialSetup && !status.canManage && status.hostname == "studio-relay")
         precondition(status.enrollmentIdentity == nil && status.headsetAuthorized != true)
         precondition(status.captureActive == nil && status.captureBusy == nil)
+        precondition(status.tcpPort == nil && status.networkAddresses == nil)
         precondition(!status.canStartReadings) // Saved rows need a selected tablet.
         let selected = fields.merging(["selected": "AA:BB:CC:DD:EE:01"]) { _, new in new }
         let sleepingTablet = try TabletSetupStatus.decode(JSONSerialization.data(withJSONObject: selected), request: 3)
@@ -54,6 +55,24 @@ enum TabletManagementTests {
         let unpluggedTablet = try TabletSetupStatus.decode(JSONSerialization.data(withJSONObject: unplugged), request: 3)
         precondition(!unpluggedTablet.canStartReadings && unpluggedTablet.activeUSBTablet == nil)
         let identity = String(repeating: "12", count: 32)
+        let pinnedKey = Data(repeating: 0x12, count: 32)
+        let routeFields: [String: Any] = ["relayKey": identity, "enrollmentVersion": 1,
+            "headsetAuthorized": true, "tcpPort": 28991,
+            "networkAddresses": ["192.0.2.2", "127.0.0.1", "host.example"]]
+        func routedStatus(_ changes: [String: Any] = [:]) throws -> TabletSetupStatus {
+            let updated = fields.merging(routeFields) { _, new in new }.merging(changes) { _, new in new }
+            return try TabletSetupStatus.decode(JSONSerialization.data(withJSONObject: updated), request: 3)
+        }
+        let routed = try routedStatus()
+        precondition(routed.routes(name: "relay", relayKey: pinnedKey).map(\.networkHost) == ["192.0.2.2"])
+        precondition(routed.routes(name: "relay", relayKey: Data(repeating: 0x13, count: 32)).isEmpty)
+        let unapproved = try routedStatus(["headsetAuthorized": false])
+        precondition(unapproved.routes(name: "relay", relayKey: pinnedKey).isEmpty)
+        for changes: [String: Any] in [["tcpPort": 0], ["tcpPort": 65536],
+            ["networkAddresses": Array(repeating: "192.0.2.2", count: 9)],
+            ["networkAddresses": [String(repeating: "x", count: 65)]]] {
+            do { _ = try routedStatus(changes); fatalError("Unbounded or invalid route status accepted") } catch {}
+        }
         for (key, version, valid) in [(identity, 1, true), ("bad", 1, false),
                                      (String(repeating: "zz", count: 32), 1, false), (identity, 2, false)] {
             let updated = fields.merging(["relayKey": key, "enrollmentVersion": version]) { _, new in new }

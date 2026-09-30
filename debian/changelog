@@ -1,3 +1,11 @@
+plank-avp-relay (0.6.3) experimental; urgency=medium
+
+  * Return bounded TCP routes to the authenticated, authorized headset.
+  * Use Bluetooth rendezvous to find network tablet readings without Bonjour.
+  * Retain relay identity verification and replace stale address hints.
+
+ -- PLANK contributors <625982+alatteri@users.noreply.github.com>  Wed, 30 Sep 2026 22:00:00 +0000
+
 plank-avp-relay (0.6.2) experimental; urgency=medium
 
   * Preserve completed tablet input reports and their source timestamps.
