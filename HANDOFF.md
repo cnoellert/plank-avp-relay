@@ -2,17 +2,43 @@
 
 ## Active work — Bluetooth streaming and direct headset installs
 
-**0.6.4 / build33 is being prepared on `bluetooth-l2cap`.** The user reproduced
-0.6.3's failure under pen pressure in IMG_0065. Relay logs again showed the
-half-second capture backlog guard, with no service restart and no TCP fallback.
-The approved replacement is now implemented: a dynamic PSM exposed through
-GATT, then LE credit-based L2CAP carrying existing uncompressed/authenticated
-messages. App and relay changes are detailed in `docs/bluetooth-headset-lab.md`.
+**Development candidate 0.6.4 / build33 is installed on the relay and AVP.**
+Source `76edb5e9886a4ffe6bb45aef6f002728800231f8` is pushed on
+`bluetooth-l2cap`. The user reproduced 0.6.3's failure under pen pressure in
+IMG_0065. Relay logs showed the half-second capture backlog guard twice, with
+no service restart and no TCP fallback.
 
-Do not upload this candidate to TestFlight. Build, test and install it directly
-via mac34. Physical AVP acceptance of L2CAP remains outstanding. Preserve all
-identity, tablet bonds and configuration during the relay upgrade. The active
-connection label reports Bluetooth · L2CAP only after an input sample arrives.
+The approved replacement now uses a dynamic PSM exposed through GATT, then
+LE credit-based L2CAP carrying existing uncompressed/authenticated messages.
+The app never falls back to GATT. Details are in
+[Bluetooth protocol and investigation](docs/bluetooth-headset-lab.md).
+The test sheet reports Bluetooth · L2CAP only after an input sample arrives.
+
+Validation: all 31 Linux suites and 20 Apple suites pass. Real sequenced-packet
+socket tests cover Noise, ordered 80-byte samples, synthetic evdev input at
+200 reports/s, MTU fragmentation, backpressure, ownership and disconnects.
+Apple stream tests cover partial writes, credit stalls, cancellation and input
+bounds. macOS and visionOS simulator compile; simulator execution was not run.
+The signed device archive and development export pass bundle/profile and
+matching executable/dSYM checks. All 247 staged source hashes match the source
+commit above. GUI build/export jobs are unloaded.
+
+[CI 36775997033](https://github.com/instinctual/plank-avp-relay/actions/runs/36775997033)
+passed both package builds and both clean-install checks. Checksums and source
+provenance are verified. Packages are in
+`artifacts/deb/0.6.4/{ubuntu-26.04/amd64,debian-13/arm64}/`; development IPA,
+logs, source hashes and dSYMs are in `artifacts/development/0.6.4/build-33/`.
+The relay upgrade retained identity, headset/tablet bonds, USB mode and Wi-Fi
+profiles/policy. All three services and configuration checks pass. Hardware
+L2CAP listener and advertisement are running; no service restart since startup.
+AVP install readback confirms 0.6.4/build33 through mac34, in place.
+
+**Physical AVP L2CAP acceptance is still pending.** The operator was asked to
+select Bluetooth only, run Test Tablet and draw under pressure for a minute.
+A listener bind and synthetic stream tests are not radio-throughput proof.
+Do not claim the pressure-triggered failure fixed until that test succeeds.
+No TestFlight upload, GitHub release or merge was performed. Next development
+build number: 34. Preserve the direct-install delivery policy below.
 
 ### Previous candidate and investigation
 
