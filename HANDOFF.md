@@ -32,11 +32,29 @@ main Tablet page. One Done button closes management; idle monitoring no longer
 shows a busy spinner or a second Cancel button. Linux behavior is unchanged;
 its version advances to match the app.
 
-Draft macOS compilation, all 18 Apple suites and the existing Linux tablet
-enrollment/removal suite passed. Native offscreen previews of saved, scanning
-and empty-after-removal pages were inspected. These previews are not physical
-visionOS interaction tests. Signed build **28** and both packages are pending
-final build/delivery; update this section after verification.
+Source `8bb5f1dacd06732f68f18a037e0ae99c6724c1d6` passed **31 Linux suites**
+and **18 Apple suites**, macOS build, visionOS simulator compilation and signed
+device archive/export with matching executable/dSYM UUIDs. Native offscreen
+previews of saved, scanning and empty-after-removal pages were inspected.
+The simulator was compiled, not run. Physical headset layout/menu interaction
+and removal/re-pairing remain operator acceptance checks.
+
+Apple upload **28** is **VALID / IN_BETA_TESTING**, with exact tester notes and
+the saved Standard / No France compliance applied and read back. Artifacts are
+in `artifacts/testflight/0.5.9/build-28/`. All one-shot Mac build/upload jobs are
+unloaded. Next Apple upload: **29**.
+
+Both native package builds and both clean-install jobs passed in
+[CI 36673957255](https://github.com/instinctual/plank-avp-relay/actions/runs/36673957255).
+Both installers are directly in `artifacts/`, with checksums/provenance under
+`artifacts/deb/0.5.9/<platform>/<arch>/`. The
+[v0.5.9 release](https://github.com/instinctual/plank-avp-relay/releases/tag/v0.5.9)
+tag matches the exact source; all eight published asset digests were verified.
+
+The matching arm64 package is installed on the live relay. Its upgrade and
+configuration/package checks passed, and all three services are active.
+Identity, headset/tablet pairings, USB mode, Wi-Fi policy and profiles were
+retained. The private state backup and access details remain in operator notes.
 
 ## Previous delivery — 0.5.8
 
