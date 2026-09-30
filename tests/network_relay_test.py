@@ -40,6 +40,10 @@ codec.crypto_scalarmult_curve25519_base.argtypes = [C.c_void_p, C.c_void_p]
 
 class NetworkTests(unittest.TestCase):
     def setUp(self):
+        # Loopback/fake-evdev tests must not claim the installed tablet lease.
+        # Keep the real Linux exclusivity behavior in a test-only namespace.
+        self.enterContext(patch('avp_relay.capture_lease.ADDRESS',
+            b'\0plank-network-test-' + os.urandom(12).hex().encode()))
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.path = Path(self.temp.name)
@@ -80,11 +84,15 @@ class NetworkTests(unittest.TestCase):
             self.pump()
         return sock
 
-    def read(self, sock):
+    def read(self, sock, allow_closed=False):
         deadline = time.monotonic() + 2
         while time.monotonic() < deadline:
             self.pump()
-            try: return sock.recv(8192)
+            try:
+                data = sock.recv(8192)
+                if not data and not allow_closed:
+                    self.fail('Network connection closed before the expected response')
+                return data
             except socket.timeout: pass
         self.fail('Socket did not produce a bounded response')
 
@@ -101,7 +109,7 @@ class NetworkTests(unittest.TestCase):
         for offset in range(0, len(data), 7):
             sock.sendall(data[offset:offset+7]); self.pump()
         while not codec.pltr_client_link_peer_version(client):
-            data = self.read(sock)
+            data = self.read(sock, allow_closed=True)
             if not data: return sock, client, False
             self.feed(sock, client, data)
         return sock, client, True
@@ -144,7 +152,7 @@ class NetworkTests(unittest.TestCase):
             record = len(payload).to_bytes(2, 'little') + payload
             for offset in range(0, len(record), 3):
                 sock.sendall(record[offset:offset+3]); self.pump()
-            reply = self.read(sock)
+            reply = self.read(sock, allow_closed=operation != 'status')
             if operation == 'status':
                 self.assertEqual(json.loads(reply[2:])['relayKey'], self.core.native.public_key)
             else: self.assertEqual(reply, b'')
