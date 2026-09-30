@@ -19,6 +19,27 @@ that ancestry; no upstream merge was performed during this migration.
 Root PLANK and its unrelated work remain untouched. Machine access, signing
 jobs and deployment details belong in the operator's private notes.
 
+Shared release **0.5.9** simplifies Manage Tablets. Saved tablet rows have
+consistent alignment, persistent MAC addresses, selected/connection status and
+three-dot action menus matching saved Wi-Fi networks. Remove Tablet confirms
+the name/address and retains headset approval. Select Tablet appears only for
+another saved tablet; Reconnect is offered for the selected offline tablet.
+A retained tablet still supports finishing setup after ownership reset.
+
+Add Tablet remains available after removing the last tablet, while testing
+stays disabled until a tablet is available. Diagnostics appears only on the
+main Tablet page. One Done button closes management; idle monitoring no longer
+shows a busy spinner or a second Cancel button. Linux behavior is unchanged;
+its version advances to match the app.
+
+Draft macOS compilation, all 18 Apple suites and the existing Linux tablet
+enrollment/removal suite passed. Native offscreen previews of saved, scanning
+and empty-after-removal pages were inspected. These previews are not physical
+visionOS interaction tests. Signed build **28** and both packages are pending
+final build/delivery; update this section after verification.
+
+## Previous delivery — 0.5.8
+
 Shared release **0.5.8** makes Connection Diagnostics a permanent section on
 the Tablet page. Progress and results remain visible. The separate Headset
 Authorization section and handshake-only check are removed; the manual check

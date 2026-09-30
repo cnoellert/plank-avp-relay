@@ -10,7 +10,8 @@ every three seconds; results expire after eight seconds without a successful
 probe. Bluetooth entries expire five seconds after the last advertisement.
 These are expiry bounds, not a fixed startup delay. Saved credentials are retained for reconnection, but offline
 saved relays are not listed. There are no Local or Simulation tabs.
-Connection Diagnostics is a permanent section on the Tablet page. Test progress,
+Connection Diagnostics is a permanent section on the main Tablet page; it is
+not repeated inside Manage Tablets. Test progress,
 success and failure stay beside their buttons; running a test does not replace
 the page or hide its result. Check Headset Authorization reads the relay's
 explicit saved approval over the authenticated connection. It never treats a
@@ -125,14 +126,25 @@ protocol failures are not replayed. Live readings expose the same progress
 messages, and connection-stage logs contain no identifiers, keys or input.
 
 With [relay package revision 14 or newer](../../docs/linux-ble-package.md),
-select the relay, choose **Find tablets to pair**, put the tablet into pairing
+select the relay, choose **Add Tablet → Find Tablets**, put the tablet into pairing
 mode, and select it. Successful bond/vendor/HID/input verification automatically
 saves the headset that initiated setup. The app proceeds to live readings with
 no three-circle or tablet-button confirmation. Existing owners use **Manage
 tablets** to replace a tablet without losing headset authorization.
 Discovery and saved tablet rows show the Bluetooth MAC address below the name,
-including when a saved tablet is offline. Removal confirmation also includes
-the address so tablets with identical names can be distinguished.
+including when a saved tablet is offline. Manage Tablets uses aligned saved
+rows with a three-dot menu, matching saved Wi-Fi networks. The selected tablet
+is identified in its status; Select Tablet appears only for other tablets and
+Reconnect only for the selected offline tablet. A retained tablet can still
+finish headset setup after an ownership reset. Remove Tablet requires a
+confirmation with the name and MAC address, forgets the tablet bond and retains
+headset approval. Removing the last tablet leaves Add Tablet available and
+disables testing until a tablet is paired or selected again.
+
+One Done button closes management, including canceling an in-progress setup.
+Progress is shown only while opening, scanning, changing or closing setup;
+idle monitoring does not show a spinner. Connection Diagnostics stays on the
+main Tablet page.
 
 The read-only setup endpoint supplies the public relay identity. Mutations use
 a restricted Noise session; tablet verification promotes only its initiating

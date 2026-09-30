@@ -41,11 +41,10 @@ struct TabletSetupView: View {
               Tab("Tablet", systemImage: "pencil.tip", value: "tablet") {
               ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    Text(setup.state.activity == .managingTablets ? "Set up your tablet" :
-                         setup.state.step.title).font(.largeTitle.bold())
                     if setup.state.activity == .managingTablets {
                         tabletManagementPage
                     } else {
+                        Text(setup.state.step.title).font(.largeTitle.bold())
                         switch setup.state.step {
                         case .relay: Text("Select a relay to set up your tablet.")
                         case .tablet: tabletPage
@@ -58,7 +57,7 @@ struct TabletSetupView: View {
                         Button("Forget saved relay") { forgettingRelay = true }
                             .disabled(setup.state.busy)
                     }
-                    if setup.state.address != nil {
+                    if setup.state.address != nil && setup.state.activity != .managingTablets {
                         Divider()
                         GroupBox {
                             VStack(alignment: .leading, spacing: 12) {
@@ -136,17 +135,19 @@ struct TabletSetupView: View {
                     do { try await Task.sleep(for: .seconds(10)) } catch { return }
                 }
             }
-            HStack(alignment: .top, spacing: 10) {
+            if setup.state.activity != .managingTablets {
+              HStack(alignment: .top, spacing: 10) {
                 if setup.state.busy && !setup.state.connectionVerified { ProgressView().controlSize(.small) }
                 Text(selectedTab == "network" ? "Configure USB networking and Wi-Fi above. Connection status is read-only." : setup.message)
                     .font(.callout).fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("setup-status")
+              }
             }
             HStack {
                 Text("No workstation connection required").font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 if setup.state.activity == .managingNetwork { Button("Stop waiting") { setup.cancel() } }
-                else if setup.state.busy && setup.state.activity != .observing && setup.state.activity != .stoppingObservation { Button("Cancel") { setup.cancel() } }
+                else if setup.state.busy && setup.state.activity != .observing && setup.state.activity != .stoppingObservation && setup.state.activity != .managingTablets { Button("Cancel") { setup.cancel() } }
             }
         }
         .padding(28)
@@ -156,15 +157,17 @@ struct TabletSetupView: View {
         }
         .onDisappear { setup.pauseForInactivity() }
         .confirmationDialog("Remove this tablet from the relay?", isPresented: Binding(
-            get: { tabletToRemove != nil }, set: { if !$0 { tabletToRemove = nil } })) {
+            get: { tabletToRemove != nil }, set: { if !$0 { tabletToRemove = nil } }), titleVisibility: .visible) {
             if let tablet = tabletToRemove {
-                Button("Remove \(tablet.name) (\(tablet.id))", role: .destructive) {
+                Button("Remove Tablet", role: .destructive) {
                     setup.tabletOperation("remove", tablet: tablet.id)
                     tabletToRemove = nil
                 }
             }
         } message: {
-            Text("This removes this tablet's Bluetooth bond. To use it again, put it into pairing mode and add it again. Headset approvals are retained.")
+            if let tablet = tabletToRemove {
+                Text("\(tablet.name)\n\(tablet.id)\n\nThis forgets the tablet’s Bluetooth pairing on the relay. To use it again, put it into pairing mode and add it again. This headset remains authorized.")
+            }
         }
         .confirmationDialog("Forget the saved pairing for \(setup.state.address?.description ?? "this relay")?",
                             isPresented: $forgettingRelay) {
@@ -192,7 +195,8 @@ struct TabletSetupView: View {
     }
 
     private var tabletManagementPage: some View {
-        TabletManagementView(status: setup.tabletStatus, trusted: setup.state.hasTrust,
+        TabletManagementView(status: setup.tabletStatus, relayName: setup.state.address?.description ?? "",
+            message: setup.message, trusted: setup.state.hasTrust,
             pending: setup.tabletCommandPending,
             operation: { setup.tabletOperation($0, tablet: $1) },
             finish: { setup.finishTabletSetup() },
@@ -230,7 +234,7 @@ struct TabletSetupView: View {
                 Text("Connecting and verifying the saved relay identity…")
                     .font(.callout).foregroundStyle(.secondary)
             }
-            Button("Manage tablets") { setup.manageTablets() }.disabled(setup.state.busy)
+            Button("Manage Tablets") { setup.manageTablets() }.disabled(setup.state.busy)
         }
     }
 }
@@ -266,79 +270,123 @@ struct OwnershipRecoveryView: View {
 
 struct TabletManagementView: View {
     let status: TabletSetupStatus?
+    let relayName: String
+    let message: String
     let trusted: Bool
     let pending: Bool
     let operation: (String, String?) -> Void
     let finish: () -> Void
     let remove: (ManagedTablet) -> Void
-    @ViewBuilder var body: some View {
-        if let status = status {
-            LabeledContent("Relay", value: status.hostname)
-            if status.tablets.isEmpty && !status.attached {
-                Text("No tablet paired").font(.title2.bold())
+    @State private var closing = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(trusted ? "Manage Tablets" : "Set Up Your Tablet").font(.largeTitle.bold())
+                    Text(status?.hostname ?? relayName).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button("Done") {
+                    closing = true
+                    finish()
+                }.disabled(closing || pending)
+            }
+            if closing {
+                ProgressView("Closing tablet setup…")
+            } else if let status {
+                if status.operating {
+                    ProgressView(status.message)
+                    Text("\(status.secondsRemaining) seconds remaining").font(.callout).foregroundStyle(.secondary)
+                } else if pending {
+                    ProgressView("Updating tablets…")
+                } else if status.phase == "failed" {
+                    Label(status.message, systemImage: "exclamationmark.circle")
+                        .foregroundStyle(.red)
+                }
+                if !status.tablets.isEmpty {
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            ForEach(status.tablets) { tablet in
+                                if tablet.id != status.tablets.first?.id { Divider() }
+                                savedTabletRow(tablet, status: status)
+                            }
+                        }.frame(maxWidth: .infinity, alignment: .leading).padding(10)
+                    } label: { Text("Saved Tablets").font(.headline) }
+                } else if !status.attached {
+                    Text("No tablet paired").font(.headline)
+                }
                 if status.canManage {
-                    Text("Put your tablet into Bluetooth pairing mode, then find and select it below.")
-                    if trusted {
-                        Text("This headset is still authorized. You can add a tablet without approving the headset again.")
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Text("Put your tablet into Bluetooth pairing mode, then find and select it below.")
+                                .font(.callout).foregroundStyle(.secondary)
+                            Button(status.phase == "scanning" ? "Scan Again" : "Find Tablets") {
+                                operation("scan", nil)
+                            }.buttonStyle(.borderedProminent).disabled(status.operating || pending)
+                            if status.phase == "scanning" {
+                                ProgressView("Scanning · \(status.secondsRemaining) seconds remaining")
+                                ForEach(status.candidates) { tablet in
+                                    HStack(alignment: .top, spacing: 16) {
+                                        tabletIdentity(tablet)
+                                        Button("Pair") { operation("pair", tablet.id) }
+                                            .disabled(pending)
+                                            .accessibilityLabel("Pair \(tablet.name), \(tablet.id)")
+                                    }
+                                }
+                                if status.candidates.isEmpty {
+                                    Text("No tablets found yet.").foregroundStyle(.secondary)
+                                }
+                            }
+                        }.frame(maxWidth: .infinity, alignment: .leading).padding(10)
+                    } label: { Label("Add Tablet", systemImage: "plus.circle").font(.headline) }
+                    if !trusted {
+                        Text("Pairing or reconnecting a tablet also authorizes this headset automatically.")
                             .font(.callout).foregroundStyle(.secondary)
                     }
+                } else if status.needsHeadsetRecovery {
+                    Text("This relay needs its approved headset or an ownership reset.")
+                    OwnershipRecoveryView()
                 }
+            } else {
+                ProgressView(message)
             }
-            ForEach(status.tablets) { tablet in
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(tablet.name).font(.headline)
-                    Text(tablet.id).font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(.secondary).textSelection(.enabled)
-                    Text(tablet.connected ? "Connected" : "Saved · offline — wake the tablet to reconnect")
-                        .font(.callout).foregroundStyle(.secondary)
-                    if status.canManage {
-                        HStack {
-                            Button(tablet.connected ? "Use this tablet" : "Connect") {
-                                operation("connect", tablet.id)
-                            }
-                            if trusted { Button("Remove", role: .destructive) { remove(tablet) } }
-                        }.disabled(status.operating || pending)
-                    }
-                }
-            }
-            if status.operating {
-                ProgressView(status.message)
-                Text("\(status.secondsRemaining) seconds remaining").font(.callout)
-            } else if status.canManage {
-                Button(status.phase == "scanning" ? "Scan again" : "Find tablets to pair") {
-                    operation("scan", nil)
-                }.buttonStyle(.borderedProminent).disabled(pending)
-                if status.phase == "scanning" {
-                    Text("Put your tablet into Bluetooth pairing mode, then choose it below.")
-                    Text("Scanning · \(status.secondsRemaining) seconds remaining")
-                        .font(.callout).foregroundStyle(.secondary)
-                    ForEach(status.candidates) { tablet in
-                        Button {
-                            operation("pair", tablet.id)
-                        } label: {
-                            VStack(alignment: .leading) {
-                                Text("Pair \(tablet.name)")
-                                Text(tablet.id).font(.system(.caption, design: .monospaced))
-                                    .foregroundStyle(.secondary)
-                            }
-                        }.disabled(pending)
-                    }
-                    if status.candidates.isEmpty { Text("No candidate tablets found yet.") }
-                }
-            } else if status.needsHeadsetRecovery {
-                Text("This relay needs its approved headset or an ownership reset.")
-                OwnershipRecoveryView()
-            }
-            if !trusted && status.canManage {
-                Text("Pairing or reconnecting the tablet also saves this headset’s authorization. No tablet-button confirmation is needed.")
-                    .font(.callout).foregroundStyle(.secondary)
-            }
-            if trusted && !status.operating {
-                Button("Done") { finish() }.disabled(pending)
-            }
-        } else {
-            ProgressView("Checking the relay’s tablets…")
-        }
+        }.frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    private func tabletIdentity(_ tablet: ManagedTablet) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(tablet.name).font(.headline)
+            Text(tablet.id).font(.system(.caption, design: .monospaced))
+                .foregroundStyle(.secondary).textSelection(.enabled)
+        }.frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func savedTabletRow(_ tablet: ManagedTablet, status: TabletSetupStatus) -> some View {
+        let selected = status.selected == tablet.id
+        return HStack(alignment: .top, spacing: 16) {
+            VStack(alignment: .leading, spacing: 8) {
+                tabletIdentity(tablet)
+                Text((selected ? "Selected · " : "") + (tablet.connected ? "Connected" : "Offline — wake tablet to reconnect"))
+                    .font(.callout).foregroundStyle(.secondary)
+            }.frame(maxWidth: .infinity, alignment: .leading)
+            if status.canManage {
+                Menu {
+                    if !trusted {
+                        Button("Finish Setup") { operation("connect", tablet.id) }
+                    } else if !selected {
+                        Button("Select Tablet") { operation("connect", tablet.id) }
+                    } else if !tablet.connected {
+                        Button("Reconnect") { operation("connect", tablet.id) }
+                    }
+                    if trusted {
+                        Button("Remove Tablet…", role: .destructive) { remove(tablet) }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .accessibilityLabel("Manage \(tablet.name), \(tablet.id)")
+                }.disabled(status.operating || pending)
+            }
+        }
+    }
 }

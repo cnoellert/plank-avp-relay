@@ -1,3 +1,10 @@
+plank-avp-relay (0.5.9) experimental; urgency=medium
+
+  * Match the Setup app tablet-management layout and per-tablet action menus.
+  * Linux relay behavior and stored settings are unchanged.
+
+ -- PLANK contributors <625982+alatteri@users.noreply.github.com>  Wed, 30 Sep 2026 05:32:10 -0000
+
 plank-avp-relay (0.5.8) experimental; urgency=medium
 
   * Report the live TCP listener port in authenticated Wi-Fi status so the

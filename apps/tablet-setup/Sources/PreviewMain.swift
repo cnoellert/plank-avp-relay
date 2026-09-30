@@ -50,15 +50,15 @@ enum SetupPreview {
                 secondTablet["id"] = "AA:BB:CC:DD:EE:02"
                 secondTablet["connected"] = page == "tablets-saved"
                 let data = try JSONSerialization.data(withJSONObject: ["version": 1, "id": 1, "ok": true,
-                    "hostname": "plank-tablet-relay-02", "phase": page == "tablets-pairing" ? "pairing" : page == "tablets-scan" ? "scanning" : "idle",
+                    "hostname": "plank-avp-relay-02", "phase": page == "tablets-pairing" ? "pairing" : page == "tablets-scan" ? "scanning" : "idle",
                     "message": "Pairing the selected tablet…", "canManage": page != "tablets-recovery", "initialSetup": !["tablets-saved", "tablets-replacement", "tablets-recovery"].contains(page),
                     "attached": false, "secondsRemaining": 45,
+                    "selected": page == "tablets-saved" ? "AA:BB:CC:DD:EE:02" : NSNull(),
                     "tablets": page == "tablets-saved" ? [tablet, secondTablet] : [],
                     "candidates": page == "tablets-scan" ? [tablet, secondTablet] : []])
                 let status = try TabletSetupStatus.decode(data, request: 1)
                 content = AnyView(VStack(alignment: .leading, spacing: 20) {
-                    Text("Set up your tablet").font(.largeTitle.bold())
-                    TabletManagementView(status: status, trusted: ["tablets-saved", "tablets-replacement"].contains(page), pending: false,
+                    TabletManagementView(status: status, relayName: status.hostname, message: status.message, trusted: ["tablets-saved", "tablets-replacement"].contains(page), pending: false,
                         operation: { _, _ in }, finish: {}, remove: { _ in })
                 }.padding(30))
             } else if page == "readings" || page == "offline" {
