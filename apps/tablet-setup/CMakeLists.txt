@@ -42,6 +42,7 @@ add_library(RelaySetupKit STATIC
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayBackgroundRefresh.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayBluetooth.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayBLEConnection.swift"
+    "${RELAY_ROOT}/apple/RelaySetupKit/RelayL2CAPStream.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayTCPConnection.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayScanner.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayDiscovery.swift"
@@ -140,6 +141,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     target_include_directories(relay-connection-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
     target_link_libraries(relay-connection-tests PRIVATE RelaySetupKit)
     add_test(NAME relay-connection-tests COMMAND relay-connection-tests)
+    add_executable(relay-l2cap-stream-tests "${RELAY_ROOT}/apple/Tests/RelayL2CAPStreamTests.swift")
+    target_include_directories(relay-l2cap-stream-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+    target_link_libraries(relay-l2cap-stream-tests PRIVATE RelaySetupKit)
+    add_test(NAME relay-l2cap-stream-tests COMMAND relay-l2cap-stream-tests)
     add_library(ManagementPeer STATIC "${RELAY_ROOT}/apple/Tests/ManagementPeer/ManagementPeer.c")
     target_include_directories(ManagementPeer PUBLIC "${RELAY_ROOT}/apple/Tests/ManagementPeer")
     target_link_libraries(ManagementPeer PUBLIC CRelayProtocol)

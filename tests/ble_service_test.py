@@ -13,7 +13,7 @@ from avp_relay.capture import Capture, SAMPLE, candidates, usb_identifier
 from avp_relay.config import hostname_name, read_settings
 from avp_relay.controller import clear_advertisements
 from avp_relay.notify import ready
-from avp_relay.bluez import Server, PROPERTIES
+from avp_relay.bluez import Server, PROPERTIES, L2CAPEndpoint
 from avp_relay.core import RelayCore
 
 
@@ -230,6 +230,42 @@ class ServiceTests(unittest.TestCase):
             Server.register_bluetooth(server)
         self.assertTrue(server.advertising)
         server.notify_ready.assert_called_once()
+
+    def test_l2cap_listener_registered_after_controller_policy_and_before_gatt(self):
+        server = MagicMock()
+        server.exclusive_adapter = False
+        server.controller_workaround = True
+        server.registration_generation = 0
+        server.l2cap = None
+        server.peer = server.echo.peer = None
+        server.setup = None
+        properties = MagicMock()
+        properties.Get.side_effect = lambda kind, field: {
+            'Discovering': False, 'ActiveInstances': 0, 'Powered': True,
+            'Address': 'AA:BB:CC:DD:EE:FF', 'AddressType': 'public'}[field]
+        order = []
+        gatt = MagicMock()
+        gatt.RegisterApplication.side_effect = lambda *a, **k: order.append('gatt')
+        def listening(*args, **kwargs):
+            order.append('listen')
+            return MagicMock(psm=128)
+        with patch('avp_relay.bluez.dbus.Interface', side_effect=lambda _, name:
+                   gatt if name == 'org.bluez.GattManager1' else properties), \
+                patch('avp_relay.bluez.disable_address_resolution', side_effect=lambda _: order.append('policy')), \
+                patch('avp_relay.bluez.L2CAPServer', side_effect=listening) as listener:
+            Server.register_bluetooth(server)
+        self.assertEqual(order, ['policy', 'listen', 'gatt'])
+        listener.assert_called_once()
+        self.assertEqual(listener.call_args.args, (server.core, 'AA:BB:CC:DD:EE:FF', 'public'))
+        self.assertFalse(listener.call_args.kwargs['busy']())
+        endpoint = MagicMock(server=server)
+        self.assertEqual(bytes(L2CAPEndpoint.ReadValue(endpoint, {})), b'\x01\x80\x00')
+        with self.assertRaises(Exception): L2CAPEndpoint.ReadValue(endpoint, {'offset': 1})
+        active = server.l2cap
+        Server.unregister_bluetooth(server)
+        active.close.assert_called_once()
+        self.assertIsNone(server.l2cap)
+        server.network.close.assert_not_called()
 
     def test_tcp_configuration_and_port_bounds(self):
         self.assertTrue(self.read('[relay]\n').tcp_enabled)

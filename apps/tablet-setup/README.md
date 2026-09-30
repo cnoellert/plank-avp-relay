@@ -304,7 +304,11 @@ to hide the selector and ignore even a previously saved Bluetooth-only choice.
 The CMake option has the same name. `RelayTestTransport.swift` owns the policy
 and single defaults key; `RelayTestTransportView.swift` owns the selector UI.
 Removal needs no Linux, wire-protocol or identity migration. The current
-Bluetooth transport is still GATT; this selector does not implement L2CAP.
+Starting with 0.6.4, Bluetooth connections require the relay's LE credit-based
+L2CAP endpoint. GATT only discovers its dynamic PSM; input, management and echo
+use the socket stream. There is no automatic GATT fallback. Update both app and
+relay together. The test sheet identifies the active path as Bluetooth · L2CAP
+only after a sample arrives. Physical throughput acceptance is still pending.
 
 Development builds are installed directly through the Mac paired with the AVP.
 Build/signing can run on another authorized Mac, then transfer the signed app

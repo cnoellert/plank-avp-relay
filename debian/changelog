@@ -1,3 +1,11 @@
+plank-avp-relay (0.6.4) experimental; urgency=medium
+
+  * Add a Bluetooth LE credit-based L2CAP stream for current relay sessions.
+  * Retain the existing Noise identity, encryption and tablet report format.
+  * Match the Setup app's required L2CAP transport and strict Bluetooth test.
+
+ -- PLANK contributors <625982+alatteri@users.noreply.github.com>  Wed, 30 Sep 2026 22:00:00 +0000
+
 plank-avp-relay (0.6.3) experimental; urgency=medium
 
   * Match the Setup app's temporary strict Bluetooth test selector.

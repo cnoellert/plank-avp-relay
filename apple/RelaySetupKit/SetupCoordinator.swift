@@ -720,8 +720,9 @@ public final class SetupCoordinator: ObservableObject {
                             }) { [weak self] sample in
                                 guard let self, self.state.operation == id, self.state.activity == .observing else { return }
                                 if !self.state.connectionVerified { self.state.verifyObservation(id) }
-                                if self.tabletTestConnection != candidate.transportName {
-                                    self.tabletTestConnection = candidate.transportName
+                                let activeTransport = candidate.linkType == 1 ? "Bluetooth · L2CAP" : candidate.transportName
+                                if self.tabletTestConnection != activeTransport {
+                                    self.tabletTestConnection = activeTransport
                                 }
                                 self.tabletTest.accept(sample)
                                 let message = sample.attached ? "Receiving live tablet readings over \(candidate.transportName)." :

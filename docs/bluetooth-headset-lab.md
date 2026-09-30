@@ -1,5 +1,40 @@
 # Bluetooth headset input lab
 
+## 0.6.4 development transport
+
+The Setup app now requires LE credit-based L2CAP for Bluetooth sessions. The
+service UUID remains `462f3a10-7a31-4ab3-9e7f-c36af495ecf0`. A read-only
+characteristic, `462f3a17-7a31-4ab3-9e7f-c36af495ecf0`, returns three bytes:
+endpoint schema 1 and the kernel-allocated PSM as a little-endian uint16.
+Read it on each connection; a restart or adapter replacement can change the PSM.
+
+The Linux listener binds the selected adapter's LE address, sets a 4096-byte
+receive MTU after binding, and uses the negotiated send MTU for each socket SDU.
+CoreBluetooth exposes the resulting channel as input/output byte streams. Both
+sides handle partial records; SDU boundaries are not message boundaries. The
+app sends `PLTRLEC1` followed by a channel byte: 0 for the existing authenticated
+session, 1 for read-only bootstrap status, or 2 for the bounded echo test.
+Channel 0 retains the Bluetooth CPace/Noise transcript, saved keys, ownership,
+80-byte input messages, full report order and normal authorization rules.
+OS credits control delivery; there is no app-level fragment ACK or timer.
+
+The channel uses application authentication/encryption without requesting an
+AVP OS bond. Controller address-resolution setup and the battery-client policy
+remain necessary and unchanged. TCP still uses its existing transport and
+preface. The old GATT channels remain on the relay temporarily for the already
+installed app/comparison; the new app never falls back to them. Remove them
+once physical AVP L2CAP acceptance is complete. The older GATT investigation
+below explains the original hardware findings, not the new data path.
+
+Tests cover actual sequenced-packet sockets, synthetic evdev input, Noise,
+report ordering, MTU fragmentation, credit stalls, authentication and session
+cleanup. Apple stream tests cover partial writes, backpressure, cancellation,
+disconnect and bounded input. These tests and a successful hardware listener
+bind do not establish actual AVP radio throughput. Test sustained pressure and
+motion on the headset with Bluetooth only selected before claiming this fixes
+the reported half-second backlog failure.
+
+
 The standalone Test Setup app can discover a Linux relay over Bluetooth LE,
 authorize a pending headset using three presses of one tablet button, and display pen,
 pressure, tilt, button and touch readings. This is an explicit diagnostic mode;

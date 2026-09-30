@@ -2,6 +2,20 @@
 
 ## Active work — Bluetooth streaming and direct headset installs
 
+**0.6.4 / build33 is being prepared on `bluetooth-l2cap`.** The user reproduced
+0.6.3's failure under pen pressure in IMG_0065. Relay logs again showed the
+half-second capture backlog guard, with no service restart and no TCP fallback.
+The approved replacement is now implemented: a dynamic PSM exposed through
+GATT, then LE credit-based L2CAP carrying existing uncompressed/authenticated
+messages. App and relay changes are detailed in `docs/bluetooth-headset-lab.md`.
+
+Do not upload this candidate to TestFlight. Build, test and install it directly
+via mac34. Physical AVP acceptance of L2CAP remains outstanding. Preserve all
+identity, tablet bonds and configuration during the relay upgrade. The active
+connection label reports Bluetooth · L2CAP only after an input sample arrives.
+
+### Previous candidate and investigation
+
 **Development candidate 0.6.3 / build32**, source
 `8c5d6345b1536787ac6bac58d9014c2b965060b2`, is committed and pushed on
 `bluetooth-l2cap`. The temporary Tablet-page selector offers Automatic or
@@ -1377,7 +1391,8 @@ SSH signal is used on the BLE path. Holds, mixed buttons, detach and cancellatio
 cannot carry partial approval into another request. This convenience scheme
 retains the documented nearby-attacker risk during initial enrollment; it is
 not equivalent to a random authentication challenge. Subsequent sessions use
-the saved-key Noise connection and encrypted, coalesced readings (up to 20Hz).
+the saved-key Noise connection and encrypted readings. Since 0.6.2 the test observer preserves every complete
+evdev report; the earlier 20Hz coalescing limit was removed.
 The 80-byte snapshot wire format and reserved bytes remain unchanged.
 
 The operator authorized future build-specific TestFlight notes and compliance
