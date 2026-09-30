@@ -153,11 +153,19 @@ identity-store or tablet arguments. The test sends three random payloads and
 verifies 1,600 returned bytes across three round trips. The tablet may be off;
 there is no approval gesture. A passing byte test establishes communication,
 without creating or verifying saved pairing trust. Progress/timeout messages
-show which connection stage was reached and the last signal strength when
-available. See the lab guide for its dedicated, bounded echo channels.
+show which connection stage was reached. Discovery also reports signal strength
+when available. See the lab guide for its dedicated, bounded echo channels.
+
+The byte diagnostic opens its echo channel directly and sends all three
+payloads over that connection. It does not run a preliminary status/identity
+lookup or use tablet setup. Automatic routing may try the next available route
+after closing a failed one; Bluetooth-only mode remains restricted to Bluetooth.
+Cancellation waits for connection cleanup before enabling another operation.
+The byte test does not establish saved trust; Check Headset Authorization
+performs that separate authenticated check.
 
 Connection startup recovers once if the previous physical Bluetooth link closes
-before the new reply subscription is ready. The fresh attempt uses the original
+before the new L2CAP channel is ready. The fresh attempt uses the original
 20-second deadline. This handles a setup/approval transition where CoreBluetooth
 briefly reuses a link that Linux is still closing. Recovery happens before any
 authorization or input protocol bytes are sent; established sessions and

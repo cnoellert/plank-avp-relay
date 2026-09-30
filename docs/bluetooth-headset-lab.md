@@ -1,6 +1,58 @@
 # Bluetooth headset input lab
 
-## 0.6.5 connection handoff
+## 0.6.5 development build 36 — direct byte diagnostic
+
+IMG_0068 and the September 30 16:21 captures expose build 35's remaining
+channel-close race. Status completes; the app closes its L2CAP streams at
+16:21:48.362 and asks the same central to reopen PSM128 at 48.363. CoreBluetooth
+rejects the request as already connected at 48.367. The relay receives the
+previous channel's disconnect request at 48.389. No echo channel starts.
+
+Test Relay Connection now opens the echo channel directly, sending its three
+payloads on that one connection. It needs no preliminary status connection:
+the diagnostic tests byte delivery and neither checks nor establishes trust.
+Automatic routing tries eligible routes in order, cleaning up before fallback;
+the temporary Bluetooth-only setting still forbids TCP fallback. Cancellation
+keeps the operation reserved until transport cleanup completes.
+
+The build 35 physical-link sharing experiment is removed, including its extra
+link/session classes. Tablet testing returns to its pre-build35 authenticated
+status/observer lifecycle. Input transport, Linux protocol/package, radio
+settings and startup deadlines are unchanged. Initial radio establishment
+failures remain a separate unresolved issue; removing this diagnostic handoff
+does not establish that those failures or drawing backlogs are resolved.
+
+Regression tests run the actual three-payload echo loop on one connection,
+fragment replies, check corruption, route cleanup and Bluetooth-only failure,
+and verify that cancellation completes teardown before return or fallback.
+
+## Superseded 0.6.5 development build 35 — shared physical link
+
+The September 30 paired captures showed another handoff failure: the status
+channel succeeded, but the app canceled its peripheral connection and created
+a new central for the echo test. CoreBluetooth attached that central while the
+previous link was disconnecting. No echo channel reached the relay before the
+startup deadline. Tablet testing could recover through its whole-operation
+retry, explaining why it sometimes worked after the diagnostic failed.
+
+In build 35, Test Relay Connection and each Test Tablet attempt owned a single physical
+BLE link across their preliminary status and final test channels. Each logical
+channel closes its streams before the next opens; the central, peripheral and
+discovered PSM remain owned until the operation succeeds, fails or is canceled.
+Physical failures retire the link. Cancellation during channel startup also
+retires it, so a late OS callback cannot be assigned to a later channel.
+Operation completion waits for bounded peripheral cleanup before releasing the
+UI. The next operation starts with a fresh owner and discovers its current PSM.
+
+Regression tests exercise actual plaintext status decoding followed by all
+three echo round trips on one mock physical link, partial stream writes,
+corrupt replies, cancellation cleanup and recovery after a physical failure.
+Physical testing exposed the PSM close/reopen race described above; the mock
+physical link did not model CoreBluetooth's asynchronous channel teardown.
+Input timing, buffering, the relay's backlog guard, radio parameters and TCP
+transport are unchanged.
+
+## 0.6.5 build 34 connection handoff
 
 IMG_0067 exposed a scan-only handoff problem after the new L2CAP bootstrap.
 The radio trace shows successful status request/reply on PSM128, followed by

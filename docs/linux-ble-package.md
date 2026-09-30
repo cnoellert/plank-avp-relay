@@ -213,13 +213,15 @@ journalctl -u plank-avp-relay -b
 ```
 
 On Armbian (detected by `/etc/armbian-release`), installation and upgrades set
-`GOVERNOR="powersave"` and `ENABLED="true"` in `/etc/default/cpufrequtils`.
+`GOVERNOR="schedutil"` and `ENABLED="true"` in `/etc/default/cpufrequtils`.
 Other settings, including minimum/maximum frequency and boost, are preserved.
 The first changed file is backed up to
-`/var/backups/plank-avp-relay/cpufrequtils.before-powersave`. Armbian applies
+`/var/backups/plank-avp-relay/cpufrequtils.before-schedutil`; any older
+`cpufrequtils.before-powersave` backup is retained. Armbian applies
 the governor at boot; the installer does not restart its broader hardware
 optimization service. Package removal retains this host setting and backup.
-Non-Armbian hosts are unaffected.
+Non-Armbian hosts are unaffected. The scheduler-based governor lets supported
+Armbian kernels raise CPU frequency for relay work and reduce it while idle.
 
 ### USB radio preparation
 

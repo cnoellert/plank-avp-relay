@@ -2,6 +2,246 @@
 
 ## Active work — Bluetooth streaming and direct headset installs
 
+### Build 36: variable wireless latency measured — September 30
+
+Operator reports reliable connections, slow `Bluetooth · L2CAP`, fast network,
+then a much better Bluetooth run without any intervening deployment or radio
+change. Keep the Wacom wireless for further tests; USB comparison is unavailable.
+
+Paired logs and the relay HCI trace establish a transport backlog. Earlier good
+drawing delivered about 200 input records/s; slow periods delivered 110–130/s,
+and the worst run 64–73/s. In that run, the last incoming Wacom pen frames arrive
+at 16:41:15.189, but queued input records continue leaving the relay until
+16:41:19.117. These are relay-side timestamps, not measured pen-to-display latency.
+Controller completion median rises from 52 ms in the earlier good capture to
+119 ms across the current capture. Wacom-to-relay delivery also slows during
+the poor dual-Bluetooth runs. Radio scheduling/contention is a lead, not proven
+causation. All captured headset links still use 2M PHY, 30 ms interval and
+251-byte data length. No evidence of L2CAP credit starvation or relay restart.
+
+Current AVP logs show the app discovery scan stopped during streaming. OS
+background scanning changes overlap only part of the slowdown; do not claim
+an app-scanner fix or a specific radio culprit. The latest improved session
+16:42:53–16:43:48 has AVP logs but falls after the first packet capture expired.
+The relay's half-second guard only covers pending capture data, not everything
+already accepted by the Bluetooth socket/kernel/controller. Increasing buffers
+would hide rather than resolve the delay. Next work: measure that send queue
+and compare wireless sessions; separately evaluate a shorter BLE interval.
+
+Evidence and analysis scripts are private in `captures/20260930-build36-latency`.
+AVP sysdiagnose was recovered through mac34's device file service after the
+collection command timed out. No product-code/configuration changes, build 37,
+package deployment or TestFlight upload in this latency investigation.
+
+### IMG_0068: remove the diagnostic preflight — development build 36
+
+After the radio reset, the 16:21 test establishes Bluetooth and completes
+plaintext status. IMG_0068 says `L2CAP PSM already connected`. AVP logs confirm
+stream close at 16:21:48.362, next open at 48.363, and CoreBluetooth rejection
+at 48.367. Relay sees the previous channel disconnect at 48.389 and no echo
+request. Build35's retained link avoided physical teardown but reopened its
+PSM before OS channel teardown. Its mock link did not reproduce that delay.
+
+Build36 removes the diagnostic's unnecessary status preflight: route selection
+uses the echo operation itself, one channel for all three payloads. Cleanup
+precedes fallback or UI release; Bluetooth-only remains strict. The build35
+link/session abstraction is removed, and tablet testing returns to the prior
+authenticated status/observer lifecycle. No input timing, relay protocol,
+package, or radio changes. Initial radio failures and drawing backlog remain
+unresolved. All 21 Apple suites pass, the simulator compiles, and signed archive,
+development provisioning and dSYM checks pass. Build36 installed in place on
+the AVP via mac34 at approximately 16:32 PDT. Exact source/artifacts/evidence
+are under ignored `artifacts/development/0.6.5/build-36`; no TestFlight upload.
+Live acceptance is pending. New bounded capture `plank-direct-echo-build36-capture`
+started 16:32:40 PDT, expires 16:42:40. Previous capture is stopped. Relay remains
+0.6.5/PID811/NRestarts0. Paired failure evidence is private under
+`captures/20260930-build35-after-reset`.
+
+### Build 35: initial radio connection fails before handoff — 2026-09-30
+
+The operator reports Relay Connection Failed. Paired logs show the first
+attempt starts 16:13:09, discovers the relay at 16:13:11.557, and times out at
+16:13:29.202 establishing the initial Bluetooth link. It never reaches service
+discovery, status, or echo. Relay HCI reports four short connection attempts
+ending with `0x3e` (Connection Failed to be Established); matching AVP logs fail
+the remote-version exchange with status 762 and retry. The physical connection
+ownership change has not yet received live acceptance. These failures occur
+before that handoff; the underlying controller/RF/OS cause remains unproven.
+
+USB autosuspend is disabled and the adapter remains active; Wi-Fi is on 5 GHz,
+CPU uses schedutil, and no new USB/kernel errors occurred. Service PID 811 and
+restart count zero remain unchanged. Both device logs are saved privately in
+`captures/20260930-build35-failure`. No app/package/configuration changes here.
+
+After saving the failed trace, the relay Bluetooth radio was power-cycled via
+BlueZ at 16:19 PDT. Advertising and L2CAP PSM 128 returned at 16:19:16; tablet
+enrollment remains saved. A new ten-minute capture is running under
+`plank-handoff-build35-reset-capture`, expires 16:29:10 PDT, and awaits one
+Bluetooth-only Test Relay Connection retry. Original capture is stopped.
+
+### Operation-owned Bluetooth link — development build 35
+
+The operator approved fixing the diagnostic handoff first. `RelayBLELink`
+owns CoreBluetooth discovery and the physical connection. `RelayBLESession`
+retains that link across status and echo/observer channels for one operation;
+`RelayBLEAttempt` owns only a channel unless used outside that scope. Failed
+physical links are retired, startup cancellation invalidates pending callbacks,
+and completion/cancellation awaits physical cleanup before releasing the UI.
+Test Relay cancellation now follows the same cleanup reservation as Test Tablet.
+
+Apple regression coverage exercises status-to-echo reuse, all three byte tests,
+partial writes, corrupt replies, cancellation and failed-link replacement.
+Software version remains 0.6.5 for both app and installed relay; development
+build 35 is an app-only lifecycle correction. No relay package, sample timing,
+backlog guard, radio setting, TCP path or retry deadline changes in this fix.
+All 21 Apple test suites pass, the visionOS simulator compiles, and the signed
+device archive/development export passes bundle, provisioning and symbol checks.
+Build 35 installed in place on the AVP through mac34 at 16:09 PDT September 30;
+live AVP acceptance remains pending. Exact source snapshot, hashes, symbols and
+build/install evidence are under `artifacts/development/0.6.5/build-35` (ignored).
+No TestFlight upload. A ten-minute relay capture started at 16:10:09 PDT under
+`plank-handoff-build35-capture`, expiring at 16:20:09; service PID 811 and restart
+count zero were unchanged. Test Bluetooth-only Test Relay Connection first,
+then Test Tablet. Do not treat this lifecycle fix as proof the separate drawing
+backlog is resolved.
+
+### Test Relay handoff failure captured — 2026-09-30
+
+The operator emphasized that Test Relay fails while Test Tablet works. Matching
+AVP logs and a relay HCI trace now locate the 15:46 PDT diagnostic failure:
+its plaintext status bootstrap completes, closes its connection at 15:46:16.542,
+and the new echo attempt attaches to the system-connected peripheral at
+15:46:16.565. The OS explicitly says that device is already disconnecting.
+Physical disconnection completes at 16.572; OS reconnect attempts never
+establish a new link, and the app times out at 15:46:37.443. The relay trace
+contains the full status response and its controller completions, then remote
+physical disconnection and advertising re-enable; **no echo channel or test
+payload ever starts**. This is a startup/handoff failure, not an echo-throughput
+failure or proof that the Wacom transport cannot work.
+
+`testRelayConnection()` performs `availableAddress()` (plaintext status) then
+`testConnection()` on another connection. `startReadings()` uses authenticated
+status/observer sessions and retries the whole operation up to four times.
+Shared BLE startup recovery only retries a delivered early-disconnect error;
+it does not recover this pending-connect timeout. This difference can explain
+contradictory user-visible results. The OS does attempt reconnection after the
+handoff: do not claim it never retries or that the underlying controller/RF
+reason for failed establishment has been proven.
+
+Recommended design correction: keep ownership of the physical BLE link across
+the preliminary exchange and actual operation, with common lifecycle handling
+for diagnostics and tablet testing. Avoid solving it only by extending
+deadlines or adding more operation-level retries. No implementation/deployment
+change was made in this investigation. The drawing backlog remains separate.
+Evidence is in private `captures/20260930-echo-1546`; full AVP archive stays on
+mac34. The bounded radio capture stopped as scheduled at 15:52:29 PDT; relay
+service remained active, PID 811, restart count zero.
+
+### Fresh-boot failure, smooth automatic retry — 2026-09-30
+
+The relay rebooted at 15:39 PDT (outside this investigation). With `schedutil`
+still active, the operator reported severe latency and disconnect. The first
+observer opened at 15:41:17.497, Bluetooth tablet input attached at 15:41:23,
+and the relay's half-second pending-input guard closed the session at 15:41:27.
+The AVP logged channel closure at 15:41:31.960. Service PID 811 remained active
+with restart count zero. The automatic observer retry opened at 15:41:33.699;
+the operator twice confirmed it was smooth, and no further guard error was
+recorded through the 15:45 check.
+
+AVP logs confirm the retry reused the **same physical BLE link**, opening fresh
+management/observer L2CAP channels. Both failed and recovered sessions used
+2M PHY, 30 ms interval, zero peripheral latency, 251-byte data length, matching
+L2CAP MTUs and the same initial AVP credit grant/priority. This is not evidence
+of a faster negotiated radio mode after retry. Session queues were reset;
+why the first session backed up remains unresolved. Tablet reconnection during
+the first stream is another startup difference, not an established cause.
+No Test Relay byte-test stage occurred in this app-log interval.
+
+Both device logs are saved privately. A new radio capture began at 15:42:29,
+after recovery, and cannot explain packet timing during the failed attempt.
+It is bounded to ten minutes (expires 15:52:29 PDT) under transient unit
+`plank-drawing-capture-1542`. No code/configuration/deployment changes were made.
+
+### Drawing disconnect and diagnostic handoff — 2026-09-30
+
+Relay and AVP logs agree on the 15:31 PDT drawing failures: the relay closed
+the session at 15:31:19 and 15:31:38 because input was over half a second
+behind; the AVP reported L2CAP closure about 2–3 seconds later. Service PID
+and restart count stayed unchanged. This is a deliberate backlog disconnect,
+not a process crash. The underlying cause of the backlog remains unresolved;
+there is no radio packet capture of those failed drawing attempts.
+
+The subsequent captured Bluetooth drawing session ran about 31 seconds
+(15:35:11–42) without that guard firing. The operator reported low, acceptable
+latency and later clarified that Test Relay had failed before this successful
+Test Tablet run. No software, radio or governor change was made between these
+attempts; `schedutil` remained active. The successful radio capture shows a
+30 ms interval, zero peripheral latency, 2M PHY and 251-byte data length.
+Diagnostic collection added background activity, so one good run is not proof
+of a fix. Capture has stopped; private evidence includes both device logs and
+the successful radio trace.
+
+The operator suspects a successful Test Relay leaves a connection affecting
+Test Tablet. Source cleanup closes its echo streams on success and failure;
+the AVP explicitly confirmed the preceding echo channel closed at 15:31:05.163,
+before the failed drawing channel opened at 15:31:07.562. This argues against
+an overlapping echo channel consuming bandwidth in that attempt. CoreBluetooth
+can retain the underlying physical link; an effect from link reuse remains
+unproven. Next useful comparison is direct tablet testing versus diagnostic
+then tablet testing, recording connection parameters and queue behavior in
+both. Do not increase buffering or relax the backlog guard on this evidence.
+
+### Intermittent connection timeout — 2026-09-30
+
+Follow-up at 15:07 again found the relay but never completed Bluetooth link
+establishment before the app deadline. A temporary runtime powersave comparison
+at 15:09–15:14 had no recorded retry; it is inconclusive. `schedutil` was restored
+and verified, without a service restart. A new bounded 600-second radio capture
+was armed at 15:15:31 PDT for the next operator retry; it expires at 15:25:31.
+Details and capture paths are in the private deployment notes. Do not mistake
+the earlier capture (started after the failure) for evidence of that failure.
+
+After the governor change, the operator reported a timeout in **Test Relay
+Connection**, before tablet readings. AVP logs retrieved through mac34 locate
+the 14:55–14:56 failures at Bluetooth link establishment: discovery succeeded,
+but the OS repeatedly logged remote-version exchange failure (status 762),
+disconnection and retry before the app reached service discovery. The status
+alone does not establish the controller/firmware/RF cause. No packet trace of
+those failed attempts was available.
+
+One bounded relay radio capture recorded the requested repeat at 14:58:56–57.
+The operator confirmed all three round trips passed; trace shows bootstrap,
+handoff and 64/512/1024-byte echoes on LE L2CAP, 30 ms connection interval,
+zero peripheral latency, 2M PHY and 251-byte data length. `schedutil` remained
+active; no service restart, pairing reset or transport change was made. This
+pass does not establish a fix for intermittent startup or sustained pen input.
+Separately, the relay logged another half-second input backlog at 14:53:26;
+service PID 806 and restart count 0 were unchanged. Keep that streaming issue
+distinct from these pre-service connection timeouts. Radio capture has stopped
+and AVP diagnostics completed; evidence remains in private deployment notes.
+
+### CPU governor — 2026-09-30
+
+The operator approved `schedutil` after reporting substantially improved
+Bluetooth testing with a roughly constant remaining delay. Relay02 now uses
+`schedutil` on its NanoPi Zero2 / Armbian 6.18.54 kernel. Live policy readback
+passed; the 1.2–2.016 GHz limits and boost setting are unchanged. The enabled
+Armbian hardware optimization service reads the updated
+`/etc/default/cpufrequtils` at boot. No reboot or relay restart was performed;
+the relay PID/restart count stayed unchanged. Latency improvement is not yet
+measured or confirmed by the operator.
+
+The package host-configuration source and installation documentation now use
+`schedutil`; all 17 hardware tests pass. The previous configuration is backed up
+as `cpufrequtils.before-schedutil`, retaining the older `before-powersave` backup.
+This is a source/default and live host setting change only: installed app/relay
+remain 0.6.5/build34, and existing package artifacts have not been rebuilt.
+Reinstalling the old package can restore its powersave default. Include the new
+default in the next package build. Radio interval, CPU frequency limits,
+application rendering and input polling remain unchanged.
+
+### Installed development candidate
+
 **0.6.5 / build34 is installed on the relay and AVP.** IMG_0067 and its
 captured repeat failed between the successful L2CAP status bootstrap and the
 next connection. The physical link remained up for 33 seconds after channel

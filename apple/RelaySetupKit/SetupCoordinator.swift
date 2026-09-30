@@ -279,13 +279,11 @@ public final class SetupCoordinator: ObservableObject {
             await self.networkRefresh.cancelAndWait()
             do {
                 try Task.checkCancellation()
-                let address = try await self.availableAddress(address, testTransport: transport) { [weak self] progress in
+                let candidates = try transport.candidates(self.networkRoutes.ordered(
+                    self.addresses.isEmpty ? [address] : self.addresses, preferBluetooth: false))
+                let (address, result) = try await self.client.testConnection(addresses: candidates) { [weak self] candidate, message in
                     guard let self, self.state.operation == id else { return }
-                    self.connectionDiagnostic = .running(progress)
-                }
-                self.state.useAddress(address, operation: id)
-                let result = try await self.client.testConnection(address: address) { [weak self] message in
-                    guard let self, self.state.operation == id else { return }
+                    self.state.useAddress(candidate, operation: id)
                     self.message = message
                     self.connectionDiagnostic = .running(message)
                 }
@@ -293,6 +291,10 @@ public final class SetupCoordinator: ObservableObject {
                 guard self.state.finishBluetoothTest(id) else { return }
                 self.connectionDiagnostic = .passed("\(address.transportName): \(result)")
                 self.message = "Communication passed in both directions over \(address.transportName)."
+            } catch is CancellationError {
+                guard self.state.finishBluetoothTest(id) else { return }
+                self.connectionDiagnostic = .canceled
+                self.message = "Connection test canceled. Existing pairing was not removed."
             } catch {
                 guard self.state.operation == id else { return }
                 self.state.fail(id, message: error.localizedDescription)
@@ -306,6 +308,13 @@ public final class SetupCoordinator: ObservableObject {
     public func cancel() {
         networkRefresh.cancel()
         wifiEnablePending = nil
+        if state.activity == .testingBluetooth {
+            message = "Stopping the connection test…"
+            connectionDiagnostic = .running(message)
+            // Reserve the relay until the diagnostic finishes disconnecting.
+            task?.cancel()
+            return
+        }
         if state.activity == .observing || state.activity == .stoppingObservation {
             stopTesting()
             return

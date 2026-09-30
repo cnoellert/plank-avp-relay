@@ -189,6 +189,7 @@ protocol RelayByteConnection: AnyObject, Sendable {
 public final class RelayPairingClient {
     var managementConnection: RelayManagementConnection?
     var managementScope = false
+    var makeDiagnosticConnection: ((RelayAddress, @escaping (String) -> Void) -> any RelayByteConnection)?
     public init() {}
 
     func connection(_ address: RelayAddress, channel: RelayBLEChannel = .relay,
@@ -209,7 +210,8 @@ public final class RelayPairingClient {
     /// Tests only byte delivery over dedicated, unauthenticated echo channels.
     /// No pairing codec, Keychain access or tablet input is used or authorized.
     public func testConnection(address: RelayAddress, onProgress: @escaping (String) -> Void) async throws -> String {
-        let socket = connection(address, channel: .echo, onProgress: onProgress)
+        let socket = makeDiagnosticConnection?(address, onProgress)
+            ?? connection(address, channel: .echo, onProgress: onProgress)
         let result = try await bounded(socket: socket, seconds: 40) {
             try await socket.connect()
             var total = 0
@@ -239,6 +241,30 @@ public final class RelayPairingClient {
         }
         await socket.finishDisconnect()
         return result
+    }
+
+    /// Route selection for a byte test uses the echo itself. A preliminary
+    /// status connection creates an unnecessary BLE channel/PSM handoff.
+    func testConnection(addresses: [RelayAddress],
+                        onProgress: @escaping (RelayAddress, String) -> Void) async throws -> (RelayAddress, String) {
+        guard !addresses.isEmpty else { throw RelaySetupError.invalidState }
+        var failure: any Error = RelaySetupError.timedOut
+        for address in addresses {
+            try Task.checkCancellation()
+            do {
+                onProgress(address, "Testing relay communication over \(address.transportName)…")
+                let result = try await testConnection(address: address) { onProgress(address, $0) }
+                return (address, result)
+            } catch {
+                try Task.checkCancellation()
+                guard let transportError = error as? RelaySetupError else { throw error }
+                switch transportError {
+                case .network, .timedOut: failure = error
+                default: throw error
+                }
+            }
+        }
+        throw failure
     }
 
     /// Returns a verified key, but does not persist it. The caller checks its
