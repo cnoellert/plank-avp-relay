@@ -1,6 +1,12 @@
 # PLANK AVP Relay and Setup app
 
-## Current work — 0.6.2 tablet test fidelity
+## Current accepted release — 0.6.2 tablet test fidelity
+
+On 2026-09-30 the operator reported that the tablet test works much better and
+requested commit, push and merge. **0.6.2 / TestFlight 31 is the accepted
+baseline.** Its implementation is already on `main`; no feature-branch merge
+remains. This confirms the operator's qualitative improvement, not measured
+physical report rates or separate acceptance of every transport.
 
 The operator authorized a larger testing popup and a focused correction based
 on the working PLANK raw-report paths. The managed observer now retains each
@@ -39,23 +45,23 @@ dpkg verification, all three configuration checks and all three services pass.
 Identity, headset/tablet bonds, USB mode, Wi-Fi profiles and Wi-Fi policy were
 retained; the policy comparison excludes only transient requestID/fingerprint
 receipts. A root-only backup precedes installation. Bluetooth advertising and
-TCP discovery/listening are active. **No qualifying Wacom input device was
-connected at the final check.** Physical input/AVP testing remains pending.
+TCP discovery/listening were active at deployment. No qualifying Wacom input
+device was connected during that agent check; the operator subsequently
+reported the improved behavior and accepted the release as recorded above.
 
 A paced synthetic 200-report/s source passed through capture and real Noise/TCP
 sockets with all 200 reports intact, 199.8 reports/s received, 3.09ms mean and
 6.41ms maximum local input-to-decode delay. These are software loopback results,
 not physical Wacom, Bluetooth, AVP rendering or end-to-end latency measurements.
-Next test: connect/wake the tablet, install TestFlight 0.6.2, open Test Tablet,
-compare smooth pen motion/pressure/quick taps and the input/received rates,
-and verify Stop Testing or dismissing the sheet releases the connection.
-Qualify both network and Bluetooth; do not claim equivalent radio throughput
-from the loopback result.
+Any further performance qualification should record physical input/received
+rates and the transport in use, exercise pressure/quick taps and test dismissal,
+and compare network with Bluetooth. Do not infer equivalent radio throughput
+or measured latency from the operator's qualitative acceptance or loopback test.
 
 ## Previous accepted baseline — 0.6.1 / upload 30
 
 The operator approved **0.6.1 / TestFlight 30** on 2026-09-30 and requested
-commit/push on `main`. This is the accepted release baseline.
+commit/push on `main`. It is superseded by the accepted 0.6.2 release above.
 
 Work is now on `main` in the independent public
 [`Instinctual/plank-avp-relay`](https://github.com/instinctual/plank-avp-relay)
