@@ -28,16 +28,18 @@ struct RelayWifiView: View {
         VStack(alignment: .leading, spacing: 20) {
             GroupBox {
                 VStack(alignment: .leading, spacing: 14) {
-                    Toggle("Enable Wi-Fi", isOn: Binding(get: { enablePending ?? status?.enabled ?? false }, set: { action(.enable($0)) }))
-                        .disabled(!editable)
-                        .accessibilityIdentifier("wifi-enable-control")
+                    if let status, status.supported {
+                        Toggle("Enable Wi-Fi", isOn: Binding(get: { enablePending ?? status.enabled }, set: { action(.enable($0)) }))
+                            .disabled(!editable)
+                            .accessibilityIdentifier("wifi-enable-control")
+                    } else {
+                        Label(status == nil ? "Waiting for Wi-Fi status" : "Wi-Fi status unavailable",
+                              systemImage: "wifi.exclamationmark")
+                    }
                     if let enablePending {
                         ProgressView(enablePending ? "Enabling Wi-Fi…" : "Disabling Wi-Fi…")
                     } else if !authorized {
                         Text("Select a relay and finish tablet setup to authorize Wi-Fi controls.")
-                            .font(.callout).foregroundStyle(.secondary)
-                    } else if busy {
-                        Text("Finish the current relay operation before changing Wi-Fi.")
                             .font(.callout).foregroundStyle(.secondary)
                     } else {
                         Text(message).font(.callout).textSelection(.enabled)

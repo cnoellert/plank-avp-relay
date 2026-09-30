@@ -14,7 +14,12 @@ pairing management are in expandable sections.
 Synthetic readout fixtures exist only in the separate offscreen preview executable.
 The shipping app supports encrypted TCP and Bluetooth connections.
 
-The app has **Tablet** and **Network** tabs sharing the selected relay.
+The tab order is **Select Relay → Tablet → Network**. Select Relay opens
+first with its own antenna icon; Tablet and Network are disabled until a relay
+is selected. Switching tabs retains the selection. Network identifies the
+selected relay and requires tablet setup authorization before showing controls.
+Unknown Wi-Fi status is never rendered as an off switch, and an unknown USB
+mode is not presented as a selected configuration.
 Network mode is an editable Bridge/Router selector with Apply changes. Its
 separate Connection status group uses read-only Ethernet and USB labels/icons,
 with a Refresh status action and automatic four-second refresh while idle.

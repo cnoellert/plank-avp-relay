@@ -163,6 +163,26 @@ class WifiTests(unittest.TestCase):
         self.controller.request(self.join(item)); self.advance()
         self.assertEqual(self.controller.snapshot['phase'], 'failed')
         self.assertNotIn('test password', json.dumps(self.controller.snapshot))
+    def test_scan_failure_timeout_and_restart_never_disconnect(self):
+        self.enable()
+        item = network(); self.scan([item])
+        self.backend.connected = item['id']; self.backend.addressed = True
+        self.backend.calls.clear()
+        self.controller.request(self.command('wifi-scan')); self.advance()
+        self.advance(21)
+        self.assertEqual(self.controller.snapshot['phase'], 'failed')
+        self.assertEqual(self.controller.snapshot['connection'], 'connected')
+        self.assertIn(item['id'], self.controller.available)
+        self.assertEqual(self.backend.calls, [])
+        self.controller.request(self.command('wifi-scan')); self.advance()
+        restarted = WifiController(self.backend, self.path, lambda: self.now)
+        restarted.start(); restarted.tick()
+        self.assertEqual(self.backend.calls, [])
+        self.backend.scan_done = Mock(side_effect=RuntimeError('scan rejected'))
+        restarted.tick()
+        self.assertEqual(restarted.snapshot['connection'], 'connected')
+        self.assertEqual(self.backend.calls, [])
+
     def test_command_bounds_and_no_raw_configuration(self):
         bad = [dict(op='wifi-status', password='x'), self.command(enabled=1),
                self.command('wifi-forget', network='x'),

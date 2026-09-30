@@ -1,4 +1,4 @@
-# Relay Wi-Fi management (0.5.0)
+# Relay Wi-Fi management
 
 Use the Setup app's **Network → Wi-Fi** controls after authorizing the headset
 through tablet setup. Enable Wi-Fi, refresh the nearby networks, select a name
@@ -85,9 +85,16 @@ reply, then applies independently of the app. A repeated current UUID returns
 the same receipt; different contents with that UUID are rejected. The pending
 join secret is removed from the journal after success/failure. A service
 restart restores a partially applied profile and resumes the accepted request.
+Scans have no profile transaction: an existing scan is shared and the helper
+waits for the supplicant's ScanDone signal. Scan errors/timeouts retain the
+connection, profiles and previous results; they do not reset the interface.
 Failed joins restore the previous native profiles and enabled choice.
 
-The app prefers Bluetooth control, sends a mutation once and confirms the
+The app prefers TCP for reads and scans, and Bluetooth for changes that can
+interrupt networking. It retains one authenticated connection across preflight,
+command, completion polling and list retrieval. A failed route gets a short
+cooldown; confirmation stays on a working route instead of alternating with a
+dead endpoint. The app sends a mutation once and confirms the
 same UUID on the same authenticated relay. A lost reply or IP change causes
 status checks, not a repeated mutation. Stop waiting stops monitoring only.
 Refresh checks the relay's result after app inactivity. Connection success
@@ -118,4 +125,16 @@ mark the foreground workflow busy. Opening Wi-Fi entry, leaving Network,
 becoming inactive or starting a foreground operation cancels the refresh; a
 foreground connection waits for transport teardown before starting. Polls
 prefer the LAN and wait ten seconds after completion before polling again.
-USB/Wi-Fi mutations retain their BLE preference and durable request identity.
+Changes that can interrupt networking retain their BLE preference and durable
+request identity. Active completion checks run every half second on the retained
+connection; the app downloads lists once after completion.
+
+Both local helpers serve cached public snapshots independently of backend work.
+One worker serializes configuration and backend access, with a bounded request
+queue and four bounded socket handlers. A durable receipt is sent before apply
+begins; abandoned replies still allow the accepted operation to complete. There
+is no fixed two-second apply delay. Idle Wi-Fi refreshes run every two seconds,
+active ones every half second; USB retains its one-second cable-check interval.
+Saved profile details are cached until the profile paths change or the helper
+changes a profile. Verified Wi-Fi ownership is reused until backend recovery.
+Unknown/temporarily unavailable status never changes the persisted radio choice.

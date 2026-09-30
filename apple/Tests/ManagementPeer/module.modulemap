@@ -1,0 +1,4 @@
+module CManagementPeer {
+    header "ManagementPeer.h"
+    export *
+}

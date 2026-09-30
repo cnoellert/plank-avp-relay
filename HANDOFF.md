@@ -19,6 +19,45 @@ that ancestry; no upstream merge was performed during this migration.
 Root PLANK and its unrelated work remain untouched. Machine access, signing
 jobs and deployment details belong in the operator's private notes.
 
+Shared release **0.5.6** implements the approved network fixes and navigation:
+**Select Relay → Tablet → Network**, with dependent tabs disabled until selection.
+Selection persists across tabs; authorization is still required for controls.
+Missing status no longer appears as a disabled radio or a default USB mode.
+
+Network operations retain one authenticated connection from preflight through
+completion and list retrieval. Reads/scans prefer TCP; network-changing commands
+prefer Bluetooth. Failed routes cool down and mutations are never replayed after
+ambiguous replies. Cancellation drains teardown before another operation starts.
+Local USB/Wi-Fi helpers serve cached public reads separately from their single
+backend worker, acknowledge durable requests before apply and remove the fixed
+two-second delay. Scans share an existing scan and await ScanDone; they never
+roll back profiles or cycle the interface on failure. Profile/ownership caches
+reduce repeated D-Bus/system commands. USB remains wired-only with cable gating.
+
+The investigation confirmed the reported screenshots showed Network with no
+selected relay, while live Wi-Fi remained enabled and connected. Separate trace
+evidence showed five BLE connections during a Wi-Fi operation and repeated use
+of a dead TCP endpoint. Earlier supplicant scan collisions triggered unnecessary
+rollback. These are distinct findings; private captures and machine details stay
+in the operator notes.
+
+Draft checks passed 31 Linux suites, 18 Apple suites, macOS and visionOS simulator
+compilation. New tests cover encrypted connection reuse, cancellation without
+replay, pinned relay identity, healthy-route preference, cached reads during slow
+work, receipt-before-apply and non-disruptive scan failure/restart. Final package
+CI, exact-source Apple archive/upload **24**, release publication and live host
+upgrade are being prepared. Do not describe those as complete until the delivery
+record below is updated. Both app and relay use **0.5.6**; Apple upload numbering
+remains hidden from the app's visible version.
+
+Live host was verified running **0.5.5** during this investigation, with all
+three services active and Wi-Fi connected. This supersedes the pending-install
+note in the previous delivery record. Preserve all host identity, pairing and
+network state when upgrading. AVP UI/RF/cable behavior still needs physical
+acceptance after the new app is installed.
+
+## Previous verification rebuild — 0.5.5
+
 Shared release **0.5.5** has been rebuilt and republished from the new main
 checkout at `54f6e1a4841d4faa31e81a48fedc12407990632e`. Both relay packages
 and the signed app use this same source commit. This is a verification rebuild

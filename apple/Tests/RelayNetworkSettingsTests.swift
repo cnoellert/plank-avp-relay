@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import Foundation
-import RelaySetupKit
+@testable import RelaySetupKit
 
 @main
 enum RelayNetworkSettingsTests {
@@ -41,6 +41,17 @@ enum RelayNetworkSettingsTests {
         precondition(state.activity == .managingNetwork && state.beginObservation() == nil)
         state.cancel()
         precondition(!state.succeed(operation) && state.hasTrust)
+        let tcp = RelayAddress(service: "Test", domain: "local.", name: "Test", key: Data(repeating: 1, count: 32))
+        let now = ContinuousClock.now
+        var routes = RelayControlRoutes()
+        precondition(routes.ordered([address, tcp], preferBluetooth: false).first == tcp)
+        precondition(routes.ordered([tcp, address], preferBluetooth: true).first == address)
+        routes.succeeded(tcp)
+        precondition(routes.ordered([address, tcp]).first == tcp)
+        routes.failed(tcp, now: now)
+        routes.succeeded(address)
+        precondition(routes.ordered([tcp, address], preferBluetooth: false, now: now).first == address)
+        precondition(routes.ordered([address, tcp], preferBluetooth: false, now: now + .seconds(16)).first == tcp)
         print("PASS: network mode authorization, stale reply binding, actual USB status and recovery confirmation")
     }
 }

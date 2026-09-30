@@ -17,7 +17,7 @@ public enum SetupActivity: Equatable, Sendable {
     case idle, checking, observing, testingBluetooth, managingTablets, managingNetwork, failed(String), paired
 }
 
-public struct RelayAddress: Equatable, Sendable {
+public struct RelayAddress: Hashable, Sendable {
     public let bluetoothIdentifier: UUID
     public let bluetoothName: String
     public let networkService: String?

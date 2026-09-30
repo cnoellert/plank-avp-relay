@@ -1,12 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Persistent USB mode transactions, independent of the headset connection."""
 import argparse
+import copy
 import json
-import os
 from pathlib import Path
-import signal
-import socket
-import struct
 import time
 import uuid
 
@@ -51,7 +48,7 @@ class GadgetController:
                 # state. A failed request restores the last applied mode.
                 self.backend.apply(self.saved['mode'])
                 if self.saved['phase'] == 'applying':
-                    self.due = self.clock() + 2
+                    self.due = self.clock()
                 elif self.saved['phase'] != 'failed':
                     self.message = 'USB networking follows the Ethernet link. Internet access is not required.'
             self.refresh()
@@ -73,6 +70,18 @@ class GadgetController:
             self.snapshot['usb'] = 'error'
             self.snapshot['message'] = self.backend.fault
 
+    poll_interval = 1.0  # Preserve Ethernet cable gating cadence.
+
+    def stop(self): self.backend.unbind()
+
+    def public_state(self): return copy.deepcopy(self.snapshot)
+
+    @staticmethod
+    def read_cached(command, cache):
+        if command.get('op') == 'network-status' and set(command) == {'op'}:
+            return cache
+        return None
+
     def request(self, command):
         if command.get('op') == 'network-status' and set(command) == {'op'}:
             return dict(self.snapshot)
@@ -93,8 +102,8 @@ class GadgetController:
         atomic_json(self.path, updated)  # Acknowledge only after fsync.
         self.saved = updated
         self.message = 'Changing network mode. The app will reconnect automatically.'
-        self.due = self.clock() + 2
-        self.refresh()
+        self.due = self.clock()
+        self.snapshot.update(self.saved, message=self.message)
         return dict(self.snapshot)
 
     def tick(self):
@@ -127,30 +136,6 @@ class GadgetController:
             self.snapshot.update(phase='failed', usb='error', message=self.backend.fault)
 
 
-def handle_socket(connection, controller):
-    # The relay service is root with a restricted systemd sandbox. No public
-    # port, command execution, arbitrary paths or unauthenticated app access.
-    credentials = connection.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize('3i'))
-    _, uid, _ = struct.unpack('3i', credentials)
-    if uid != 0:
-        return
-    connection.settimeout(0.5)
-    try:
-        data = bytearray()
-        while not data.endswith(b'\n'):
-            part = connection.recv(1025 - len(data))
-            if not part or len(data) + len(part) > 1024:
-                raise ValueError('Invalid network request length.')
-            data.extend(part)
-        request = json.loads(data)
-        if not isinstance(request, dict):
-            raise ValueError('Expected a network request object.')
-        reply = controller.request(request)
-    except (ValueError, KeyError, TypeError) as error:
-        reply = {'error': str(error)[:512]}
-    connection.sendall(json.dumps(reply, separators=(',', ':')).encode() + b'\n')
-
-
 def main():
     from .process import name_process
     name_process('plank-avp-usb')
@@ -170,39 +155,5 @@ def main():
         return 0
     STATE.mkdir(parents=True, exist_ok=True, mode=0o700)
     controller = GadgetController(backend)
-    path = Path(SOCKET)
-    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    path.unlink(missing_ok=True)
-    running = True
-
-    def stop(*_):
-        nonlocal running
-        running = False
-
-    signal.signal(signal.SIGTERM, stop)
-    signal.signal(signal.SIGINT, stop)
-    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as listener:
-        listener.bind(SOCKET)
-        os.chmod(SOCKET, 0o600)
-        listener.listen(4)
-        listener.settimeout(0.2)
-        try:
-            controller.start()
-            last = 0
-            while running:
-                if time.monotonic() - last >= 1:
-                    controller.tick()
-                    last = time.monotonic()
-                try:
-                    connection, _ = listener.accept()
-                except socket.timeout:
-                    continue
-                with connection:
-                    try:
-                        handle_socket(connection, controller)
-                    except (OSError, ValueError):
-                        pass
-        finally:
-            backend.unbind()
-            path.unlink(missing_ok=True)
-    return 0
+    from .local_service import serve
+    return serve(SOCKET, controller)

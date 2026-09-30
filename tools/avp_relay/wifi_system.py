@@ -8,6 +8,7 @@ import re
 import tempfile
 
 import dbus
+from dbus.mainloop.glib import DBusGMainLoop
 
 from .gadget_config import atomic_json
 from .gadget_system import read, run
@@ -63,8 +64,11 @@ class LinuxWifi:
         self.foreign_config = None
         self.unsupported = ''
         self.initial_enabled = False
+        self.adopted = False
 
     def prepare(self):
+        if self.wp: self.wp.bus.close()  # Release old signal subscriptions on recovery.
+        self.adopted = False
         self.foreign_units = []
         self.foreign_config = None
         devices = [p for p in sorted(Path('/sys/class/net').iterdir()) if (p/'phy80211').exists()]
@@ -88,7 +92,7 @@ class LinuxWifi:
             self.unsupported = 'The Wi-Fi radio control could not be identified.'
             return False
         self.rfkill = switches[0]
-        try: bus = dbus.SystemBus()
+        try: bus = dbus.SystemBus(private=True, mainloop=DBusGMainLoop())
         except dbus.DBusException:
             raise RuntimeError('The system bus is unavailable.') from None
         self.wp = Supplicant(bus, self.interface, self.state/'wpa.conf')
@@ -112,6 +116,7 @@ class LinuxWifi:
         return True
 
     def adopt(self):
+        if self.adopted: return
         metadata = self.state/'ownership.json'
         if NETWORK.exists() and not NETWORK.read_text().startswith(MARKER):
             raise RuntimeError('The relay Wi-Fi configuration filename is already in use.')
@@ -142,6 +147,7 @@ class LinuxWifi:
             run('networkctl', 'reconfigure', self.interface)
         if str(NETWORK) not in run('networkctl', 'status', self.interface, '--no-pager'):
             raise RuntimeError('An earlier network configuration overrides the relay Wi-Fi settings.')
+        self.adopted = True
 
     def initialize(self, enabled, managed):
         if managed:
@@ -186,8 +192,10 @@ class LinuxWifi:
         (self.state/'before-operation.conf').unlink(missing_ok=True)
 
     def saved(self): return self.wp.saved() if self.wp and self.wp.path else {}
-    def scan(self): self.wp.scan()
-    def scan_done(self): return not bool(self.wp.properties().get('Scanning'))
+    def scan(self):
+        if not self.wp.path: self.adopt()
+        self.wp.scan()
+    def scan_done(self): return self.wp.scan_done()
     def results(self): return self.wp.scan_results()
     def join(self, item, password): self.wp.join(item, password)
     def connect(self, identifier): self.wp.select(self.saved()[identifier]['path'])

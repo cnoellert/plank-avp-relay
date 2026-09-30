@@ -56,9 +56,7 @@ class GadgetTests(unittest.TestCase):
         self.assertEqual(reply['phase'], 'applying')
         self.assertEqual(json.loads((self.path/'mode.json').read_text())['requestID'], command['requestID'])
         self.assertEqual(self.backend.applied, ['bridge'])
-        self.controller.tick()
-        self.assertEqual(self.backend.applied, ['bridge'])  # Reply can leave before USB detaches.
-        self.now = 3
+        # The IPC worker releases apply after sending the durable receipt.
         self.controller.tick()
         self.assertEqual(self.backend.applied, ['bridge', 'router'])
         self.assertEqual(self.controller.request(command)['mode'], 'router')

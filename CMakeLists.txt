@@ -149,6 +149,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/gadget_test.py")
         add_test(NAME gadget_firewall_test COMMAND "${Python3_EXECUTABLE}"
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/gadget_firewall_test.py")
+        add_test(NAME local_service_test COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/local_service_test.py")
         add_test(NAME wifi_test COMMAND "${Python3_EXECUTABLE}"
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/wifi_test.py")
         add_test(NAME wifi_supplicant_test COMMAND "${Python3_EXECUTABLE}"

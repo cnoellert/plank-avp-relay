@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Durable Wi-Fi operations, independent of the headset's control connection."""
 import argparse
+import copy
 import json
 from pathlib import Path
 import time
@@ -59,8 +60,8 @@ class WifiController:
             if self.saved['pending']:
                 # Restore a partially applied profile before resuming the same
                 # accepted transaction. The prior config remains private.
-                self.backend.rollback()
-                self.due = self.clock() + 2
+                if self.saved['pending']['op'] != 'wifi-scan': self.backend.rollback()
+                self.due = self.clock()
                 self.stage = None
             self.refresh()
         except (OSError, ValueError, RuntimeError):
@@ -83,17 +84,33 @@ class WifiController:
             phase=self.saved['phase'], requestID=self.saved['requestID'],
             message=self.saved['message'], **status)
 
-    def request(self, command):
+    @property
+    def poll_interval(self): return 0.5 if self.saved['pending'] else 2.0
+
+    def stop(self): pass  # Supplicant retains the active association on shutdown.
+
+    def public_state(self):
+        return copy.deepcopy(dict(status=self.snapshot, lists=self.lists))
+
+    @staticmethod
+    def read_cached(command, cache):
         validate(command)
         op = command['op']
-        if op == 'wifi-status': return dict(self.snapshot)
+        if op == 'wifi-status': return dict(cache['status'])
         if op == 'wifi-list':
-            generation, rows = self.lists[command['kind']]
+            generation, rows = cache['lists'][command['kind']]
             offset = command['offset']
             if offset and command['generation'] != generation:
                 raise ValueError('The network list changed. Refresh it before loading another page.')
             end = offset + PAGE_SIZE
             return dict(networks=rows[offset:end], generation=generation, next=end if end < len(rows) else None)
+        return None
+
+    def request(self, command):
+        validate(command)
+        op = command['op']
+        reply = self.read_cached(command, self.public_state())
+        if reply is not None: return reply
         if not self.supported:
             raise ValueError(self.snapshot['message'])
         digest = fingerprint(command)
@@ -113,9 +130,9 @@ class WifiController:
             # Bind to the original SSID bytes/security, not a subsequent scan.
             pending['_target'] = dict(ssid=item['ssid'].hex(), security=item['security'], hidden=item['hidden'])
         self.saved.update(requestID=command['requestID'], fingerprint=digest, pending=pending,
-                          phase='applying', message='Applying Wi-Fi settings…')
+                          phase='applying', message='Scanning for networks…' if op == 'wifi-scan' else 'Applying Wi-Fi settings…')
         self.persist()  # Includes a pending password only in the owner-only journal.
-        self.due = self.clock() + 2
+        self.due = self.clock()
         self.stage = None
         self.snapshot.update(phase='applying', requestID=self.saved['requestID'], message=self.saved['message'])
         return dict(self.snapshot)
@@ -136,10 +153,13 @@ class WifiController:
 
     def begin(self):
         command = self.saved['pending']
-        self.backend.begin()
-        self.saved['managed'] = True
-        self.persist()
         op = command['op']
+        # A scan does not change profiles or radio policy. Never take a rollback
+        # snapshot that would tear down a working connection on scan failure.
+        if op != 'wifi-scan':
+            self.backend.begin()
+            self.saved['managed'] = True
+            self.persist()
         if op == 'wifi-enable':
             self.backend.set_enabled(command['enabled'])
             self.backend.commit()
@@ -182,7 +202,6 @@ class WifiController:
             if self.stage == 'scan':
                 if self.backend.scan_done():
                     self.available = self.backend.results()
-                    self.backend.commit()
                     self.finish('Network list refreshed.')
                 elif self.clock() >= self.deadline:
                     raise WifiFailure('The Wi-Fi scan timed out. Try refreshing the networks again.')
@@ -206,16 +225,20 @@ class WifiController:
                 self.fail()
             else:
                 self.supported = False
-                self.snapshot = unavailable('The Wi-Fi adapter is temporarily unavailable. Saved settings are retained.')
+                self.snapshot = dict(self.snapshot, phase='unavailable',
+                    message='Could not refresh Wi-Fi status. Last known settings are retained; retrying.')
                 self.retry = self.clock() + 10
 
     def fail(self, message='Wi-Fi operation failed. Check the network password, signal and address availability.'):
-        try:
-            self.backend.rollback()
-            self.backend.set_enabled(self.saved['enabled'])
-            message += ' Previous settings restored.'
-        except (OSError, ValueError, RuntimeError):
-            message += ' Reconnect over Bluetooth to check the relay.'
+        if self.saved['pending'] and self.saved['pending']['op'] != 'wifi-scan':
+            try:
+                self.backend.rollback()
+                self.backend.set_enabled(self.saved['enabled'])
+                message += ' Previous settings restored.'
+            except (OSError, ValueError, RuntimeError):
+                message += ' Reconnect over Bluetooth to check the relay.'
+        elif self.saved['pending']:
+            message = 'Could not refresh networks. The existing Wi-Fi connection and saved settings are retained.'
         self.finish(message, False)
         try: self.refresh()
         except (OSError, ValueError, RuntimeError):

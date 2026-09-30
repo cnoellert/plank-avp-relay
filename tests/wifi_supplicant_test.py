@@ -10,7 +10,9 @@ import time
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
-from avp_relay.wifi_supplicant import Supplicant, ssid_bytes
+from avp_relay.wifi_supplicant import Supplicant, SupplicantError, ssid_bytes, IFACE
+from unittest.mock import Mock
+import dbus
 from avp_relay.wifi_protocol import public_network
 from avp_relay.wifi_system import LinuxWifi, private_write
 
@@ -81,6 +83,48 @@ def inside():
 
 
 class SupplicantTest(unittest.TestCase):
+    def test_scan_joins_active_or_pending_scan_and_waits_for_completion(self):
+        for active, rejected in [(True, False), (False, True), (False, False)]:
+            bus = Mock()
+            wp = Supplicant(bus, 'wlan0', '/unused')
+            wp.path = '/interface'; wp.dispatch = Mock()
+            wp.properties = Mock(return_value={'Scanning': active})
+            wp.call = Mock(side_effect=SupplicantError(IFACE + '.ScanError') if rejected else None)
+            wp.scan()
+            self.assertFalse(wp.scan_done(), 'An accepted or pending scan is not complete yet')
+            self.assertEqual(wp.call.call_count, 0 if active else 1)
+            wp._scan_finished(True)
+            self.assertTrue(wp.scan_done())
+            wp.scan()
+            self.assertFalse(wp.scan_done(), 'A previous ScanDone must not complete a new request')
+            wp._scan_finished(False)
+            with self.assertRaises(RuntimeError): wp.scan_done()
+            self.assertEqual(bus.add_signal_receiver.call_count, 1)
+
+    def test_dbus_error_retains_only_category(self):
+        bus = Mock()
+        bus.get_object.side_effect = dbus.DBusException('psk=private-test-key', name=IFACE + '.ScanError')
+        wp = Supplicant(bus, 'wlan0', '/unused')
+        with self.assertRaises(SupplicantError) as caught: wp.call('/interface', IFACE, 'Scan')
+        self.assertEqual(caught.exception.name, IFACE + '.ScanError')
+        self.assertNotIn('private-test-key', str(caught.exception))
+
+    def test_profile_cache_refreshes_on_path_change_or_mutation(self):
+        wp = Supplicant(Mock(), 'wlan0', '/unused'); wp.path = '/interface'
+        paths = ['/profile/1']
+        def properties(path=None, interface=None):
+            if path is None: return {'Networks': paths}
+            return {'Properties': {'ssid': '"example"', 'key_mgmt': 'WPA-PSK'}}
+        wp.properties = Mock(side_effect=properties)
+        first = wp.saved(); count = wp.properties.call_count
+        second = wp.saved()
+        self.assertEqual(first, second)
+        self.assertEqual(wp.properties.call_count, count + 1)
+        second.clear()
+        self.assertTrue(wp.saved(), 'Callers cannot mutate the cache')
+        paths.append('/profile/2')
+        self.assertEqual(len(next(iter(wp.saved().values()))['paths']), 2)
+
     def test_real_api(self):
         if not all(shutil.which(name) for name in ('wpa_supplicant', 'dbus-daemon', 'ip', 'unshare')):
             self.skipTest('supplicant/private bus/network namespace tools unavailable')

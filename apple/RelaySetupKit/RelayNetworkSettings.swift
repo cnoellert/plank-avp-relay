@@ -1,6 +1,37 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import Foundation
 import CRelayProtocol
+import OSLog
+
+/// Prefer a working route during confirmation; failed routes get a short
+/// cooldown instead of being retried on every other status request.
+struct RelayControlRoutes {
+    private(set) var successful: RelayAddress?
+    private var failures: [RelayAddress: ContinuousClock.Instant] = [:]
+
+    mutating func succeeded(_ address: RelayAddress) {
+        successful = address
+        failures.removeValue(forKey: address)
+    }
+
+    mutating func failed(_ address: RelayAddress, now: ContinuousClock.Instant = .now) {
+        failures[address] = now + .seconds(15)
+        if successful == address { successful = nil }
+    }
+
+    func ordered(_ addresses: [RelayAddress], preferBluetooth: Bool? = nil,
+                 now: ContinuousClock.Instant = .now) -> [RelayAddress] {
+        func rank(_ address: RelayAddress) -> Int {
+            let cooling = (failures[address].map { $0 > now } ?? false) ? 100 : 0
+            let transport = preferBluetooth.map { ($0 == (address.linkType == 1)) ? 0 : 10 } ?? 0
+            return cooling + transport + (successful == address ? 0 : 1)
+        }
+        return addresses.enumerated().sorted {
+            let a = rank($0.element), b = rank($1.element)
+            return a == b ? $0.offset < $1.offset : a < b
+        }.map(\.element)
+    }
+}
 
 public enum RelayNetworkMode: String, CaseIterable, Codable, Sendable {
     case bridge, router
@@ -84,7 +115,79 @@ extension RelayPairingClient {
     func managementRequests(address: RelayAddress, privateKey: Data, relayKey: Data, payloads: [Data]) async throws -> [Data] {
         guard privateKey.count == 32, relayKey.count == 32, !payloads.isEmpty, payloads.count <= 3,
               payloads.allSatisfy({ $0.count <= 1024 }) else { throw RelaySetupError.protocolError }
-        let socket = connection(address) { _ in }
+        if !managementScope {
+            return try await withManagementSession {
+                try await self.managementRequests(address: address, privateKey: privateKey, relayKey: relayKey, payloads: payloads)
+            }
+        }
+        if let current = managementConnection,
+           !current.matches(address: address, privateKey: privateKey, relayKey: relayKey) {
+            managementConnection = nil
+            await current.close()
+        }
+        do {
+            let session: RelayManagementConnection
+            if let current = managementConnection { session = current }
+            else {
+                session = try RelayManagementConnection(address: address, privateKey: privateKey,
+                    relayKey: relayKey, socket: connection(address))
+                managementConnection = session
+            }
+            return try await session.requests(payloads, client: self)
+        } catch {
+            let failed = managementConnection
+            managementConnection = nil
+            await failed?.close()
+            throw error // A sent mutation is never replayed here.
+        }
+    }
+
+    /// A foreground operation (or one background refresh) owns the relay's
+    /// single authorized stream until completion, failure, or cancellation.
+    func withManagementSession<T>(_ operation: () async throws -> T) async throws -> T {
+        guard !managementScope else { throw RelaySetupError.invalidState }
+        managementScope = true
+        do {
+            let result = try await operation()
+            await finishManagementSession()
+            try Task.checkCancellation()
+            return result
+        } catch {
+            await finishManagementSession()
+            throw error
+        }
+    }
+
+    private func finishManagementSession() async {
+        let previous = managementConnection
+        managementConnection = nil
+        await previous?.close()
+        managementScope = false
+    }
+}
+
+// The pointer is only used by its MainActor owner; destruction cannot overlap
+// a request because requests retain the owner across every suspension point.
+private final class ManagementCodec: @unchecked Sendable {
+    let value: OpaquePointer
+    init(_ value: OpaquePointer) { self.value = value }
+    deinit { pltr_client_link_destroy(value) }
+}
+
+@MainActor
+final class RelayManagementConnection {
+    private let address: RelayAddress
+    private let privateKey: Data
+    private let relayKey: Data
+    private let socket: any RelayByteConnection
+    private let link: ManagementCodec
+    private var ready = false
+    private var closed = false
+    private var exchanging = false
+    private let logger = Logger(subsystem: "la.instinctual.PLANK.TabletSetup", category: "NetworkControl")
+
+    init(address: RelayAddress, privateKey: Data, relayKey: Data, socket: any RelayByteConnection) throws {
+        self.address = address; self.privateKey = privateKey; self.relayKey = relayKey; self.socket = socket
         let codec = privateKey.withUnsafeBytes { key in
             relayKey.withUnsafeBytes { relay in
                 pltr_client_link_create(key.bindMemory(to: UInt8.self).baseAddress,
@@ -92,41 +195,68 @@ extension RelayPairingClient {
             }
         }
         guard let codec else { throw RelaySetupError.protocolError }
-        defer { pltr_client_link_destroy(codec) }
+        link = ManagementCodec(codec)
         guard pltr_client_link_enable_tablet_management(codec) == 0 else { throw RelaySetupError.protocolError }
-        do {
-            let responses = try await bounded(socket: socket, seconds: 12) {
-                try await socket.connect()
+    }
+
+    func matches(address: RelayAddress, privateKey: Data, relayKey: Data) -> Bool {
+        !closed && self.address == address && self.privateKey == privateKey && self.relayKey == relayKey
+    }
+
+    func requests(_ payloads: [Data], client: RelayPairingClient) async throws -> [Data] {
+        guard !closed, !exchanging else { throw RelaySetupError.invalidState }
+        exchanging = true
+        defer { exchanging = false }
+        let codec = link.value
+        if !ready {
+            let start = ContinuousClock.now
+            try await client.bounded(socket: socket, seconds: 12, closing: false) {
+                try await self.socket.connect()
                 var output = [UInt8](repeating: 0, count: 8448)
                 var written = 0
                 guard pltr_client_link_start(codec, &output, output.count, &written) == 0 else { throw RelaySetupError.protocolError }
-                try await socket.send(Data(output.prefix(written)))
+                try await self.socket.send(Data(output.prefix(written)))
                 while pltr_client_link_peer_version(codec) == nil {
-                    guard try await self.managementFrames(socket, codec: codec).isEmpty else { throw RelaySetupError.unexpectedMessage }
+                    guard try await client.managementFrames(self.socket, codec: codec).isEmpty else { throw RelaySetupError.unexpectedMessage }
                 }
-                var responses: [Data] = []
-                for payload in payloads {
+            }
+            ready = true
+            logger.notice("Management connection ready over \(self.address.transportName, privacy: .public), elapsed \(String(describing: start.duration(to: .now)), privacy: .public)")
+        }
+        var responses: [Data] = []
+        for payload in payloads {
+            let start = ContinuousClock.now
+            let response = try await client.bounded(socket: socket, seconds: 10, closing: false) {
                     try Task.checkCancellation()
+                    var output = [UInt8](repeating: 0, count: 8448)
+                    var written = 0
                     let result = payload.withUnsafeBytes { bytes in
                         pltr_client_link_send(codec, UInt16(PLTR_TABLET_REQUEST.rawValue),
                             bytes.bindMemory(to: UInt8.self).baseAddress, payload.count,
                             &output, output.count, &written)
                     }
                     guard result == 0 else { throw RelaySetupError.protocolError }
-                    try await socket.send(Data(output.prefix(written)))
+                    try await self.socket.send(Data(output.prefix(written)))
                     while true {
-                        let replies = try await self.managementFrames(socket, codec: codec)
+                        let replies = try await client.managementFrames(self.socket, codec: codec)
                         guard replies.count <= 1 else { throw RelaySetupError.protocolError }
-                        if let reply = replies.first { responses.append(reply); break }
+                        if let reply = replies.first { return reply }
                     }
-                }
-                return responses
             }
-            await socket.finishDisconnect()
-            return responses
-        } catch {
-            await socket.finishDisconnect()
-            throw error
+            responses.append(response)
+            // Only fixed operation names and timing; never SSIDs, keys, or payloads.
+            let command = (try? JSONSerialization.jsonObject(with: payload)) as? [String: Any]
+            let name = command?["op"] as? String ?? "unknown"
+            let permitted = ["network-status", "network-mode", "wifi-status", "wifi-list", "wifi-scan", "wifi-enable", "wifi-join", "wifi-connect", "wifi-forget"]
+            let operation = permitted.contains(name) ? name : "unknown"
+            logger.notice("Management \(operation, privacy: .public) completed, elapsed \(String(describing: start.duration(to: .now)), privacy: .public)")
         }
+        return responses
+    }
+
+    func close() async {
+        guard !closed else { return }
+        closed = true
+        await socket.finishDisconnect()
     }
 }

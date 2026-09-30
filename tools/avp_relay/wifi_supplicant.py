@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Wi-Fi association through the current wpa_supplicant D-Bus API."""
 from pathlib import Path
+import copy
 
 import dbus
 
@@ -42,18 +43,29 @@ def bss_security(properties):
     return 'unsupported'
 
 
+class SupplicantError(RuntimeError):
+    def __init__(self, name):
+        super().__init__('The Wi-Fi service could not complete the operation.')
+        # Keep the protocol category, never the exception text/parameters.
+        self.name = name
+
+
 class Supplicant:
     def __init__(self, bus, interface, config, driver='nl80211'):
         self.bus, self.interface, self.config, self.driver = bus, interface, Path(config), driver
         self.path = None
+        self._profiles = {}
+        self._profile_paths = None
+        self._scan_signal = None
+        self._scan_result = None
 
     def call(self, path, interface, method, *args):
         # Never expose D-Bus exception text: rejected parameters can contain a key.
         try:
             obj = self.bus.get_object(BUS, path, introspect=False)
             return obj.get_dbus_method(method, interface)(*args, timeout=3)
-        except dbus.DBusException:
-            raise RuntimeError('The Wi-Fi service could not complete the operation.') from None
+        except dbus.DBusException as error:
+            raise SupplicantError(error.get_dbus_name()) from None
 
     def properties(self, path=None, interface=IFACE):
         return self.call(path or self.path, PROPS, 'GetAll', interface)
@@ -77,13 +89,20 @@ class Supplicant:
                 'Ifname': self.interface, 'Driver': self.driver, 'ConfigFile': str(self.config)}, signature='sv')))
 
     def close(self):
+        if self._scan_signal:
+            self._scan_signal.remove()
+            self._scan_signal = None
+        self._profile_paths = None
         if self.path:
             self.call(ROOT, BUS, 'RemoveInterface', dbus.ObjectPath(self.path))
             self.path = None
 
     def saved(self):
+        paths = tuple(str(p) for p in self.properties().get('Networks', []))
+        if paths == self._profile_paths:
+            return copy.deepcopy(self._profiles)
         result = {}
-        for path in self.properties().get('Networks', []):
+        for path in paths:
             props = self.properties(path, BUS + '.Network').get('Properties', {})
             ssid = ssid_bytes(props.get('ssid', ''))
             if not 1 <= len(ssid) <= 32: continue
@@ -93,10 +112,38 @@ class Supplicant:
             if item['id'] in result: result[item['id']]['paths'].append(str(path))
             else: result[item['id']] = item
             if len(result) == MAX_NETWORKS: break
-        return result
+        self._profile_paths, self._profiles = paths, result
+        return copy.deepcopy(result)
+
+    def dispatch(self):
+        # The helper's single backend worker also dispatches its private bus.
+        from gi.repository import GLib
+        context = GLib.MainContext.default()
+        while context.pending(): context.iteration(False)
 
     def scan(self):
-        self.call(self.path, IFACE, 'Scan', dbus.Dictionary({'Type': 'active', 'AllowRoam': False}, signature='sv'))
+        if not self._scan_signal:
+            self._scan_signal = self.bus.add_signal_receiver(self._scan_finished,
+                signal_name='ScanDone', dbus_interface=IFACE, bus_name=BUS, path=self.path)
+        self.dispatch()  # Discard completions belonging to an earlier operation.
+        self._scan_result = None
+        if self.properties().get('Scanning'):
+            return  # Join the already-running scan without disturbing association.
+        try:
+            self.call(self.path, IFACE, 'Scan', dbus.Dictionary({'Type': 'active', 'AllowRoam': False}, signature='sv'))
+        except SupplicantError as error:
+            if error.name != IFACE + '.ScanError': raise
+            # A scheduled scan may not yet expose Scanning=true. Wait for its
+            # ScanDone too; a genuine driver rejection will reach the deadline.
+
+    def _scan_finished(self, success):
+        self._scan_result = bool(success)
+
+    def scan_done(self):
+        self.dispatch()
+        if self._scan_result is False:
+            raise RuntimeError('The Wi-Fi scan failed.')
+        return self._scan_result is True
 
     def scan_results(self):
         saved = self.saved()
@@ -127,11 +174,14 @@ class Supplicant:
         elif security == 'sae':
             values.update(key_mgmt='SAE', sae_password=password, ieee80211w=dbus.Int32(2))
         else: raise ValueError('This network requires another sign-in method.')
+        self._profile_paths = None
         path = str(self.call(self.path, IFACE, 'AddNetwork', dbus.Dictionary(values, signature='sv')))
         self.select(path)
 
     def select(self, path): self.call(self.path, IFACE, 'SelectNetwork', dbus.ObjectPath(path))
-    def remove(self, path): self.call(self.path, IFACE, 'RemoveNetwork', dbus.ObjectPath(path))
+    def remove(self, path):
+        self._profile_paths = None
+        self.call(self.path, IFACE, 'RemoveNetwork', dbus.ObjectPath(path))
     def save(self):
         self.call(self.path, IFACE, 'SaveConfig')
         self.config.chmod(0o600)

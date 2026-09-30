@@ -30,6 +30,8 @@ public final class SetupCoordinator: ObservableObject {
     private let client = RelayPairingClient()
     private var task: Task<Void, Never>?
     private let networkRefresh = RelayBackgroundRefresh()
+    private var networkRoutes = RelayControlRoutes()
+    private var wifiListsNeedRefresh = true
     private var tabletCommand: (String, String?)?
 
     public init() {}
@@ -38,6 +40,8 @@ public final class SetupCoordinator: ObservableObject {
         networkRefresh.cancel()
         guard !state.busy, let address = relay.addresses.first else { return }
         addresses = relay.addresses
+        networkRoutes = RelayControlRoutes()
+        wifiListsNeedRefresh = true
         scanner.stop()
         bluetoothTestResult = nil
         relayIdentityChanged = false
@@ -282,6 +286,9 @@ public final class SetupCoordinator: ObservableObject {
         if state.activity == .managingNetwork {
             networkMessage = "Status monitoring stopped. An accepted network change continues on the relay; refresh to check it."
             wifiMessage = networkMessage
+            // Keep controls busy until the canceled connection has torn down.
+            task?.cancel()
+            return
         }
         scanner.stop()
         task?.cancel()
@@ -298,35 +305,34 @@ public final class SetupCoordinator: ObservableObject {
         await networkRefresh.run { [weak self] in
             guard let self else { return }
             do {
-                guard let key = try self.keys.relayKey(address) else { throw RelaySetupError.invalidStoredKey }
-                let privateKey = try self.keys.clientKey()
-                // Prefer the existing LAN for passive reads. Mutations retain
-                // their BLE preference so changing a subnet cannot lose the command.
-                let candidates = (self.addresses.isEmpty ? [address] : self.addresses)
-                    .sorted { $0.linkType > $1.linkType }
-                var failure: any Error = RelaySetupError.timedOut
-                for candidate in candidates {
-                    do {
-                        let statuses = try await self.client.networkAndWifiStatus(address: candidate,
-                            privateKey: privateKey, relayKey: key)
-                        try Task.checkCancellation()
-                        guard !self.state.busy, self.state.address == address else { return }
-                        self.networkStatus = statuses.0
-                        self.networkMessage = statuses.0.message
-                        if let wifi = statuses.1 {
-                            try await self.readWifi(candidate, privateKey: privateKey, relayKey: key, lists: false, status: wifi)
-                        } else {
-                            self.wifiStatus = nil
-                            self.wifiMessage = "Update the relay to use Wi-Fi controls."
+                try await self.client.withManagementSession {
+                    guard let key = try self.keys.relayKey(address) else { throw RelaySetupError.invalidStoredKey }
+                    let privateKey = try self.keys.clientKey()
+                    // Prefer the existing LAN for passive reads. Mutations retain
+                    // their BLE preference so changing a subnet cannot lose the command.
+                    let candidates = self.networkRoutes.ordered(self.addresses.isEmpty ? [address] : self.addresses,
+                        preferBluetooth: false)
+                    var failure: any Error = RelaySetupError.timedOut
+                    for candidate in candidates {
+                        do {
+                            let statuses = try await self.client.networkAndWifiStatus(address: candidate,
+                                privateKey: privateKey, relayKey: key)
+                            try Task.checkCancellation()
+                            guard !self.state.busy, self.state.address == address else { return }
+                            self.networkStatus = statuses.0
+                            self.networkMessage = statuses.0.message
+                            self.networkRoutes.succeeded(candidate)
+                            try await self.readWifi(candidate, privateKey: privateKey, relayKey: key, lists: false, status: statuses.1)
+                            return
+                        } catch {
+                            try Task.checkCancellation()
+                            guard Self.transportFailure(error) else { throw error }
+                            self.networkRoutes.failed(candidate)
+                            failure = error
                         }
-                        return
-                    } catch {
-                        try Task.checkCancellation()
-                        guard Self.transportFailure(error) else { throw error }
-                        failure = error
                     }
+                    throw failure
                 }
-                throw failure
             } catch is CancellationError {
                 // Leave the current status and the user's edits in place.
             } catch {
@@ -349,93 +355,91 @@ public final class SetupCoordinator: ObservableObject {
             guard let self else { return }
             await self.networkRefresh.cancelAndWait()
             do {
-                try Task.checkCancellation()
-                guard let key = try self.keys.relayKey(address) else { throw RelaySetupError.invalidStoredKey }
-                let privateKey = try self.keys.clientKey()
-                // Prefer BLE control so changing the USB subnet does not break
-                // the command connection. All candidates must prove this key.
-                var candidates = self.addresses.isEmpty ? [address] : self.addresses
-                candidates.sort { $0.linkType < $1.linkType }
-                var selected: RelayAddress?
-                var wifi: RelayWifiStatus?
-                var lastError: any Error = RelaySetupError.timedOut
-                for candidate in candidates {
-                    do {
-                        if mode == nil {
-                            let statuses = try await self.client.networkAndWifiStatus(address: candidate, privateKey: privateKey, relayKey: key)
-                            self.networkStatus = statuses.0; wifi = statuses.1
-                        } else {
-                            self.networkStatus = try await self.client.networkSettings(address: candidate, privateKey: privateKey, relayKey: key)
-                        }
-                        try Task.checkCancellation()
-                        selected = candidate
-                        break
-                    } catch {
-                        try Task.checkCancellation()
-                        guard Self.transportFailure(error) else { throw error }
-                        lastError = error
-                    }
-                }
-                guard let selected else { throw lastError }
-                self.state.useAddress(selected, operation: id)
-                if let mode, let request {
+                try await self.client.withManagementSession {
                     try Task.checkCancellation()
-                    do {
-                        self.networkStatus = try await self.client.networkSettings(address: selected, privateKey: privateKey,
-                            relayKey: key, mode: mode, requestID: request)
-                    } catch {
-                        try Task.checkCancellation()
-                        guard Self.transportFailure(error) else { throw error }
-                        // The relay may have committed before its reply was
-                        // lost. Only poll status; never resend this mutation.
-                    }
-                    self.networkMessage = "Changing network mode… Reconnecting to the same relay."
-                    self.scanner.start()
-                    defer { self.scanner.stop() }
-                    let deadline = ContinuousClock.now + .seconds(90)
-                    var attempt = 0
-                    while ContinuousClock.now < deadline {
-                        try await Task.sleep(for: .seconds(2))
-                        for relay in self.scanner.relays {
-                            for candidate in relay.addresses where candidate.advertisedKey == key && !candidates.contains(candidate) {
-                                candidates.append(candidate)
-                            }
-                        }
-                        let candidate = candidates[attempt % candidates.count]
-                        attempt += 1
+                    guard let key = try self.keys.relayKey(address) else { throw RelaySetupError.invalidStoredKey }
+                    let privateKey = try self.keys.clientKey()
+                    // Reads use TCP first. A mode change prefers Bluetooth because
+                    // it can remove the network path carrying the command.
+                    var candidates = self.networkRoutes.ordered(self.addresses.isEmpty ? [address] : self.addresses,
+                        preferBluetooth: mode != nil)
+                    var selected: RelayAddress?
+                    var wifi: RelayWifiStatus?
+                    var lastError: any Error = RelaySetupError.timedOut
+                    for candidate in candidates {
                         do {
-                            let status = try await self.client.networkSettings(address: candidate, privateKey: privateKey, relayKey: key)
+                            if mode == nil {
+                                let statuses = try await self.client.networkAndWifiStatus(address: candidate, privateKey: privateKey, relayKey: key)
+                                self.networkStatus = statuses.0; wifi = statuses.1
+                            } else {
+                                self.networkStatus = try await self.client.networkSettings(address: candidate, privateKey: privateKey, relayKey: key)
+                            }
                             try Task.checkCancellation()
-                            self.networkStatus = status
-                            if status.confirms(request, mode: mode) {
-                                self.state.useAddress(candidate, operation: id)
-                                self.addresses = candidates
-                                self.networkMessage = "\(mode.title) mode saved."
-                                _ = self.state.succeed(id)
-                                self.task = nil
-                                return
-                            }
-                            if status.requestID == request && status.phase == "failed" {
-                                throw RelaySetupError.rejected(status.message)
-                            }
+                            selected = candidate
+                            self.networkRoutes.succeeded(candidate)
+                            break
                         } catch {
                             try Task.checkCancellation()
                             guard Self.transportFailure(error) else { throw error }
+                            self.networkRoutes.failed(candidate)
+                            lastError = error
                         }
                     }
-                    throw RelaySetupError.rejected("The mode change has not been confirmed. Reconnect and refresh its status before trying again.")
-                } else {
-                    self.networkMessage = self.networkStatus?.message ?? "Connection status refreshed."
-                    do {
-                        if let wifi {
-                            try await self.readWifi(selected, privateKey: privateKey, relayKey: key, lists: refreshWifiLists, status: wifi)
-                        } else {
-                            self.wifiStatus = nil
-                            self.wifiMessage = "Update the relay to use Wi-Fi controls."
-                        }
-                    } catch {
+                    guard let selected else { throw lastError }
+                    self.state.useAddress(selected, operation: id)
+                    if let mode, let request {
                         try Task.checkCancellation()
-                        self.wifiMessage = "Wi-Fi settings could not be read. Check that the relay is updated, then refresh."
+                        do {
+                            self.networkStatus = try await self.client.networkSettings(address: selected, privateKey: privateKey,
+                                relayKey: key, mode: mode, requestID: request)
+                        } catch {
+                            try Task.checkCancellation()
+                            guard Self.transportFailure(error) else { throw error }
+                            // The relay may have committed before its reply was
+                            // lost. Only poll status; never resend this mutation.
+                        }
+                        self.networkMessage = "Changing network mode… Reconnecting to the same relay."
+                        self.scanner.start()
+                        defer { self.scanner.stop() }
+                        let deadline = ContinuousClock.now + .seconds(90)
+                        while ContinuousClock.now < deadline {
+                            try await Task.sleep(for: .milliseconds(500))
+                            for relay in self.scanner.relays {
+                                for candidate in relay.addresses where candidate.advertisedKey == key && !candidates.contains(candidate) {
+                                    candidates.append(candidate)
+                                }
+                            }
+                            let candidate = self.networkRoutes.ordered(candidates)[0]
+                            do {
+                                let status = try await self.client.networkSettings(address: candidate, privateKey: privateKey, relayKey: key)
+                                try Task.checkCancellation()
+                                self.networkStatus = status
+                                self.networkRoutes.succeeded(candidate)
+                                if status.confirms(request, mode: mode) {
+                                    self.state.useAddress(candidate, operation: id)
+                                    self.addresses = candidates
+                                    self.networkMessage = "\(mode.title) mode saved."
+                                    return
+                                }
+                                if status.requestID == request && status.phase == "failed" {
+                                    throw RelaySetupError.rejected(status.message)
+                                }
+                            } catch {
+                                try Task.checkCancellation()
+                                guard Self.transportFailure(error) else { throw error }
+                                self.networkRoutes.failed(candidate)
+                            }
+                        }
+                        throw RelaySetupError.rejected("The mode change has not been confirmed. Reconnect and refresh its status before trying again.")
+                    } else {
+                        self.networkMessage = self.networkStatus?.message ?? "Connection status refreshed."
+                        do {
+                            guard let wifi else { throw RelaySetupError.protocolError }
+                            try await self.readWifi(selected, privateKey: privateKey, relayKey: key, lists: refreshWifiLists, status: wifi)
+                        } catch {
+                            try Task.checkCancellation()
+                            self.wifiMessage = "Could not refresh Wi-Fi: \(error.localizedDescription)"
+                        }
                     }
                 }
                 _ = self.state.succeed(id)
@@ -461,12 +465,16 @@ public final class SetupCoordinator: ObservableObject {
         try Task.checkCancellation()
         self.wifiStatus = status
         self.wifiMessage = status.message
-        if status.supported && (lists || wifiAvailableGeneration.isEmpty || previous?.requestID != status.requestID || previous?.phase != status.phase) {
+        if lists || wifiAvailableGeneration.isEmpty || previous?.requestID != status.requestID || previous?.phase != status.phase {
+            wifiListsNeedRefresh = true
+        }
+        if status.supported && wifiListsNeedRefresh {
             let pages = try await self.client.wifiLists(address: address, privateKey: privateKey, relayKey: relayKey)
             try Task.checkCancellation()
             self.wifiAvailable = pages.0.networks; self.wifiSaved = pages.1.networks
             self.wifiAvailableGeneration = pages.0.generation; self.wifiSavedGeneration = pages.1.generation
             self.wifiAvailableNext = pages.0.next; self.wifiSavedNext = pages.1.next
+            self.wifiListsNeedRefresh = false
         }
     }
 
@@ -491,82 +499,99 @@ public final class SetupCoordinator: ObservableObject {
         }
         if case .enable(let enabled)? = action { wifiEnablePending = enabled }
         let request = UUID().uuidString.lowercased()
-        wifiMessage = action == nil ? "Reading networks…" : "Applying Wi-Fi settings…"
+        switch action {
+        case .scan: wifiMessage = "Scanning for networks…"
+        case .join, .connect: wifiMessage = "Connecting to the selected network…"
+        case .forget: wifiMessage = "Forgetting the network…"
+        case .enable(let enabled): wifiMessage = enabled ? "Enabling Wi-Fi…" : "Disabling Wi-Fi…"
+        case nil: wifiMessage = "Reading networks…"
+        }
         task = Task { [weak self] in
             guard let self else { return }
             await self.networkRefresh.cancelAndWait()
             do {
-                try Task.checkCancellation()
-                guard let key = try self.keys.relayKey(address) else { throw RelaySetupError.invalidStoredKey }
-                let privateKey = try self.keys.clientKey()
-                var candidates = self.addresses.isEmpty ? [address] : self.addresses
-                candidates.sort { $0.linkType < $1.linkType }
-                var selected: RelayAddress?
-                var failure: any Error = RelaySetupError.timedOut
-                for candidate in candidates {
-                    do {
-                        self.wifiStatus = try await self.client.wifiStatus(address: candidate, privateKey: privateKey, relayKey: key)
-                        try Task.checkCancellation()
-                        selected = candidate; break
-                    } catch {
-                        try Task.checkCancellation()
-                        guard Self.transportFailure(error) else { throw error }
-                        failure = error
-                    }
-                }
-                guard let selected else { throw failure }
-                self.state.useAddress(selected, operation: id)
-                if let page {
-                    let result = try await self.client.wifiPage(address: selected, privateKey: privateKey, relayKey: key,
-                                                              kind: page.0, offset: page.1, generation: page.2)
+                try await self.client.withManagementSession {
                     try Task.checkCancellation()
-                    guard result.generation == page.2, result.next == nil || result.next! > page.1 else { throw RelaySetupError.protocolError }
-                    if page.0 == "saved" {
-                        self.wifiSaved += result.networks.filter { row in !self.wifiSaved.contains(where: { $0.id == row.id }) }
-                        self.wifiSavedNext = result.next
-                    } else {
-                        self.wifiAvailable += result.networks.filter { row in !self.wifiAvailable.contains(where: { $0.id == row.id }) }
-                        self.wifiAvailableNext = result.next
+                    guard let key = try self.keys.relayKey(address) else { throw RelaySetupError.invalidStoredKey }
+                    let privateKey = try self.keys.clientKey()
+                    let changesLink: Bool
+                    switch action {
+                    case .enable, .join, .connect, .forget: changesLink = true
+                    default: changesLink = false
                     }
-                    self.wifiMessage = "Network list updated."
-                } else if let action {
-                    try Task.checkCancellation()
-                    do {
-                        self.wifiStatus = try await self.client.wifiStatus(address: selected, privateKey: privateKey,
-                                                                         relayKey: key, action: action, request: request)
-                    } catch {
-                        try Task.checkCancellation()
-                        guard Self.transportFailure(error) else { throw error }
-                        // Never repeat a mutation after an ambiguous lost reply.
-                    }
-                    self.scanner.start()
-                    defer { self.scanner.stop() }
-                    let deadline = ContinuousClock.now + .seconds(100)
-                    var attempt = 0
-                    var confirmed = false
-                    while ContinuousClock.now < deadline {
-                        try await Task.sleep(for: .seconds(2))
-                        for relay in self.scanner.relays {
-                            for endpoint in relay.addresses where endpoint.advertisedKey == key && !candidates.contains(endpoint) { candidates.append(endpoint) }
-                        }
-                        let endpoint = candidates[attempt % candidates.count]; attempt += 1
+                    var candidates = self.networkRoutes.ordered(self.addresses.isEmpty ? [address] : self.addresses,
+                        preferBluetooth: changesLink)
+                    var selected: RelayAddress?
+                    var failure: any Error = RelaySetupError.timedOut
+                    for candidate in candidates {
                         do {
-                            let status = try await self.client.wifiStatus(address: endpoint, privateKey: privateKey, relayKey: key)
+                            self.wifiStatus = try await self.client.wifiStatus(address: candidate, privateKey: privateKey, relayKey: key)
                             try Task.checkCancellation()
-                            self.wifiStatus = status; self.wifiMessage = status.message
-                            if status.confirms(request) {
-                                self.state.useAddress(endpoint, operation: id)
-                                self.addresses = candidates
-                                try await self.readWifi(endpoint, privateKey: privateKey, relayKey: key, lists: true)
-                                confirmed = true; break
-                            }
-                            if status.requestID == request && status.phase == "failed" { throw RelaySetupError.rejected(status.message) }
+                            selected = candidate
+                            self.networkRoutes.succeeded(candidate)
+                            break
                         } catch {
                             try Task.checkCancellation()
                             guard Self.transportFailure(error) else { throw error }
+                            self.networkRoutes.failed(candidate)
+                            failure = error
                         }
                     }
-                    guard confirmed else { throw RelaySetupError.rejected("Wi-Fi change has not been confirmed. Refresh its status before trying again.") }
+                    guard let selected else { throw failure }
+                    self.state.useAddress(selected, operation: id)
+                    if let page {
+                        let result = try await self.client.wifiPage(address: selected, privateKey: privateKey, relayKey: key,
+                                                                  kind: page.0, offset: page.1, generation: page.2)
+                        try Task.checkCancellation()
+                        guard result.generation == page.2, result.next == nil || result.next! > page.1 else { throw RelaySetupError.protocolError }
+                        if page.0 == "saved" {
+                            self.wifiSaved += result.networks.filter { row in !self.wifiSaved.contains(where: { $0.id == row.id }) }
+                            self.wifiSavedNext = result.next
+                        } else {
+                            self.wifiAvailable += result.networks.filter { row in !self.wifiAvailable.contains(where: { $0.id == row.id }) }
+                            self.wifiAvailableNext = result.next
+                        }
+                        self.wifiMessage = "Network list updated."
+                    } else if let action {
+                        try Task.checkCancellation()
+                        do {
+                            self.wifiStatus = try await self.client.wifiStatus(address: selected, privateKey: privateKey,
+                                                                             relayKey: key, action: action, request: request)
+                        } catch {
+                            try Task.checkCancellation()
+                            guard Self.transportFailure(error) else { throw error }
+                            // Never repeat a mutation after an ambiguous lost reply.
+                        }
+                        self.scanner.start()
+                        defer { self.scanner.stop() }
+                        let deadline = ContinuousClock.now + .seconds(100)
+                        var confirmed = false
+                        while ContinuousClock.now < deadline {
+                            try await Task.sleep(for: .milliseconds(500))
+                            for relay in self.scanner.relays {
+                                for endpoint in relay.addresses where endpoint.advertisedKey == key && !candidates.contains(endpoint) { candidates.append(endpoint) }
+                            }
+                            let endpoint = self.networkRoutes.ordered(candidates)[0]
+                            do {
+                                let status = try await self.client.wifiStatus(address: endpoint, privateKey: privateKey, relayKey: key)
+                                try Task.checkCancellation()
+                                self.wifiStatus = status; self.wifiMessage = status.message
+                                self.networkRoutes.succeeded(endpoint)
+                                if status.confirms(request) {
+                                    self.state.useAddress(endpoint, operation: id)
+                                    self.addresses = candidates
+                                    try await self.readWifi(endpoint, privateKey: privateKey, relayKey: key, lists: true, status: status)
+                                    confirmed = true; break
+                                }
+                                if status.requestID == request && status.phase == "failed" { throw RelaySetupError.rejected(status.message) }
+                            } catch {
+                                try Task.checkCancellation()
+                                guard Self.transportFailure(error) else { throw error }
+                                self.networkRoutes.failed(endpoint)
+                            }
+                        }
+                        guard confirmed else { throw RelaySetupError.rejected("Wi-Fi change has not been confirmed. Refresh its status before trying again.") }
+                    }
                 }
                 _ = self.state.succeed(id)
             } catch is CancellationError {
@@ -654,24 +679,6 @@ public final class SetupCoordinator: ObservableObject {
             }
             self.task = nil
         }
-    }
-
-    public func back() {
-        guard !state.busy else { return }
-        networkRefresh.cancel()
-        state.back()
-        // The Network tab must not display controls from a deselected relay.
-        networkStatus = nil
-        wifiStatus = nil
-        wifiEnablePending = nil
-        wifiAvailable = []; wifiSaved = []
-        wifiAvailableNext = nil; wifiSavedNext = nil
-        wifiAvailableGeneration = ""; wifiSavedGeneration = ""
-        networkMessage = "Select and authorize a relay to manage its network."
-        wifiMessage = "Select and authorize a relay to manage its Wi-Fi."
-        relayIdentityChanged = false
-        bluetoothTestResult = nil
-        message = "Choose the next setup step."
     }
 
 }

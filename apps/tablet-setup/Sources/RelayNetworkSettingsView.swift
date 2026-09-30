@@ -16,7 +16,8 @@ struct RelayNetworkSettingsView: View {
             Text("Relay network").font(.largeTitle.bold())
             Text("USB Ethernet is available while the relay’s Ethernet cable has a network link. Internet access is not required.")
                 .foregroundStyle(.secondary)
-            GroupBox {
+            if status != nil {
+              GroupBox {
                 VStack(alignment: .leading, spacing: 16) {
                     Picker("USB network mode", selection: $selectedMode) {
                         ForEach(RelayNetworkMode.allCases, id: \.self) { mode in
@@ -41,7 +42,8 @@ struct RelayNetworkSettingsView: View {
                     Text("Changing mode briefly interrupts USB networking. Tablet and headset pairings are retained.")
                         .font(.caption).foregroundStyle(.secondary)
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(10)
-            } label: { Label("Network mode", systemImage: "slider.horizontal.3").font(.headline) }
+              } label: { Label("Network mode", systemImage: "slider.horizontal.3").font(.headline) }
+            }
 
             GroupBox {
                 VStack(alignment: .leading, spacing: 16) {

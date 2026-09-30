@@ -48,6 +48,7 @@ class RelayCore:
                 helper = self.wifi if command['op'] in WIFI_FIELDS else self.gadget
                 result = helper.request({k: v for k, v in command.items() if k not in ('version', 'id')})
                 if 'error' in result:
+                    if result.get('code') == 'busy': raise GadgetBusy(result['error'])
                     raise ValueError(result['error'])
                 response.update(result, ok=True)
             except GadgetBusy as error:

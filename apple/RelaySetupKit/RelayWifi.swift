@@ -131,13 +131,12 @@ struct WifiCommand: Encodable {
 }
 
 extension RelayPairingClient {
-    public func networkAndWifiStatus(address: RelayAddress, privateKey: Data, relayKey: Data) async throws -> (RelayNetworkStatus, RelayWifiStatus?) {
+    public func networkAndWifiStatus(address: RelayAddress, privateKey: Data, relayKey: Data) async throws -> (RelayNetworkStatus, RelayWifiStatus) {
         let commands = [WifiCommand(id: 1, op: "network-status"), WifiCommand(id: 2, op: "wifi-status")]
         let replies = try await managementRequests(address: address, privateKey: privateKey, relayKey: relayKey,
                                                    payloads: commands.map { try JSONEncoder().encode($0) })
         let network = try RelayNetworkStatus.decode(replies[0], request: 1)
-        do { return (network, try RelayWifiStatus.decode(replies[1], request: 2)) }
-        catch RelaySetupError.rejected { return (network, nil) } // A relay awaiting the Wi-Fi update still has USB controls.
+        return (network, try RelayWifiStatus.decode(replies[1], request: 2))
     }
 
     public func wifiStatus(address: RelayAddress, privateKey: Data, relayKey: Data,

@@ -6,7 +6,7 @@ struct TabletSetupView: View {
     @StateObject private var setup = SetupCoordinator()
     @Environment(\.scenePhase) private var scenePhase
     @State private var tabletToRemove: ManagedTablet?
-    @State private var selectedTab = "tablet"
+    @State private var selectedTab = "relay"
     @State private var editingWifi = false
     @State private var forgettingRelay = false
 
@@ -22,6 +22,23 @@ struct TabletSetupView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             TabView(selection: $selectedTab) {
+              Tab("Select Relay", systemImage: "antenna.radiowaves.left.and.right", value: "relay") {
+                  ScrollView {
+                      VStack(alignment: .leading, spacing: 20) {
+                          Text("Select your relay").font(.largeTitle.bold())
+                          if let address = setup.state.address {
+                              LabeledContent("Selected relay", value: address.description)
+                          }
+                          if setup.state.busy {
+                              Text("Stop the current operation before selecting another relay.")
+                              Button("Stop current operation") { setup.cancel() }
+                          } else {
+                              relayPage
+                          }
+                      }.padding(22)
+                  }
+              }
+              Tab("Tablet", systemImage: "pencil.tip", value: "tablet") {
               ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     Text(setup.state.activity == .managingTablets ? "Set up your tablet" :
@@ -34,7 +51,7 @@ struct TabletSetupView: View {
                         Text("The tablet can be powered off. No button presses are needed.")
                     } else {
                         switch setup.state.step {
-                        case .relay: relayPage
+                        case .relay: Text("Select a relay to set up your tablet.")
                         case .tablet: tabletPage
                         case .complete: completePage
                         }
@@ -67,12 +84,22 @@ struct TabletSetupView: View {
                 .padding(22)
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22))
               }
-              .tabItem { Label("Tablet", systemImage: "pencil.tip") }.tag("tablet")
+              }.disabled(setup.state.address == nil)
+              Tab("Network", systemImage: "network", value: "network") {
               ScrollView {
                   VStack(alignment: .leading, spacing: 16) {
                       if let address = setup.state.address {
                           LabeledContent("Relay", value: address.description)
                       }
+                      if !setup.state.hasTrust {
+                          ContentUnavailableView {
+                              Label("Finish tablet setup", systemImage: "lock.shield")
+                          } description: {
+                              Text("Set up a tablet to authorize network controls for this relay.")
+                          } actions: {
+                              Button("Set up tablet") { selectedTab = "tablet" }
+                          }
+                      } else {
                       if setup.state.busy && setup.state.activity != .managingNetwork {
                           Text("Stop the current tablet operation before changing network settings.")
                           Button("Stop current operation") { setup.cancel() }
@@ -86,9 +113,13 @@ struct TabletSetupView: View {
                           authorized: setup.state.hasTrust, busy: setup.state.busy, message: setup.wifiMessage,
                           action: setup.performWifi, more: { setup.moreWifiNetworks(saved: $0) },
                           editing: { editingWifi = $0 })
+                      }
                   }.padding(22)
               }
-              .tabItem { Label("Network", systemImage: "network") }.tag("network")
+              }.disabled(setup.state.address == nil)
+            }
+            .onChange(of: setup.state.address) { _, address in
+                if address == nil { selectedTab = "relay" }
             }
             .task(id: "\(selectedTab)-\(scenePhase)-\(editingWifi)-\(setup.state.busy)-\(setup.state.hasTrust)-\(String(describing: setup.state.address))") {
                 guard selectedTab == "network", scenePhase == .active, !editingWifi, !setup.state.busy, setup.state.hasTrust else { return }
@@ -108,7 +139,9 @@ struct TabletSetupView: View {
                 Spacer()
                 if setup.state.activity == .managingNetwork { Button("Stop waiting") { setup.cancel() } }
                 else if setup.state.busy && setup.state.activity != .observing { Button("Cancel") { setup.cancel() } }
-                else if !setup.state.busy && setup.state.step != .relay { Button("Back") { setup.back() } }
+                else if !setup.state.busy && selectedTab != "relay" {
+                    Button("Select Relay") { selectedTab = "relay" }
+                }
             }
         }
         .padding(28)
@@ -137,7 +170,10 @@ struct TabletSetupView: View {
     }
 
     private var relayPage: some View {
-        RelayPicker(scanner: setup.scanner, selected: setup.selectRelay)
+        RelayPicker(scanner: setup.scanner) { relay in
+            setup.selectRelay(relay)
+            if setup.state.address != nil { selectedTab = "tablet" }
+        }
     }
 
     private var tabletPage: some View {

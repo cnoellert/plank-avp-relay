@@ -187,6 +187,8 @@ protocol RelayByteConnection: AnyObject, Sendable {
 
 @MainActor
 public final class RelayPairingClient {
+    var managementConnection: RelayManagementConnection?
+    var managementScope = false
     public init() {}
 
     func connection(_ address: RelayAddress, channel: RelayBLEChannel = .relay,
@@ -435,7 +437,7 @@ public final class RelayPairingClient {
         }
     }
 
-    func bounded<T>(socket: any RelayByteConnection, seconds: UInt64,
+    func bounded<T>(socket: any RelayByteConnection, seconds: UInt64, closing: Bool = true,
                             operation: () async throws -> T) async throws -> T {
         var expired = false
         let timer = Task {
@@ -444,11 +446,11 @@ public final class RelayPairingClient {
             expired = true
             socket.cancel()
         }
-        defer { timer.cancel(); socket.cancel() }
+        defer { timer.cancel(); if closing { socket.cancel() } }
         return try await withTaskCancellationHandler {
             do {
                 let result = try await operation()
-                await socket.finishDisconnect()
+                if closing { await socket.finishDisconnect() }
                 return result
             } catch {
                 await socket.finishDisconnect()
