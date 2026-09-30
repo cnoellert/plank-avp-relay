@@ -1,3 +1,11 @@
+plank-avp-relay (0.6.2) experimental; urgency=medium
+
+  * Preserve completed tablet input reports and their source timestamps.
+  * Remove the diagnostic 20 Hz limit and promptly flush network writes.
+  * Match the app's larger tablet test and input/receipt rate diagnostics.
+
+ -- PLANK contributors <625982+alatteri@users.noreply.github.com>  Wed, 30 Sep 2026 18:00:00 +0000
+
 plank-avp-relay (0.6.1) experimental; urgency=medium
 
   * Match the Setup app tab-switch testing teardown and Wi-Fi

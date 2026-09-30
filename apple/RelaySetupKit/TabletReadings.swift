@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import Foundation
+import Combine
 
-/// A coalesced diagnostic snapshot, not a raw-HID forwarding stream.
+/// One completed evdev report, or an idle/attachment status update.
 public struct TabletReadings: Equatable, Sendable {
     public let attached: Bool
     public let proximity: Bool
@@ -11,6 +12,7 @@ public struct TabletReadings: Equatable, Sendable {
     public let sideButton2: Bool
     public let buttons: UInt16
     public let sequence: UInt32
+    public let timestampMicroseconds: UInt64
     public let x: Int32, y: Int32, pressure: Int32
     public let xMinimum: Int32, xMaximum: Int32, yMinimum: Int32, yMaximum: Int32
     public let pressureMinimum: Int32, pressureMaximum: Int32
@@ -36,6 +38,7 @@ public struct TabletReadings: Equatable, Sendable {
         sideButton1 = bytes[1] & 16 != 0
         sideButton2 = bytes[1] & 32 != 0
         buttons = u16(2); sequence = u32(4)
+        timestampMicroseconds = (0..<8).reduce(0) { $0 | UInt64(bytes[8+$1]) << (8*$1) }
         x = i32(16); y = i32(20); pressure = i32(24)
         xMinimum = i32(28); xMaximum = i32(32)
         yMinimum = i32(36); yMaximum = i32(40)
@@ -54,4 +57,68 @@ public struct TabletReadings: Equatable, Sendable {
     public var normalizedX: Double { fraction(x, xMinimum, xMaximum) }
     public var normalizedY: Double { fraction(y, yMinimum, yMaximum) }
     public var normalizedPressure: Double { fraction(pressure, pressureMinimum, pressureMaximum) }
+
+    public var aspectRatio: Double {
+        guard attached else { return 1 }
+        return (Double(xMaximum) - Double(xMinimum)) / (Double(yMaximum) - Double(yMinimum))
+    }
+}
+
+/// Source rate uses only the relay clock; receipt rate uses only the app clock.
+/// Reports include pen, pad and touch. Heartbeats do not count as input updates.
+public struct TabletReportRates: Sendable {
+    public private(set) var input: Double?
+    public private(set) var received: Double?
+    private var baseline: TabletReadings?
+    private var lastReports: UInt32 = 0
+    private var started: Double = 0
+    private var updates = 0
+
+    public init() {}
+
+    public mutating func accept(_ sample: TabletReadings, at now: Double) {
+        guard let first = baseline, first.generation == sample.generation,
+              sample.attached else {
+            baseline = sample.attached ? sample : nil
+            lastReports = sample.reports
+            started = now; updates = 0
+            input = nil; received = nil
+            return
+        }
+        if sample.reports != lastReports { updates += 1 }
+        lastReports = sample.reports
+        let elapsed = now - started
+        guard elapsed >= 1, sample.timestampMicroseconds > first.timestampMicroseconds else { return }
+        let sourceElapsed = Double(sample.timestampMicroseconds - first.timestampMicroseconds) / 1_000_000
+        input = Double(sample.reports &- first.reports) / sourceElapsed
+        received = Double(updates) / elapsed
+        baseline = sample; started = now; updates = 0
+    }
+}
+
+/// Only the test surface observes these frequent updates, not the setup pages.
+@MainActor
+public final class TabletTestReadings: ObservableObject {
+    @Published public private(set) var latest: TabletReadings?
+    public private(set) var count = 0
+    public private(set) var trail: [TabletReadings] = []
+    public private(set) var rates = TabletReportRates()
+
+    public init() {}
+
+    public func reset() {
+        count = 0; trail.removeAll(); rates = TabletReportRates()
+        latest = nil
+    }
+
+    public func accept(_ sample: TabletReadings) {
+        if !sample.attached || sample.generation != latest?.generation { trail.removeAll() }
+        if sample.attached, sample.reports != latest?.reports {
+            trail.append(sample)
+            if trail.count > 256 { trail.removeFirst(trail.count - 256) }
+        }
+        count += 1
+        rates.accept(sample, at: ProcessInfo.processInfo.systemUptime)
+        latest = sample
+    }
 }

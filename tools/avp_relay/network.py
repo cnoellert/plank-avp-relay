@@ -36,6 +36,22 @@ class Connection:
             self.last_progress = time.monotonic()
         self.output.extend(data)
         self.server.selector.modify(self.sock, selectors.EVENT_READ | selectors.EVENT_WRITE, self)
+        self.flush()
+
+    def flush(self):
+        # A writable socket can accept newly captured input immediately. A
+        # partial/nonblocking write stays queued for the existing selector.
+        if not self.output:
+            return
+        try:
+            count = self.sock.send(self.output)
+        except BlockingIOError:
+            return
+        if count:
+            del self.output[:count]
+            self.last_progress = time.monotonic()
+        if not self.output:
+            self.server.selector.modify(self.sock, selectors.EVENT_READ, self)
 
     def receive(self, data):
         if self.channel is None:
@@ -91,12 +107,7 @@ class Connection:
                     return
                 self.receive(data)
             if events & selectors.EVENT_WRITE and self.output:
-                count = self.sock.send(self.output)
-                if count:
-                    del self.output[:count]
-                    self.last_progress = time.monotonic()
-                if not self.output:
-                    self.server.selector.modify(self.sock, selectors.EVENT_READ, self)
+                self.flush()
         except BlockingIOError:
             pass
         except (OSError, ValueError, ProtocolError, BufferError, TimeoutError):

@@ -348,7 +348,7 @@ service UUID identifies this endpoint; a legacy endpoint is not silently upgrade
 | 1 | u8 | Flags: attached, pen proximity, tip, eraser, side1, side2 |
 | 2 | u16 | Pad button mask in ascending capability-code order |
 | 4 | u32 | Snapshot sequence |
-| 8 | u64 | Relay monotonic microseconds |
+| 8 | u64 | Linux input report timestamp, monotonic microseconds; relay time for idle/status updates |
 | 16, 20, 24 | i32 | Pen X, Y, pressure |
 | 28, 32, 36, 40 | i32 | X minimum/maximum, Y minimum/maximum |
 | 44, 48 | i32 | Pressure minimum/maximum |
@@ -357,9 +357,16 @@ service UUID identifies this endpoint; a legacy endpoint is not silently upgrade
 | 76 | u16 | Active touch contacts |
 | 78 | u16 | Reserved zero |
 
-Snapshots are coalesced for display at up to20Hz, plus an idle status update
-each second. Short button transitions may fall between display updates. This
-is not a lossless stroke stream, throughput qualification, or an AVP system
+Since 0.6.2, one snapshot is retained for every completed Linux input report,
+plus an idle status update each second. Partial reports wait for SYN_REPORT;
+position, pressure and button transitions are preserved across reads. Input
+timestamps use EVIOCSCLOCKID with CLOCK_MONOTONIC. The existing 80-byte schema
+and capability are unchanged. Up to 32 individually encrypted records share
+one transport write. There is no fixed 20Hz output limit or model-specific rate.
+The queue holds at most 256 reports and fails the test connection if its oldest
+report waits over half a second. Slow transport is never hidden by dropping
+intermediate positions or growing an unlimited queue. Physical throughput over
+each Bluetooth adapter still requires qualification. This is not an AVP system
 pointer device. The Linux observer does not grab input, modify calibration, or
 change tablet power settings. A SYN_DROPPED event closes/reopens input nodes to
 query current state and is surfaced in the diagnostic UI.

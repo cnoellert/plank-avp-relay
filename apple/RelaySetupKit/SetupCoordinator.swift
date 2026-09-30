@@ -10,8 +10,7 @@ public enum RelayDiagnostic: Equatable, Sendable {
 public final class SetupCoordinator: ObservableObject {
     @Published public private(set) var state = SetupState()
     @Published public private(set) var message = "Scan for the relay beside your tablet."
-    @Published public private(set) var readings: TabletReadings?
-    @Published public private(set) var readingCount = 0
+    public let tabletTest = TabletTestReadings()
     @Published public private(set) var connectionDiagnostic: RelayDiagnostic = .idle
     @Published public private(set) var authorizationDiagnostic: RelayDiagnostic = .idle
     @Published public private(set) var tabletStatus: TabletSetupStatus?
@@ -245,7 +244,7 @@ public final class SetupCoordinator: ObservableObject {
             authorizationDiagnostic = .idle
             relayIdentityChanged = false
             tabletStatus = nil
-            readings = nil
+            tabletTest.reset()
             networkStatus = nil
             wifiStatus = nil
             wifiAvailable = []; wifiSaved = []
@@ -313,7 +312,7 @@ public final class SetupCoordinator: ObservableObject {
         if case .running = connectionDiagnostic { connectionDiagnostic = .canceled }
         if case .running = authorizationDiagnostic { authorizationDiagnostic = .canceled }
         state.cancel()
-        readings = nil
+        tabletTest.reset()
         message = "Operation canceled. Existing pairing was not removed."
     }
 
@@ -657,7 +656,7 @@ public final class SetupCoordinator: ObservableObject {
 
     public func stopTesting() {
         guard state.stopObservation() else { return }
-        readings = nil
+        tabletTest.reset()
         message = "Stopping tablet test…"
         task?.cancel()
         // Keep state.busy until observe/preflight has completed disconnect.
@@ -666,8 +665,7 @@ public final class SetupCoordinator: ObservableObject {
 
     public func startReadings() {
         guard let address = state.address, let id = state.beginObservation() else { return }
-        readings = nil
-        readingCount = 0
+        tabletTest.reset()
         message = "Verifying the relay and starting live tablet readings…"
         task = Task { [weak self] in
             guard let self else { return }
@@ -703,17 +701,17 @@ public final class SetupCoordinator: ObservableObject {
                                 self.message = message
                             }) { [weak self] sample in
                                 guard let self, self.state.operation == id, self.state.activity == .observing else { return }
-                                self.state.verifyObservation(id)
-                                self.readings = sample
-                                self.readingCount += 1
-                                self.message = sample.attached ? "Receiving live tablet readings over \(candidate.transportName)." :
+                                if !self.state.connectionVerified { self.state.verifyObservation(id) }
+                                self.tabletTest.accept(sample)
+                                let message = sample.attached ? "Receiving live tablet readings over \(candidate.transportName)." :
                                     "The relay is connected. Reconnect the USB tablet or wake the Bluetooth tablet to resume input. Saved pairings are retained."
+                                if self.message != message { self.message = message }
                             }
                         break
                     } catch {
                         try Task.checkCancellation()
                         guard self.state.operation == id, attempt < 3, Self.transportFailure(error) else { throw error }
-                        self.readings = nil
+                        self.tabletTest.reset()
                         self.message = "Connection interrupted. Reconnecting to the same authorized relay…"
                         try await Task.sleep(for: .seconds(1))
                     }
@@ -722,11 +720,11 @@ public final class SetupCoordinator: ObservableObject {
                 if self.state.finishObservation(id) { self.message = "Tablet test stopped." }
             } catch is CancellationError {
                 guard self.state.finishObservation(id) else { return }
-                self.readings = nil
+                self.tabletTest.reset()
                 self.message = "Tablet test stopped."
             } catch {
                 guard self.state.operation == id else { return }
-                self.readings = nil
+                self.tabletTest.reset()
                 self.state.fail(id, message: error.localizedDescription)
                 self.message = error.localizedDescription
             }

@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Read-only evdev diagnostics, grouped by physical Wacom ancestry."""
+"""Read-only, report-preserving evdev input grouped by physical Wacom ancestry."""
+from collections import deque
 import errno
 import fcntl
 import hashlib
@@ -102,6 +103,9 @@ class Capture:
         self.generation = self.reports = self.dropped = self.sequence = 0
         self.last_scan = 0
         self.dirty = True
+        self.frames = {}
+        self.pending = deque()
+        self.observing = False
 
     @property
     def attached(self):
@@ -112,6 +116,7 @@ class Capture:
             self.selector.unregister(fd)
             os.close(fd)
         self.nodes.clear()
+        self.frames.clear()
         self.axes.clear()
         self.ranges.clear()
         self.keys.clear()
@@ -162,6 +167,8 @@ class Capture:
                 fd = os.open('/dev/input/' + name, os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC)
                 self.nodes[fd] = (kind, pad)
                 self.selector.register(fd, selectors.EVENT_READ)
+                # Use the same clock as the relay's heartbeat timestamps.
+                fcntl.ioctl(fd, 0x400445a0, struct.pack('=i', time.CLOCK_MONOTONIC))  # EVIOCSCLOCKID
                 held = bytearray(96)
                 fcntl.ioctl(fd, 0x80000000 | (len(held) << 16) | (ord('E') << 8) | 0x18, held)
                 pressed = {code for code in range(len(held)*8) if held[code//8] & (1 << (code%8))}
@@ -223,35 +230,69 @@ class Capture:
                 print('Tablet offline; saved enrollment is retained.', flush=True)
                 break
             kind, pad = self.nodes[key.fd]
-            for _, _, event, code, value in EVENT.iter_unpack(data):
+            frame = self.frames.setdefault(key.fd, [])
+            for seconds, micros, event, code, value in EVENT.iter_unpack(data):
                 if event == 0 and code == 3:
                     self.dropped += 1
                     self.close_nodes()
                     return  # Reopen and query current state after SYN_DROPPED.
                 if event == 0 and code == 0:
+                    # Commit at SYN_REPORT, even when a report spans reads. Never
+                    # send half a position/pressure update or lose a tip edge.
+                    for ev, code, value in frame:
+                        self.apply_event(kind, pad, ev, code, value)
+                    frame.clear()
                     self.reports += 1
                     self.dirty = True
-                elif kind == 'pen':
-                    if event == 3:
-                        self.axes[code] = value
-                    elif event == 1 and value in (0, 1):
-                        self.keys.add(code) if value else self.keys.discard(code)
-                elif kind == 'pad' and event == 1 and code in pad and value in (0, 1, 2):
-                    self.on_button(code, value)
-                    if value == 2:
-                        continue
-                    index = pad.index(code)
-                    if value:
-                        self.pad_mask |= 1 << index
-                    else:
-                        self.pad_mask &= ~(1 << index)
-                elif kind == 'touch' and event == 3:
-                    if code == 47:
-                        self.slot = value
-                    elif code == 57:
-                        self.contacts[self.slot] = value >= 0
+                    if self.observing:
+                        self.enqueue(self.sample(seconds * 1000000 + micros))
+                else:
+                    if len(frame) >= 1024:
+                        raise OSError('Tablet input report exceeded its event limit.')
+                    frame.append((event, code, value))
 
-    def sample(self):
+    def apply_event(self, kind, pad, event, code, value):
+        if kind == 'pen':
+            if event == 3:
+                self.axes[code] = value
+            elif event == 1 and value in (0, 1):
+                self.keys.add(code) if value else self.keys.discard(code)
+        elif kind == 'pad' and event == 1 and code in pad and value in (0, 1, 2):
+            self.on_button(code, value)
+            if value != 2:
+                index = pad.index(code)
+                if value:
+                    self.pad_mask |= 1 << index
+                else:
+                    self.pad_mask &= ~(1 << index)
+        elif kind == 'touch' and event == 3:
+            if code == 47:
+                self.slot = value
+            elif code == 57:
+                self.contacts[self.slot] = value >= 0
+
+    def observe(self, active):
+        if active != self.observing:
+            self.observing = active
+            self.pending.clear()
+            self.dirty = True
+
+    def enqueue(self, sample):
+        if len(self.pending) >= 256:
+            raise BufferError('Tablet connection cannot keep up with input reports.')
+        self.pending.append((time.monotonic(), sample))
+
+    def check_pending(self):
+        if self.pending and time.monotonic() - self.pending[0][0] > 0.5:
+            raise BufferError('Tablet connection is more than half a second behind input.')
+
+    def take_samples(self):
+        self.check_pending()
+        # Bound each transport write while retaining report order. Multiple
+        # existing encrypted records share one write; no new wire format.
+        return [self.pending.popleft()[1] for _ in range(min(32, len(self.pending)))]
+
+    def sample(self, timestamp=None):
         self.sequence += 1
         self.dirty = False
         flags = int(self.attached)
@@ -261,7 +302,7 @@ class Capture:
         low_y, high_y = self.ranges.get(1, (0, 0))
         low_p, high_p = self.ranges.get(24, (0, 0))
         return SAMPLE.pack(1, flags, self.pad_mask & 0xffff, self.sequence,
-            time.monotonic_ns() // 1000,
+            time.monotonic_ns() // 1000 if timestamp is None else timestamp,
             self.axes.get(0, 0), self.axes.get(1, 0), self.axes.get(24, 0),
             low_x, high_x, low_y, high_y, low_p, high_p,
             self.axes.get(26, 0), self.axes.get(27, 0), self.axes.get(25, 0),

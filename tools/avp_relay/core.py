@@ -26,7 +26,6 @@ class RelayCore:
         self.native.on_management = lambda data: self.request(data, self.owner,
             self.native.management_authorized, self.native.enrolling)
         self.last_sample = 0
-        self.was_observing = False
 
     def select(self, value):
         self.capture.close_nodes()
@@ -112,8 +111,8 @@ class RelayCore:
             return
         self.cancel_setup(owner)
         self.native.disconnect()
+        self.capture.observe(False)
         self.owner = self.emit = self.busy = self.close_connection = None
-        self.was_observing = False
         print('Headset link closed; existing trust retained.', flush=True)
 
     def button(self, code, value):
@@ -128,22 +127,27 @@ class RelayCore:
             if self.tablets.owner:
                 self.cancel_setup(self.tablets.owner)
             self.tablets.message = 'Bluetooth tablet management is unavailable; reconnect the adapter.'
-        self.capture.poll()
-        self.native.tablet(self.capture.attached)
-        if not self.owner:
-            return
         try:
+            self.capture.observe(bool(self.owner and self.native.observing))
+            self.capture.poll()
+            self.native.tablet(self.capture.attached)
+            if not self.owner:
+                return
             self.emit(self.native.tick())
             observing = self.native.observing
-            if observing and not self.was_observing:
-                self.capture.dirty = True
-            self.was_observing = observing
             now = time.monotonic()
-            if (observing and not self.busy() and now - self.last_sample >= 0.05 and
-                    (self.capture.dirty or now - self.last_sample >= 1)):
-                self.emit(self.native.sample(self.capture.sample()))
-                self.last_sample = now
+            if observing:
+                self.capture.check_pending()
+                if self.capture.dirty or (not self.capture.pending and now - self.last_sample >= 1):
+                    self.capture.enqueue(self.capture.sample())
+                if not self.busy():
+                    samples = self.capture.take_samples()
+                    if samples:
+                        self.emit(b''.join(self.native.sample(sample) for sample in samples))
+                        self.last_sample = now
         except (ProtocolError, BufferError, TimeoutError, OSError) as error:
+            if not self.owner:
+                raise
             print('Headset session ended: ' + str(error), flush=True)
             self.close_connection()
 

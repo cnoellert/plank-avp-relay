@@ -1,0 +1,5 @@
+Test Tablet now opens a larger testing window with a pressure-sensitive trail.
+
+This release removes the relay preview’s 20 Hz limit and preserves complete position, pressure and button updates. Update the relay to 0.6.2 as well. Reading details show input reports and received updates per second.
+
+Please test continuous pen movement, pressure changes, quick taps, and Stop Testing or dismissing the window. Check both network and Bluetooth connections when available.

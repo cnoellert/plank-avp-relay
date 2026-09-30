@@ -38,6 +38,8 @@ struct RelayPicker: View {
 struct TabletReadingsView: View {
     let readings: TabletReadings
     let count: Int
+    var trail: [TabletReadings] = []
+    var rates = TabletReportRates()
 
     private var pressedButtons: String {
         let indices = (0..<16).filter { readings.buttons & (1 << $0) != 0 }
@@ -50,18 +52,36 @@ struct TabletReadingsView: View {
                   systemImage: readings.attached ? "checkmark.circle.fill" : "moon.zzz")
                 .foregroundStyle(readings.attached ? Color.green : Color.orange)
             if readings.attached {
-                GeometryReader { geometry in
-                    ZStack(alignment: .topLeading) {
-                        RoundedRectangle(cornerRadius: 12).fill(.blue.opacity(0.10))
-                        if readings.proximity || readings.eraser {
-                            Circle().fill(readings.tip ? Color.blue : Color.secondary)
-                                .frame(width: 14 + 22 * readings.normalizedPressure,
-                                       height: 14 + 22 * readings.normalizedPressure)
-                                .position(x: 18 + readings.normalizedX * max(0, geometry.size.width - 36),
-                                          y: 18 + readings.normalizedY * max(0, geometry.size.height - 36))
+                Canvas { context, size in
+                    let inset = CGRect(origin: .zero, size: size).insetBy(dx: 18, dy: 18)
+                    let ratio = readings.aspectRatio
+                    let width = min(inset.width, inset.height * ratio)
+                    let height = width / ratio
+                    let area = CGRect(x: (size.width - width) / 2, y: (size.height - height) / 2,
+                                      width: width, height: height)
+                    context.fill(Path(roundedRect: area, cornerRadius: 12), with: .color(.blue.opacity(0.10)))
+                    func point(_ sample: TabletReadings) -> CGPoint {
+                        CGPoint(x: area.minX + sample.normalizedX * area.width,
+                                y: area.minY + sample.normalizedY * area.height)
+                    }
+                    for (previous, current) in zip(trail, trail.dropFirst()) {
+                        if previous.tip && current.tip && previous.generation == current.generation {
+                            var segment = Path()
+                            segment.move(to: point(previous)); segment.addLine(to: point(current))
+                            context.stroke(segment, with: .color(.blue),
+                                style: StrokeStyle(lineWidth: 1 + 9 * current.normalizedPressure, lineCap: .round))
                         }
                     }
-                }.frame(height: 150).accessibilityLabel("Live pen position")
+                    if readings.proximity || readings.eraser {
+                        let center = point(readings)
+                        let diameter = 12 + 18 * readings.normalizedPressure
+                        let cursor = CGRect(x: center.x - diameter / 2, y: center.y - diameter / 2,
+                                            width: diameter, height: diameter)
+                        context.fill(Path(ellipseIn: cursor), with: .color(readings.tip ? .blue : .secondary))
+                    }
+                }.frame(maxWidth: .infinity).frame(height: 420)
+                    .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 16))
+                    .accessibilityLabel("Live pen position and pressure-sensitive trail")
                 ProgressView(value: readings.normalizedPressure) {
                     Text("Pressure: \(readings.pressure) / \(readings.pressureMaximum)")
                 }
@@ -77,6 +97,10 @@ struct TabletReadingsView: View {
                         LabeledContent("Pen buttons", value: "\(readings.sideButton1 ? "1" : "–") \(readings.sideButton2 ? "2" : "–")")
                         LabeledContent("Touch contacts", value: String(readings.touches))
                         LabeledContent("Updates received", value: String(count))
+                        LabeledContent("Input reports/s", value: rate(rates.input))
+                        LabeledContent("Received updates/s", value: rate(rates.received))
+                        Text("Move the pen continuously to compare rates. Input reports include pen, tablet buttons and touch; idle status updates are excluded from the received rate.")
+                            .font(.caption).foregroundStyle(.secondary)
                         Text("Button numbers identify relay input slots; their physical layout varies by tablet.")
                             .font(.caption).foregroundStyle(.secondary)
                     }.font(.callout.monospacedDigit()).padding(.top, 10)
@@ -90,5 +114,43 @@ struct TabletReadingsView: View {
                     .font(.callout).foregroundStyle(.orange)
             }
         }
+    }
+
+    private func rate(_ value: Double?) -> String {
+        value.map { String(format: "%.0f", $0) } ?? "Measuring…"
+    }
+}
+
+struct TabletTestingView: View {
+    @ObservedObject var setup: SetupCoordinator
+    @ObservedObject var test: TabletTestReadings
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("Test Tablet").font(.title.bold())
+                Spacer()
+                Button(setup.state.activity == .observing ? "Stop Testing" : "Close") {
+                    setup.stopTesting()
+                    dismiss()
+                }.buttonStyle(.borderedProminent)
+            }
+            Text(setup.state.address?.description ?? "").font(.callout).foregroundStyle(.secondary)
+            ScrollView {
+                if let readings = test.latest {
+                    TabletReadingsView(readings: readings, count: test.count, trail: test.trail, rates: test.rates)
+                } else if setup.state.activity == .observing {
+                    ProgressView(setup.message).frame(maxWidth: .infinity, minHeight: 420)
+                } else {
+                    ContentUnavailableView("Tablet test ended", systemImage: "pencil.tip",
+                        description: Text(setup.message)).frame(minHeight: 420)
+                }
+            }
+            Text("Move, hover and press the pen to test position and pressure.")
+                .font(.callout).foregroundStyle(.secondary)
+        }
+        .padding(28)
+        .frame(width: 760, height: 780)
     }
 }

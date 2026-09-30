@@ -1,5 +1,31 @@
 # PLANK AVP Relay and Setup app
 
+## Current work — 0.6.2 tablet test fidelity
+
+The operator authorized a larger testing popup and a focused correction based
+on the working PLANK raw-report paths. The managed observer now retains each
+completed evdev report, including timestamps and short pen/button transitions,
+and sends existing encrypted records without the former 20Hz snapshot limit.
+TCP flushes immediately when writable. Queues are bounded to 256 reports and
+half a second; overflow ends the test instead of silently dropping input.
+No tablet model rate, new driver, prediction or smoothing layer was added.
+
+The Setup app uses a large testing sheet with an aspect-preserving pen area
+and a pressure-sensitive trail. Frequent updates are isolated to its test
+observable object. Stop/dismiss/tab/inactivity cancellation keeps the existing
+connection reservation. Details compare source and received report rates using
+separate clocks; input includes pen/pad/touch and receipt excludes heartbeats.
+This is not a one-way latency or display-frame-rate measurement.
+
+Initial validation: 31 Linux suites and 18 Apple suites passed, with macOS and
+visionOS simulator compilation and native preview inspection. A paced synthetic
+200-report/s source passed through capture and real Noise/TCP sockets with all
+200 reports intact, 199.8 reports/s received, 3.09ms mean and 6.41ms maximum
+local input-to-decode delay. These are software loopback results, not physical
+Wacom, Bluetooth, AVP rendering or end-to-end latency measurements. Package,
+TestFlight delivery and physical validation remain pending. Relay SSH has been
+intermittently unreachable; do not claim a live upgrade or capture yet.
+
 ## Current state — 2026-09-30 UTC
 
 The operator approved **0.6.1 / TestFlight 30** on 2026-09-30 and requested

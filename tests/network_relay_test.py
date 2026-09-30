@@ -2,6 +2,7 @@
 """Real loopback sockets and Noise against the new TCP adapter/current core."""
 import ctypes as C
 import json
+import os
 from pathlib import Path
 import socket
 import sys
@@ -53,7 +54,8 @@ class NetworkTests(unittest.TestCase):
         self.addCleanup(lambda: self.core.close())
         self.addCleanup(lambda: self.server.close())
         self.addCleanup(patch.stopall)
-        patch.object(self.core.capture, 'poll').start()
+        self.capture_poll = patch.object(self.core.capture, 'poll')
+        self.capture_poll.start()
         self.request_id = 0
 
     def approve(self):
@@ -177,6 +179,69 @@ class NetworkTests(unittest.TestCase):
         self.assertEqual(self.core.owner, owner)
         sock.close(); self.pump()
         self.assertIsNone(self.core.owner)
+
+    def test_burst_of_reports_survives_noise_tcp_in_order(self):
+        from avp_relay.capture import SAMPLE
+        self.approve()
+        sock, client, connected = self.connect()
+        self.assertTrue(connected)
+        self.send(sock, client, 13, b'\x01')
+        frames = self.feed(sock, client, self.read(sock))
+        while not any(kind == 14 for kind, _ in frames):
+            frames += self.feed(sock, client, self.read(sock))
+        expected = []
+        for number in range(100):
+            self.core.capture.axes = {0: number, 1: number * 2, 24: number * 7}
+            self.core.capture.reports += 1
+            data = self.core.capture.sample(1000000 + number * 5000)
+            expected.append(data)
+            self.core.capture.enqueue(data)
+        received = []
+        while len(received) < len(expected):
+            received += [data for kind, data in self.feed(sock, client, self.read(sock)) if kind == 14]
+        self.assertEqual(received, expected)
+        self.assertEqual([SAMPLE.unpack(data)[4] for data in received],
+                         [1000000 + n * 5000 for n in range(100)])
+
+    def test_paced_200_report_source_through_capture_and_noise_tcp(self):
+        from avp_relay.capture import SAMPLE, EVENT
+        self.approve()
+        sock, client, connected = self.connect()
+        self.assertTrue(connected)
+        self.send(sock, client, 13, b'\x01')
+        frames = self.feed(sock, client, self.read(sock))
+        while not any(kind == 14 for kind, _ in frames):
+            frames += self.feed(sock, client, self.read(sock))
+        self.capture_poll.stop()
+        capture = self.core.capture
+        patch.object(capture, 'discover').start()
+        reader, writer = os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
+        self.addCleanup(os.close, writer)
+        capture.nodes[reader] = ('pen', [])
+        capture.selector.register(reader, 1)
+        capture.ranges = {0: (0, 10000), 1: (0, 10000), 24: (0, 8191)}
+        start = time.monotonic()
+        received, delays = [], []
+        for number in range(1, 201):
+            time.sleep(max(0, start + number / 200 - time.monotonic()))
+            timestamp = time.monotonic_ns() // 1000
+            events = [(3, 0, number), (3, 24, number * 10), (0, 0, 0)]
+            os.write(writer, b''.join(EVENT.pack(timestamp // 1000000, timestamp % 1000000, *event)
+                                      for event in events))
+            # Emulate the installed 10ms event-loop cadence, preserving two
+            # reports per tick, through actual sockets and Noise encryption.
+            if number % 2 == 0:
+                for kind, data in self.feed(sock, client, self.read(sock)):
+                    if kind == 14:
+                        sample = SAMPLE.unpack(data)
+                        received.append(sample)
+                        delays.append(time.monotonic_ns() / 1000 - sample[4])
+        self.assertEqual([sample[5] for sample in received], list(range(1, 201)))
+        self.assertEqual([sample[7] for sample in received], [n * 10 for n in range(1, 201)])
+        elapsed = time.monotonic() - start
+        print(f'Synthetic evdev/Noise TCP: {len(received)} reports, {len(received)/elapsed:.1f}/s; '
+              f'local input-to-decode mean {sum(delays)/len(delays)/1000:.2f} ms, '
+              f'max {max(delays)/1000:.2f} ms. Not a hardware/AVP measurement.')
 
     def test_usb_setup_and_pressure_over_noise_tcp_without_bluetooth(self):
         from avp_relay.capture import Capture, SAMPLE, usb_identifier

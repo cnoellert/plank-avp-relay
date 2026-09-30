@@ -194,12 +194,26 @@ The same private headset identity can restore a lost local relay key when the
 relay still approves it; unknown headset keys require an explicit SSH ownership
 reset. See [headless setup and recovery](../../docs/bluetooth-tablet-pairing.md).
 
+Test Tablet opens a large testing sheet with a pressure-sensitive stroke trail
+and a pen area that preserves the tablet coordinate proportions. Stop Testing
+or dismissing the sheet ends capture; tab changes and inactivity retain the
+existing cancellation/disconnect reservation. A failed connection stays visible
+in the sheet until it is closed. Frequent input updates are observed only by
+the test surface, rather than the surrounding setup pages.
+
+Reading details show input reports/s and received updates/s. Move the pen
+continuously when comparing them. Input reports count all Linux pen, pad and
+touch SYN_REPORT events. Receipt rate excludes idle/status snapshots. Source
+rate uses the relay clock and receipt rate uses the app clock; these are not
+one-way latency measurements. No fixed hardware reporting rate is assumed.
+
 The screen shows pen position, pressure, tilt, Pad buttons and touch count.
 Tablet sleep retains the bond and headset ownership. Selection uses physical
 ancestry and capabilities rather than a product-ID allowlist.
 
-This is a coalesced diagnostic readout, not raw-HID forwarding to a workstation
-or a system-wide visionOS pointer. Discovery, setup and readings support both transports.
+The readout preserves completed Linux input reports using the existing encrypted
+observer protocol. It does not forward raw HID to a workstation or create a
+system-wide visionOS pointer. Discovery, setup and readings support both transports.
 
 ## Direct tablet experiment
 
