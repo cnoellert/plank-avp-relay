@@ -13,6 +13,7 @@ from .wifi_protocol import FIELDS as WIFI_FIELDS, unavailable as wifi_unavailabl
 class RelayCore:
     def __init__(self, args, backend):
         self.native = Native(args.library, args.state_dir)
+        self.tcp_port = None
         self.owner = None
         self.emit = self.busy = self.close_connection = None
         self.capture = Capture(args.tablet, self.button)
@@ -51,6 +52,10 @@ class RelayCore:
                     if result.get('code') == 'busy': raise GadgetBusy(result['error'])
                     raise ValueError(result['error'])
                 response.update(result, ok=True)
+                if command['op'] == 'wifi-status':
+                    # The authenticated peer can reach the surviving Wi-Fi IP
+                    # without a stale Bonjour hostname after Ethernet loss.
+                    response['tcpPort'] = getattr(self, 'tcp_port', None)
             except GadgetBusy as error:
                 response.update(error=str(error), code='busy')
             except (OSError, ValueError) as error:

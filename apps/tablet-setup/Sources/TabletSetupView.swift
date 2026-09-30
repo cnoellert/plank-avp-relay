@@ -42,13 +42,9 @@ struct TabletSetupView: View {
               ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     Text(setup.state.activity == .managingTablets ? "Set up your tablet" :
-                         setup.state.activity == .testingBluetooth ? "Test relay connection" :
                          setup.state.step.title).font(.largeTitle.bold())
                     if setup.state.activity == .managingTablets {
                         tabletManagementPage
-                    } else if setup.state.activity == .testingBluetooth {
-                        ProgressView("Testing communication in both directions…")
-                        Text("The tablet can be powered off. No button presses are needed.")
                     } else {
                         switch setup.state.step {
                         case .relay: Text("Select a relay to set up your tablet.")
@@ -62,22 +58,28 @@ struct TabletSetupView: View {
                         Button("Forget saved relay") { forgettingRelay = true }
                             .disabled(setup.state.busy)
                     }
-                    if setup.state.address != nil &&
-                        setup.state.activity != .testingBluetooth && setup.state.activity != .managingTablets {
+                    if setup.state.address != nil {
                         Divider()
-                        DisclosureGroup("Connection diagnostics") {
+                        GroupBox {
                             VStack(alignment: .leading, spacing: 12) {
-                                Text("Check relay communication without a tablet or a saved pairing. Stop live readings before running this test.")
+                                Text("Check relay communication without a tablet or a saved pairing. The tablet can be powered off. Stop tablet testing before running diagnostics.")
                                     .font(.callout).foregroundStyle(.secondary)
-                                Button("Test relay connection") { setup.testBluetooth() }
+                                Button("Test Relay Connection") { setup.testRelayConnection() }
                                     .disabled(setup.state.busy)
-                                if let result = setup.bluetoothTestResult {
-                                    Label("Connection test passed", systemImage: "checkmark.circle.fill")
-                                        .foregroundStyle(.green)
-                                    Text(result).font(.callout)
+                                DiagnosticResultView(result: setup.connectionDiagnostic)
+                                Divider()
+                                Text("Verify that the relay still has this headset’s saved approval.")
+                                    .font(.callout).foregroundStyle(.secondary)
+                                Button("Check Headset Authorization") { setup.checkAuthorization() }
+                                    .disabled(setup.state.busy || !setup.state.hasTrust)
+                                if !setup.state.hasTrust {
+                                    Text("Headset authorization is saved automatically during tablet setup.")
+                                        .font(.callout).foregroundStyle(.secondary)
                                 }
-                            }.padding(.top, 12)
-                        }
+                                DiagnosticResultView(result: setup.authorizationDiagnostic)
+                                OwnershipRecoveryView()
+                            }.frame(maxWidth: .infinity, alignment: .leading).padding(10)
+                        } label: { Label("Connection Diagnostics", systemImage: "stethoscope").font(.headline) }
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -100,6 +102,7 @@ struct TabletSetupView: View {
                               Button("Set up tablet") { selectedTab = "tablet" }
                           }
                       } else {
+                      Text(setup.networkConnectionMessage).font(.callout).foregroundStyle(.secondary)
                       if setup.state.activity == .stoppingObservation {
                           ProgressView("Stopping tablet test…")
                       } else if setup.state.busy && setup.state.activity != .managingNetwork {
@@ -185,7 +188,6 @@ struct TabletSetupView: View {
             Text("Pair or reconnect a tablet. The relay will save this headset automatically once the tablet is verified.")
             Button("Set up a tablet") { setup.manageTablets() }
                 .buttonStyle(.borderedProminent).disabled(setup.state.busy)
-            OwnershipRecoveryView()
         }
     }
 
@@ -229,13 +231,22 @@ struct TabletSetupView: View {
                     .font(.callout).foregroundStyle(.secondary)
             }
             Button("Manage tablets") { setup.manageTablets() }.disabled(setup.state.busy)
-            DisclosureGroup("Headset authorization") {
-                HStack {
-                    Button("Check authorization") { setup.checkConnection() }.disabled(setup.state.busy)
+        }
+    }
+}
 
-                }.padding(.top, 12)
-                OwnershipRecoveryView()
-            }
+struct DiagnosticResultView: View {
+    let result: RelayDiagnostic
+
+    @ViewBuilder var body: some View {
+        switch result {
+        case .idle: EmptyView()
+        case .running(let message): ProgressView(message)
+        case .passed(let message):
+            Label(message, systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+        case .failed(let message):
+            Label(message, systemImage: "exclamationmark.circle.fill").foregroundStyle(.red)
+        case .canceled: Text("Check canceled.").foregroundStyle(.secondary)
         }
     }
 }

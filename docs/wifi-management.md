@@ -138,3 +138,18 @@ active ones every half second; USB retains its one-second cable-check interval.
 Saved profile details are cached until the profile paths change or the helper
 changes a profile. Verified Wi-Fi ownership is reused until backend recovery.
 Unknown/temporarily unavailable status never changes the persisted radio choice.
+
+## Relay communication after Ethernet removal
+
+Authenticated `wifi-status` replies include `tcpPort`, the currently listening
+relay TCP port, or null when TCP is disabled. The app combines it with the
+connected Wi-Fi interface’s literal addresses to retain a separate route to the
+same pinned relay identity. It tries that route before Bluetooth when Bonjour
+still returns the withdrawn wired address. These routes are held only for the
+selected relay, refreshed with its status and discarded on a confirmed Wi-Fi
+disconnect. Failed status requests retain the last confirmed UI settings and
+report reconnection instead of implying that Wi-Fi has been disabled.
+
+No command is replayed because of this route fallback. Read-only preflight may
+try another route; after an ambiguous mutation reply, only its existing request
+UUID is checked. USB remains Ethernet-only in both Bridge and Router modes.

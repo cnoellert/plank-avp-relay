@@ -223,6 +223,28 @@ class NetworkTests(unittest.TestCase):
         self.assertFalse(self.request(sock, client, 'wifi-status', password='forbidden-extra-field')['ok'])
         self.core.wifi.request.assert_not_called()
 
+    def test_wifi_status_supplies_actual_listener_port_only_after_authorization(self):
+        from avp_relay.wifi_protocol import unavailable
+        self.core.wifi = MagicMock()
+        self.core.wifi.request.return_value = dict(unavailable(), supported=True, enabled=True,
+            phase='idle', connection='connected', addresses=['192.0.2.18'])
+        sock, client, connected = self.connect()
+        self.assertTrue(connected)
+        reply = self.request(sock, client, 'wifi-status')
+        self.assertFalse(reply['ok'])
+        self.assertNotIn('tcpPort', reply)
+        self.core.wifi.request.assert_not_called()
+        sock.close(); self.pump(); self.approve()
+        sock, client, connected = self.connect()
+        self.assertTrue(connected)
+        reply = self.request(sock, client, 'wifi-status')
+        self.assertTrue(reply['ok'])
+        self.assertEqual(reply['addresses'], ['192.0.2.18'])
+        self.assertEqual(reply['tcpPort'], self.server.port)
+        self.assertEqual(self.core.tcp_port, self.server.port)
+        self.server.close()
+        self.assertIsNone(self.core.tcp_port)
+
     def test_new_tablet_commits_only_provisional_network_owner(self):
         sock, client, connected = self.connect()
         self.assertTrue(connected)

@@ -193,6 +193,11 @@ public final class RelayPairingClient {
 
     func connection(_ address: RelayAddress, channel: RelayBLEChannel = .relay,
                     onProgress: ((String) -> Void)? = nil) -> any RelayByteConnection {
+        if let host = address.networkHost, let port = address.networkPort {
+            onProgress?("Connecting to your relay over Wi-Fi…")
+            return RelayTCPConnection(endpoint: .hostPort(host: .init(host), port: .init(rawValue: port)!),
+                channel: channel == .setup ? 1 : channel == .echo ? 2 : 0)
+        }
         if let service = address.networkService, let domain = address.networkDomain {
             onProgress?("Connecting to your relay over the local network…")
             return RelayTCPConnection(endpoint: .service(name: service, type: "_plank-avp-relay._tcp", domain: domain, interface: nil),
@@ -203,7 +208,7 @@ public final class RelayPairingClient {
 
     /// Tests only byte delivery over dedicated, unauthenticated echo channels.
     /// No pairing codec, Keychain access or tablet input is used or authorized.
-    public func testBluetooth(address: RelayAddress, onProgress: @escaping (String) -> Void) async throws -> String {
+    public func testConnection(address: RelayAddress, onProgress: @escaping (String) -> Void) async throws -> String {
         let socket = connection(address, channel: .echo, onProgress: onProgress)
         let result = try await bounded(socket: socket, seconds: 40) {
             try await socket.connect()
@@ -214,21 +219,21 @@ public final class RelayPairingClient {
                     throw RelaySetupError.random
                 }
                 let sent = Data(bytes)
-                onProgress("Bluetooth test \(index + 1) of 3: sending \(size) bytes to the relay…")
+                onProgress("\(address.transportName) test \(index + 1) of 3: sending \(size) bytes to the relay…")
                 try await socket.send(sent)
                 var received = Data()
                 while received.count < sent.count {
                     let fragment = try await self.receiveWithDeadline(socket)
                     guard received.count + fragment.count <= sent.count else {
-                        throw RelaySetupError.network("Bluetooth test returned more bytes than were sent.")
+                        throw RelaySetupError.network("Connection test returned more bytes than were sent.")
                     }
                     received.append(fragment)
                 }
                 guard received == sent else {
-                    throw RelaySetupError.network("Bluetooth test returned different bytes. The test did not pass.")
+                    throw RelaySetupError.network("Connection test returned different bytes. The test did not pass.")
                 }
                 total += size
-                onProgress("Bluetooth test \(index + 1) of 3 verified in both directions.")
+                onProgress("\(address.transportName) test \(index + 1) of 3 verified in both directions.")
             }
             return "3 round trips verified; \(total) bytes sent and \(total) matching bytes returned."
         }
@@ -295,65 +300,6 @@ public final class RelayPairingClient {
         }
         await socket.finishDisconnect()
         return result
-    }
-
-    /// Verify the saved relay without SESSION_READY, HID attachment or Host
-    /// feature negotiation. The current daemon serves one connection at a time.
-    public func check(address: RelayAddress, privateKey: Data, relayKey: Data) async throws -> String {
-        guard privateKey.count == 32, relayKey.count == 32 else {
-            throw RelaySetupError.invalidStoredKey
-        }
-        let codec = privateKey.withUnsafeBytes { client in
-            relayKey.withUnsafeBytes { relay in
-                pltr_client_link_create(client.bindMemory(to: UInt8.self).baseAddress,
-                                        relay.bindMemory(to: UInt8.self).baseAddress, address.linkType)
-            }
-        }
-        guard let codec else { throw RelaySetupError.protocolError }
-        defer { pltr_client_link_destroy(codec) }
-        let socket = connection(address)
-        return try await bounded(socket: socket, seconds: 10) {
-            try await socket.connect()
-            var output = [UInt8](repeating: 0, count: 8448)
-            var written = 0
-            guard pltr_client_link_start(codec, &output, output.count, &written) == 0 else {
-                throw RelaySetupError.protocolError
-            }
-            try await socket.send(Data(output.prefix(written)))
-            while true {
-                let data = try await socket.receive()
-                var offset = 0
-                while offset < data.count {
-                    var consumed = 0, replySize = 0, payloadSize = 0
-                    var type: UInt16 = 0
-                    var payload = [UInt8](repeating: 0, count: 8192)
-                    let result = data.withUnsafeBytes { bytes in
-                        pltr_client_link_receive(codec,
-                            bytes.bindMemory(to: UInt8.self).baseAddress!.advanced(by: offset),
-                            data.count - offset, &consumed, &output, output.count, &replySize,
-                            &type, &payload, payload.count, &payloadSize)
-                    }
-                    guard result >= 0, consumed > 0, consumed <= data.count - offset,
-                          replySize <= output.count else { throw RelaySetupError.protocolError }
-                    offset += consumed
-                    if replySize > 0 { try await socket.send(Data(output.prefix(replySize))) }
-                    // A verified HELLO exposes the peer version. No raw input is
-                    // requested or consumed by this diagnostic connection.
-                    if let version = pltr_client_link_peer_version(codec) {
-                        let peerVersion = String(cString: version)
-                        var endSize = 0
-                        let goodbye: [UInt8] = [1, 0]
-                        if pltr_client_link_send(codec, UInt16(PLTR_GOODBYE.rawValue), goodbye, goodbye.count,
-                                                 &output, output.count, &endSize) == 0 {
-                            try await socket.send(Data(output.prefix(endSize)))
-                        }
-                        try Task.checkCancellation()
-                        return peerVersion
-                    }
-                    guard type == 0 else { throw RelaySetupError.unexpectedMessage }
-                }
-            }
-        }
     }
 
     public func observe(address: RelayAddress, privateKey: Data, relayKey: Data,

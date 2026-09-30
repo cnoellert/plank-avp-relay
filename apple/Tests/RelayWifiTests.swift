@@ -17,7 +17,34 @@ enum RelayWifiTests {
         precondition(waiting.connectionLabel == "Obtaining address")
         let ready = try status(["phase": "idle", "connection": "connected"])
         precondition(ready.canChange && ready.confirms(receipt) && !ready.confirms(UUID().uuidString))
+        let key = Data(repeating: 7, count: 32)
+        let wifi = try status(["phase": "idle", "connection": "connected", "tcpPort": 31000,
+                              "addresses": ["192.0.2.18", "fd12::18"]])
+        let routes = wifi.routes(name: "Studio", relayKey: key)
+        precondition(routes.count == 2 && routes.map(\.networkHost) == ["192.0.2.18", "fd12::18"])
+        precondition(routes.allSatisfy { $0.linkType == 2 && $0.networkPort == 31000 && $0.advertisedKey == key })
+        let bonjour = RelayAddress(service: "Studio", domain: "local.", name: "Studio", key: key)
+        precondition(routes[0].keychainAccount == bonjour.keychainAccount, "Address changes retain the pinned identity")
+        for changes: [String: Any] in [["enabled": false], ["supported": false], ["connection": "disconnected"],
+                                       ["tcpPort": NSNull()]] {
+            let status = try status(["connection": "connected", "tcpPort": 31000, "addresses": ["192.0.2.18"]]
+                .merging(changes) { _, new in new })
+            precondition(status.routes(name: "Studio", relayKey: key).isEmpty)
+        }
+        for host in ["relay.local", "127.0.0.1", "0.0.0.0", "224.0.0.1", "255.255.255.255", "::", "::1", "::ffff:127.0.0.1", "fe80::1", "fe80::1%en0", "ff02::1"] {
+            let status = try status(["connection": "connected", "tcpPort": 31000, "addresses": [host]])
+            precondition(status.routes(name: "Studio", relayKey: key).isEmpty)
+        }
+        var preference = RelayControlRoutes()
+        let ble = RelayAddress(bluetoothIdentifier: UUID(), name: "Studio")
+        preference.succeeded(bonjour)
+        preference.failed(bonjour)
+        precondition(preference.ordered([bonjour, ble] + routes, preferBluetooth: false).first == routes[0],
+                     "A lost Ethernet address must fall back to authenticated Wi-Fi before Bluetooth")
+        preference.succeeded(routes[0])
+        precondition(preference.ordered([bonjour, ble] + routes, preferBluetooth: false).first == routes[0])
         for changes: [String: Any] in [["id": 2], ["phase": "done"], ["connection": "Internet"],
+            ["tcpPort": 0], ["tcpPort": 65536], ["tcpPort": -1],
             ["network": "a"], ["requestID": "invalid"], ["addresses": Array(repeating: "192.0.2.1", count: 9)],
             ["ok": false, "error": "Authorized headset required"]] {
             do { _ = try status(changes); fatalError("Invalid Wi-Fi receipt accepted") } catch {}

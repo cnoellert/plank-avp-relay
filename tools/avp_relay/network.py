@@ -145,6 +145,7 @@ class TCPServer:
                     if family != socket.AF_INET6:
                         raise
             self.port = port
+            self.core.tcp_port = port
         except Exception:
             self.close()
             raise
@@ -172,6 +173,7 @@ class TCPServer:
             connection.tick(now)
 
     def close(self):
+        self.core.tcp_port = None
         for connection in list(self.connections):
             connection.close()
         for sock in self.listeners:

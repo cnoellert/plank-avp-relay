@@ -1,3 +1,11 @@
+plank-avp-relay (0.5.8) experimental; urgency=medium
+
+  * Report the live TCP listener port in authenticated Wi-Fi status so the
+    Setup app can use the surviving Wi-Fi address after Ethernet is removed.
+  * Match the Setup app diagnostics and network reconnection improvements.
+
+ -- PLANK contributors <625982+alatteri@users.noreply.github.com>  Wed, 30 Sep 2026 05:08:28 -0000
+
 plank-avp-relay (0.5.7) experimental; urgency=medium
 
   * Match the Setup app release that stops tablet testing when opening Network

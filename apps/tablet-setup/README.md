@@ -9,8 +9,13 @@ services appear after a read-only reachability/identity probe and are checked
 every three seconds; results expire after eight seconds without a successful
 probe. Bluetooth entries expire five seconds after the last advertisement.
 These are expiry bounds, not a fixed startup delay. Saved credentials are retained for reconnection, but offline
-saved relays are not listed. There are no Local or Simulation tabs. Connection tests and
-pairing management are in expandable sections.
+saved relays are not listed. There are no Local or Simulation tabs.
+Connection Diagnostics is a permanent section on the Tablet page. Test progress,
+success and failure stay beside their buttons; running a test does not replace
+the page or hide its result. Check Headset Authorization reads the relay's
+explicit saved approval over the authenticated connection. It never treats a
+successful handshake alone as approval. Recovery instructions are in the same
+section; there is no separate Headset Authorization section.
 Synthetic readout fixtures exist only in the separate offscreen preview executable.
 The shipping app supports encrypted TCP and Bluetooth connections.
 
@@ -28,7 +33,9 @@ not restart testing. Relay selection and saved authorization are retained.
 Use the Select Relay tab to change relays; there is no duplicate footer button.
 Network mode is an editable Bridge/Router selector with Apply changes. Its
 separate Connection status group uses read-only Ethernet and USB labels/icons,
-with a Refresh status action and automatic four-second refresh while idle.
+with a Refresh status action and automatic refresh ten seconds after each idle
+refresh completes. Failed refreshes retain the last confirmed settings and show
+that the app is reconnecting.
 An authorized headset can change mode without another pairing step; finish
 tablet setup first on a new relay. Stop readings/other tablet operations before
 network management. Unsupported gadget hardware is reported without changing
@@ -80,13 +87,20 @@ name can group unverified discovery candidates, but grants no trust. Ambiguous
 names or known distinct identities stay separate. Any fallback must prove the
 selected relay key before an operation is authorized.
 
+The relay reports its active TCP port with authenticated Wi-Fi status. The app
+keeps those literal Wi-Fi addresses as separate routes to the same saved relay
+identity. If Bonjour still resolves the withdrawn Ethernet address after a cable
+change, Wi-Fi is tried before Bluetooth. Changing addresses never creates new
+authorization. USB still follows the physical Ethernet cable; relay Wi-Fi is not
+forwarded to USB. Physical cable handover needs device acceptance testing.
+
 Ownership is shared across transports. Existing BLE Keychain records and the
 headset private key are retained; authenticated enrollment also records the
 relay key independently of its address. Discovery claims alone are never
 written as approved keys. Network address/service-name changes retain trust.
 
 Readings recover through at most three fresh connection attempts after a
-transport failure, alternating available endpoints. A working stream is kept;
+transport failure, trying network routes before Bluetooth. A working stream is kept;
 the app does not switch it just because TCP appears later. Identity/protocol
 failures stop recovery. Interrupted setup mutations are not replayed: reopen
 Manage tablets to inspect saved state. A read-only preflight can try another

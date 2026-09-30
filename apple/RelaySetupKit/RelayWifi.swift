@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import Foundation
+import Network
 
 public struct RelayWifiNetwork: Decodable, Equatable, Identifiable, Sendable {
     public let id: String
@@ -21,6 +22,7 @@ public struct RelayWifiStatus: Decodable, Equatable, Sendable {
     public let name: String?
     public let addresses: [String]
     public let requestID: String?
+    public let tcpPort: UInt16?
     public var applying: Bool { phase == "applying" }
     public var canChange: Bool { supported && !applying }
     public var connectionLabel: String {
@@ -36,6 +38,23 @@ public struct RelayWifiStatus: Decodable, Equatable, Sendable {
     }
     public func confirms(_ request: String) -> Bool { requestID == request && phase == "idle" }
 
+    func routes(name: String, relayKey: Data) -> [RelayAddress] {
+        guard supported, enabled, connection == "connected", let tcpPort, tcpPort > 0, relayKey.count == 32 else { return [] }
+        return addresses.compactMap { host in
+            // Never resolve a hostname supplied in status or use unscoped
+            // link-local IPv6. Accept only usable literal unicast addresses.
+            if let v4 = IPv4Address(host) {
+                let bytes = Array(v4.rawValue)
+                guard bytes[0] != 0, bytes[0] != 127, bytes[0] < 224 else { return nil }
+            } else if let v6 = IPv6Address(host) {
+                let bytes = Array(v6.rawValue)
+                guard !host.contains("%"), bytes[0] != 0, bytes[0] != 0xff,
+                      !(bytes[0] == 0xfe && bytes[1] & 0xc0 == 0x80) else { return nil }
+            } else { return nil }
+            return RelayAddress(wifiHost: host, port: tcpPort, name: name, key: relayKey)
+        }
+    }
+
     public static func decode(_ data: Data, request: Int) throws -> Self {
         try validateWifiEnvelope(data, request: request)
         let value = try JSONDecoder().decode(Self.self, from: data)
@@ -44,6 +63,7 @@ public struct RelayWifiStatus: Decodable, Equatable, Sendable {
               value.message.utf8.count <= 1024, value.addresses.count <= 8,
               value.addresses.allSatisfy({ $0.utf8.count <= 64 }),
               value.name == nil || value.name!.utf8.count <= 96,
+              value.tcpPort == nil || value.tcpPort! > 0,
               value.network == nil || wifiIdentifier(value.network!),
               value.requestID == nil || UUID(uuidString: value.requestID!) != nil else { throw RelaySetupError.protocolError }
         return value

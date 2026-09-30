@@ -88,8 +88,9 @@ enum RelayNetworkTests {
         let server = try EchoServer()
         let port = try await server.start()
         defer { server.close() }
-        let socket = RelayTCPConnection(endpoint: .hostPort(host: "127.0.0.1", port: port), channel: 2)
         let client = RelayPairingClient()
+        let direct = RelayAddress(wifiHost: "127.0.0.1", port: port.rawValue, name: "Test", key: key)
+        let socket = client.connection(direct, channel: .echo)
         try await client.bounded(socket: socket, seconds: 10) {
             try await socket.connect()
             for size in [64, 512, 1024] {

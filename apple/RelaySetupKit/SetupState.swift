@@ -22,6 +22,8 @@ public struct RelayAddress: Hashable, Sendable {
     public let bluetoothName: String
     public let networkService: String?
     public let networkDomain: String?
+    public let networkHost: String?
+    public let networkPort: UInt16?
     // Discovery is a hint. Every connection must prove the pinned identity.
     public let advertisedKey: Data?
 
@@ -29,16 +31,27 @@ public struct RelayAddress: Hashable, Sendable {
         self.bluetoothIdentifier = bluetoothIdentifier
         bluetoothName = String(name.prefix(64))
         networkService = nil; networkDomain = nil; advertisedKey = nil
+        networkHost = nil; networkPort = nil
     }
 
     public init(service: String, domain: String, name: String, key: Data) {
         bluetoothIdentifier = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
         bluetoothName = String(name.prefix(64))
         networkService = service; networkDomain = domain; advertisedKey = key
+        networkHost = nil; networkPort = nil
     }
 
-    public var linkType: UInt8 { networkService == nil ? 1 : 2 }
-    public var transportName: String { networkService == nil ? "Bluetooth" : "Network" }
+    // Only constructed from IPs supplied by an authenticated Wi-Fi status.
+    // The IP is a route hint; every connection still proves the saved key.
+    init(wifiHost: String, port: UInt16, name: String, key: Data) {
+        bluetoothIdentifier = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
+        bluetoothName = String(name.prefix(64))
+        networkService = nil; networkDomain = nil; advertisedKey = key
+        networkHost = wifiHost; networkPort = port
+    }
+
+    public var linkType: UInt8 { networkService == nil && networkHost == nil ? 1 : 2 }
+    public var transportName: String { linkType == 1 ? "Bluetooth" : "Network" }
 
     public var description: String { bluetoothName }
 
