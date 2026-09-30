@@ -2,14 +2,42 @@
 
 ## Active work — Bluetooth streaming and direct headset installs
 
-**0.6.5 / build34 is being prepared.** IMG_0067 and its captured repeat fail
-between the successful L2CAP status bootstrap and the echo/test connection.
-The physical link remains up for 33 seconds after channel closure, suppressing
-advertising beyond the next 20-second scan deadline. The app now checks the
-selected relay in CoreBluetooth's system-connected peripherals before scanning.
-Normal identity checks, strict Bluetooth mode and startup-disconnect recovery
-remain. See the 0.6.5 section of `docs/bluetooth-headset-lab.md`. Physical handoff
-and sustained pressure acceptance remain pending; no TestFlight upload.
+**0.6.5 / build34 is installed on the relay and AVP.** IMG_0067 and its
+captured repeat failed between the successful L2CAP status bootstrap and the
+next connection. The physical link remained up for 33 seconds after channel
+closure, suppressing advertising beyond the next 20-second scan deadline.
+The AVP's app logs match the packet trace: status succeeded, then the new scan
+expired. This is before tablet streaming, distinct from the GATT input backlog.
+
+The app now checks the selected relay in CoreBluetooth's system-connected
+peripherals before scanning and attaches through the owning central when found.
+Normal identity checks, strict Bluetooth mode, fresh scanning otherwise and the
+bounded startup-disconnect retry remain. See the 0.6.5 section of
+`docs/bluetooth-headset-lab.md`. The misleading “Tap Pair” timeout text now says
+“Try again.” No pairing reset is needed.
+
+App source: `77ea6c15f6165ec4826b025e9b6042ea68f36b9b`. Package source:
+`e05c1c90b74f2614d6f62c0df2f19e0e14da40e6`, which corrects only Debian
+changelog timestamps after lintian rejected their ordering. Apple build inputs
+are identical. All 31 Linux suites and 20 Apple suites pass. macOS and visionOS
+simulator compilation, device archive, development export, bundle/profile and
+executable/dSYM checks pass. 247 staged source hashes were verified before
+archive; GUI build/export jobs are unloaded. Simulator execution was not run.
+
+[CI 36778027101](https://github.com/instinctual/plank-avp-relay/actions/runs/36778027101)
+passed both package builds and both clean-install checks. Verified packages are
+in `artifacts/deb/0.6.5/{ubuntu-26.04/amd64,debian-13/arm64}/` only; development
+IPA, dSYMs, logs and provenance are in `artifacts/development/0.6.5/build-34/`.
+Relay upgrade/configuration/dpkg checks pass, all three services are active,
+and identity, headset/tablet bonds, USB mode and Wi-Fi profiles/policy remain.
+AVP installation was in place via mac34; installed-app readback confirms
+0.6.5/build34. No TestFlight upload, GitHub release or merge was performed.
+
+**Physical handoff and sustained pen-pressure acceptance remain pending.**
+The operator was asked to reopen 0.6.5, select Bluetooth only and first run
+Test Relay Connection. Do not claim this fixes discovery or input under
+pressure until the corresponding physical checks pass. Private trace and
+headset logs are referenced in the private deployment notes. Next build: 35.
 
 ### Previous development candidate
 
