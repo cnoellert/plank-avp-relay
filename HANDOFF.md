@@ -27,12 +27,33 @@ callbacks cannot revive the stopped test. Selection, tablet availability and
 headset trust remain intact; returning to Tablet does not restart the test.
 The duplicate Select Relay footer button is removed; use the first tab.
 
-The macOS draft build and all 18 Apple suites passed, including new regressions
-for cancellation during connection, delayed disconnect, stale completion and
-network availability after stopping. Final Apple upload **26**, matching native
-relay packages and live version alignment are being prepared. Linux behavior is
-unchanged; its package version advances only to retain the shared **0.5.7**
-number. Keep the previous 0.5.6 records below until delivery is verified.
+Release source `535b11473b164b3f04ea992e025f4c9578bcd2c7` passed **18 Apple
+suites**, macOS build, visionOS simulator compilation, device build and signed
+archive/export. New regressions cover stopping during connection, delayed
+disconnect, late samples/completion and Network availability after stopping.
+The simulator was compiled, not run; physical AVP tab interaction remains an
+operator check.
+
+Apple upload **26** is **VALID / IN_BETA_TESTING**, with exact tester notes and
+the confirmed Standard / No France compliance saved and read back. Artifacts
+are under `artifacts/testflight/0.5.7/build-26/`; executable and dSYM UUIDs match.
+All one-shot verification/archive/export/upload jobs are unloaded. Next upload:27.
+
+Both native packages use the same source and shared version **0.5.7**. All four
+native build and clean-install jobs passed in [CI 36668923608](https://github.com/instinctual/plank-avp-relay/actions/runs/36668923608),
+including 31 Linux suites per architecture. Linux behavior is unchanged from
+0.5.6; the version advances to match the app. Installers are in `artifacts/`,
+with checksums/provenance under `artifacts/deb/0.5.7/<platform>/<arch>/`.
+The [v0.5.7 release](https://github.com/instinctual/plank-avp-relay/releases/tag/v0.5.7)
+provides both installers, optional debug symbols and provenance; all eight
+published asset digests were read back and verified.
+
+The exact arm64 package is installed on the live relay. Its upgrade completed
+successfully, package/config checks passed and all three services are active.
+Identity, headset/tablet pairing, USB mode, Wi-Fi policy and profiles were
+retained through the upgrade. Private backups and machine access details remain
+in the operator notes. The previous 0.5.6 scan timings below were not rerun for
+this app-only behavior change.
 
 ## Previous delivery — 0.5.6
 
