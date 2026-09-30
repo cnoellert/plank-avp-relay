@@ -4,6 +4,7 @@ import json
 import time
 
 from .capture import Capture
+from .capture_lease import CaptureBusy
 from .native import Native, ProtocolError
 from .tablets import Tablets
 from .gadget_client import GadgetClient, GadgetBusy
@@ -20,9 +21,10 @@ class RelayCore:
         self.gadget = GadgetClient()
         self.wifi = GadgetClient('/run/plank-avp-relay/wifi/control.sock', 'wifi-status', wifi_unavailable, 'Wi-Fi')
         self.tablets = Tablets(backend, args.state_dir, lambda: self.native.has_clients,
-            self.select, lambda: self.capture.attached, args.tablet,
+            self.select, lambda: self.capture.available, args.tablet,
             enroll_headset=self.enroll_headset, usb_status=self.capture.usb_status,
-            select_usb=self.capture.use_usb)
+            select_usb=self.capture.use_usb, require_capture=self.capture.require_lease,
+            capture_active=lambda: self.capture.attached, capture_busy=lambda: self.capture.capture_busy)
         self.native.on_management = lambda data: self.request(data, self.owner,
             self.native.management_authorized, self.native.enrolling)
         self.last_sample = 0
@@ -30,8 +32,19 @@ class RelayCore:
     def select(self, value):
         self.capture.close_nodes()
         self.capture.identity = None
+        self.capture.detected_identity = None
         self.capture.selected = value.lower() if value else None
         self.capture.last_scan = 0
+
+    def sync_capture(self):
+        active = bool(self.owner and (self.native.observing or self.native.approval_pending))
+        if active:
+            self.capture.require_lease()
+        self.capture.observe(bool(self.owner and self.native.observing))
+        self.capture.poll(active=active)
+        self.native.tablet(self.capture.attached if active else self.capture.available)
+        if not active and self.tablets.phase not in ('scanning', 'pairing', 'connecting', 'verifying'):
+            self.capture.deactivate()
 
     def request(self, data, peer, authenticated=False, enrolling=False):
         command = json.loads(data)
@@ -86,9 +99,10 @@ class RelayCore:
     def receive(self, owner, data):
         if owner != self.owner:
             raise ProtocolError('This connection does not own the session.')
-        self.capture.poll()
-        self.native.tablet(self.capture.attached)
-        for reply in self.native.receive(data):
+        self.sync_capture()
+        replies = self.native.receive(data)
+        self.sync_capture()
+        for reply in replies:
             self.emit(reply)
 
     def enroll_headset(self, owner):
@@ -101,10 +115,15 @@ class RelayCore:
         print('Tablet verified; initiating headset ownership saved.', flush=True)
 
     def cancel_setup(self, owner):
+        if owner is None or owner != self.tablets.owner:
+            return
         try:
             self.tablets.cancel(owner)
         except (OSError, RuntimeError, ValueError) as error:
             print('Tablet cleanup will retry after Bluetooth returns: ' + str(error), flush=True)
+        if self.tablets.phase not in ('scanning', 'pairing', 'connecting', 'verifying') and not (
+                self.owner and (self.native.observing or self.native.approval_pending)):
+            self.capture.deactivate()
 
     def release(self, owner):
         if owner != self.owner or owner is None:
@@ -112,6 +131,8 @@ class RelayCore:
         self.cancel_setup(owner)
         self.native.disconnect()
         self.capture.observe(False)
+        if self.tablets.phase not in ('scanning', 'pairing', 'connecting', 'verifying'):
+            self.capture.deactivate()
         self.owner = self.emit = self.busy = self.close_connection = None
         print('Headset link closed; existing trust retained.', flush=True)
 
@@ -128,9 +149,7 @@ class RelayCore:
                 self.cancel_setup(self.tablets.owner)
             self.tablets.message = 'Bluetooth tablet management is unavailable; reconnect the adapter.'
         try:
-            self.capture.observe(bool(self.owner and self.native.observing))
-            self.capture.poll()
-            self.native.tablet(self.capture.attached)
+            self.sync_capture()
             if not self.owner:
                 return
             self.emit(self.native.tick())
@@ -145,7 +164,7 @@ class RelayCore:
                     if samples:
                         self.emit(b''.join(self.native.sample(sample) for sample in samples))
                         self.last_sample = now
-        except (ProtocolError, BufferError, TimeoutError, OSError) as error:
+        except (ProtocolError, BufferError, TimeoutError, OSError, CaptureBusy) as error:
             if not self.owner:
                 raise
             print('Headset session ended: ' + str(error), flush=True)

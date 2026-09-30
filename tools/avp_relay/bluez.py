@@ -214,7 +214,7 @@ class Server(dbus.service.Object):
             raise Rejected(str(error))
         try:
             self.setup.receive(data, options, self.adapter, (self.core.owner if self.core else None) or self.echo.peer)
-        except (ValueError, ProtocolError, BufferError, TimeoutError) as error:
+        except (OSError, ValueError, ProtocolError, BufferError, TimeoutError) as error:
             self.setup.disconnect()
             raise Rejected(str(error))
 
@@ -252,9 +252,10 @@ class Server(dbus.service.Object):
                 self.core.claim(peer, 1, self.queue.append, lambda: self.queue.busy, self.disconnect)
                 self.peer = peer
             self.core.receive(peer, data)
-        except (ProtocolError, BufferError, TimeoutError) as error:
+        except (OSError, ValueError, ProtocolError, BufferError, TimeoutError) as error:
             self.disconnect()
-            raise Rejected('Protocol rejected; existing trust retained.')
+            raise Rejected(str(error) if isinstance(error, ValueError) else
+                           'Protocol rejected; existing trust retained.')
 
     def disconnect(self):
         peer, self.peer = self.peer, None
