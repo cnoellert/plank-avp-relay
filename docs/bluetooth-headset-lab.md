@@ -291,7 +291,7 @@ request without logging keys or Bluetooth addresses.
 
 After successful pairing, live readings start automatically. The app waits for
 the pairing transport to close, reconnects, authenticates the saved relay and
-opts into observation. **Start live readings** can restart a stopped readout. Tablet sleep leaves the headset link
+opts into observation. **Test Tablet** can restart a stopped readout. Tablet sleep leaves the headset link
 and trust intact, reports the tablet offline, and clears held input state.
 Waking the same tablet rediscovers its nodes and resumes snapshots. Leaving the
 app or stopping readings closes the headset link; trust remains in Keychain.

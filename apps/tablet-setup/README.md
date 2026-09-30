@@ -56,7 +56,7 @@ metadata and build records; it is not appended to the app’s visible version.
 App and Linux package versions advance together, including app-only fixes.
 
 Release 0.5.1 checks the selected relay's authorization and tablet status
-before enabling **Start live readings**, then rechecks status before opening
+before enabling **Test Tablet**, then rechecks status before opening
 input. A selected paired tablet may be asleep; an attached USB tablet also
 qualifies. A saved headset record alone does not enable readings.
 If an OS reinstall changes the relay identity at the same address, choose

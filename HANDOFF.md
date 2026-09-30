@@ -1,6 +1,6 @@
 # PLANK AVP Relay and Setup app
 
-## Current state — 2026-09-29 UTC
+## Current state — 2026-09-30 UTC
 
 Work is now on `main` in the independent public
 [`Instinctual/plank-avp-relay`](https://github.com/instinctual/plank-avp-relay)
@@ -41,20 +41,33 @@ of a dead TCP endpoint. Earlier supplicant scan collisions triggered unnecessary
 rollback. These are distinct findings; private captures and machine details stay
 in the operator notes.
 
-Draft checks passed 31 Linux suites, 18 Apple suites, macOS and visionOS simulator
-compilation. New tests cover encrypted connection reuse, cancellation without
-replay, pinned relay identity, healthy-route preference, cached reads during slow
-work, receipt-before-apply and non-disruptive scan failure/restart. Final package
-CI, exact-source Apple archive/upload **24**, release publication and live host
-upgrade are being prepared. Do not describe those as complete until the delivery
-record below is updated. Both app and relay use **0.5.6**; Apple upload numbering
-remains hidden from the app's visible version.
+Release source `01c5f031b4e091e58086acce33b09f1b32a080e4` passed **31 Linux
+suites and 18 Apple suites**, macOS build and visionOS simulator compilation
+(the simulator was not run). All four native package and clean-install jobs
+passed in [CI 36667360948](https://github.com/instinctual/plank-avp-relay/actions/runs/36667360948).
+Both installers are directly in `artifacts/`, with metadata under
+`artifacts/deb/0.5.6/<platform>/<arch>/`. The [published v0.5.6 release](https://github.com/instinctual/plank-avp-relay/releases/tag/v0.5.6)
+has both installers, optional debug symbols, checksums and provenance. Its tag
+and all eight asset digests were read back and matched the built source/files.
 
-Live host was verified running **0.5.5** during this investigation, with all
-three services active and Wi-Fi connected. This supersedes the pending-install
-note in the previous delivery record. Preserve all host identity, pairing and
-network state when upgrading. AVP UI/RF/cable behavior still needs physical
-acceptance after the new app is installed.
+The exact arm64 package is installed on the live relay. Configuration and
+package verification pass, all services are active, and identity, headset/tablet
+pairings, USB mode, Wi-Fi policy and profiles were retained through the upgrade.
+Three actual Wi-Fi scans returned eight networks each in 5.216, 5.022 and 5.021
+seconds. Across 160 local helper requests, median response was 1.74 ms and the
+maximum was 13.42 ms. The connection remained on the same network, with no
+sampled disconnected state or supplicant disconnect event. These timings cover
+root-local IPC, not AVP/Bluetooth latency. Joining other networks, AVP interaction
+and physical USB cable acceptance remain operator checks.
+
+The app and relay both use **0.5.6** (app display `0.5.6-main`). Apple upload24
+is VALID/IN_BETA_TESTING with notes/compliance verified. The subsequent UI-only
+commit `fa24217` renames the input button to **Test Tablet**; its device build,
+signed archive/export and bundle/symbol checks passed. Apple upload25 is **VALID / IN_BETA_TESTING**; the exact tester notes and saved
+Standard / No France compliance were applied and read back. All one-shot
+verification/archive/export/upload jobs are unloaded. The 31/18 suites and simulator check apply to
+the preceding source; the only later source change is that button label. Both
+app deliveries are retained under `artifacts/testflight/0.5.6/`. Next upload:26.
 
 ## Previous verification rebuild — 0.5.5
 
