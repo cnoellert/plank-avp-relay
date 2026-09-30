@@ -19,6 +19,54 @@ that ancestry; no upstream merge was performed during this migration.
 Root PLANK and its unrelated work remain untouched. Machine access, signing
 jobs and deployment details belong in the operator's private notes.
 
+Shared release **0.5.8** makes Connection Diagnostics a permanent section on
+the Tablet page. Progress and results remain visible. The separate Headset
+Authorization section and handshake-only check are removed; the manual check
+now reads the relay’s explicit saved headset approval. Recovery instructions
+remain in diagnostics.
+
+The Ethernet-loss investigation found that the relay and its Wi-Fi stayed up,
+while the AVP continued resolving the withdrawn wired addresses before falling
+back to Bluetooth. There was no app process restart. The exact rendered Network
+reset/disable symptom was not independently captured. Private device logs and
+host evidence remain in operator notes.
+
+Authenticated Wi-Fi status now reports the actual TCP listener port. The app
+retains literal Wi-Fi addresses as routes to the same pinned relay identity and
+tries them before Bluetooth when the discovered route fails. Unknown or failed
+refreshes do not clear the last confirmed settings; a connection/reconnection
+message identifies the current status. No network mutation is replayed. USB
+remains Ethernet-only, with physical-cable gating in both modes.
+
+Source `d5c2b7972420ad3f2c631e63769368bad3c7b34c` passed **31 Linux suites**
+and **18 Apple suites**, macOS build, visionOS simulator compilation and signed
+device archive/export, including matching executable/dSYM UUIDs. The simulator
+was compiled, not run. Tests cover authenticated listener-port reporting,
+literal-address validation, retained relay identity and Wi-Fi-before-Bluetooth
+route selection. Physical AVP cable handover and the final rendered UI remain
+operator acceptance checks.
+
+Apple upload **27** is **VALID / IN_BETA_TESTING** with exact tester notes and
+the saved Standard / No France compliance applied and read back. Artifacts are
+in `artifacts/testflight/0.5.8/build-27/`. All one-shot Mac build/upload jobs are
+unloaded. Next Apple upload: **28**.
+
+Both native package builds and clean-install jobs passed in
+[CI 36672129296](https://github.com/instinctual/plank-avp-relay/actions/runs/36672129296).
+Both installers are directly in `artifacts/`; metadata and checksums are under
+`artifacts/deb/0.5.8/<platform>/<arch>/`. The
+[v0.5.8 release](https://github.com/instinctual/plank-avp-relay/releases/tag/v0.5.8)
+tag matches the exact source and all eight published asset digests were verified.
+
+The exact arm64 package is installed on the live relay. Package/configuration
+checks and all three services pass. Identity, headset/tablet bonds, USB mode,
+Wi-Fi policy and profiles were retained through the private-backed-up upgrade.
+Three post-upgrade TCP round trips to the relay’s Wi-Fi address passed from the
+nearby Mac (1,600 bytes each direction). Ethernet had been reconnected by that
+check; this is not a physical AVP cable-handover acceptance result.
+
+## Previous delivery — 0.5.7
+
 Shared release **0.5.7** implements the requested tablet-to-network workflow.
 The active input button is **Stop Testing**. Entering Network stops any active
 or connecting tablet test, keeps the relay reserved until disconnect completes,
