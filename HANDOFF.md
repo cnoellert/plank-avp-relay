@@ -17,16 +17,42 @@ connection reservation. Details compare source and received report rates using
 separate clocks; input includes pen/pad/touch and receipt excludes heartbeats.
 This is not a one-way latency or display-frame-rate measurement.
 
-Initial validation: 31 Linux suites and 18 Apple suites passed, with macOS and
-visionOS simulator compilation and native preview inspection. A paced synthetic
-200-report/s source passed through capture and real Noise/TCP sockets with all
-200 reports intact, 199.8 reports/s received, 3.09ms mean and 6.41ms maximum
-local input-to-decode delay. These are software loopback results, not physical
-Wacom, Bluetooth, AVP rendering or end-to-end latency measurements. Package,
-TestFlight delivery and physical validation remain pending. Relay SSH has been
-intermittently unreachable; do not claim a live upgrade or capture yet.
+Release source **5a4c41901d3154151272c89d889cfea99ba31266** is committed and
+pushed on main. [CI 36753729937](https://github.com/instinctual/plank-avp-relay/actions/runs/36753729937)
+passed both native package builds and both clean-install jobs, with 31 Linux
+suites per architecture. All 18 Apple suites, macOS and visionOS simulator
+compilation, signed device archive/export and executable/dSYM checks passed.
+The simulator was compiled, not run. The native offscreen pen preview was
+inspected. All 238 Mac source files matched the committed source hashes.
 
-## Current state — 2026-09-30 UTC
+[Release v0.6.2](https://github.com/instinctual/plank-avp-relay/releases/tag/v0.6.2)
+points to that source; all eight published asset digests were verified.
+Canonical installers are only in `artifacts/deb/0.6.2/ubuntu-26.04/amd64/` and
+`artifacts/deb/0.6.2/debian-13/arm64/`. Apple **0.6.2 / upload 31** is VALID /
+IN_BETA_TESTING; exact test notes and saved Standard / No France compliance
+were applied and read back. Artifacts, logs, previews, checksums and provenance
+are in `artifacts/testflight/0.6.2/build-31/`. All Mac one-shot build jobs are
+unloaded. Next Apple upload: **32**.
+
+The exact arm64 package is installed on the live relay. Upgrade unit exit0,
+dpkg verification, all three configuration checks and all three services pass.
+Identity, headset/tablet bonds, USB mode, Wi-Fi profiles and Wi-Fi policy were
+retained; the policy comparison excludes only transient requestID/fingerprint
+receipts. A root-only backup precedes installation. Bluetooth advertising and
+TCP discovery/listening are active. **No qualifying Wacom input device was
+connected at the final check.** Physical input/AVP testing remains pending.
+
+A paced synthetic 200-report/s source passed through capture and real Noise/TCP
+sockets with all 200 reports intact, 199.8 reports/s received, 3.09ms mean and
+6.41ms maximum local input-to-decode delay. These are software loopback results,
+not physical Wacom, Bluetooth, AVP rendering or end-to-end latency measurements.
+Next test: connect/wake the tablet, install TestFlight 0.6.2, open Test Tablet,
+compare smooth pen motion/pressure/quick taps and the input/received rates,
+and verify Stop Testing or dismissing the sheet releases the connection.
+Qualify both network and Bluetooth; do not claim equivalent radio throughput
+from the loopback result.
+
+## Previous accepted baseline — 0.6.1 / upload 30
 
 The operator approved **0.6.1 / TestFlight 30** on 2026-09-30 and requested
 commit/push on `main`. This is the accepted release baseline.
