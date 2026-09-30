@@ -33,15 +33,39 @@ Finish Setup after opening verified USB input. Public status never enrolls a
 headset; existing ownership checks remain. TCP/input stay available without a
 Bluetooth adapter and unavailable Bluetooth actions are disabled in the app.
 
-All 31 local Linux and 18 draft Apple suites passed. Regressions cover USB
-priority/fallback, multiple-device selection, pen-only detection, absent radio,
-failed USB verification, ownership retention and real Noise/TCP setup plus
-position/pressure frames with simulated hardware. The revised capture code
-opened the actual operator USB tablet despite its saved Bluetooth selection,
-with valid X/Y/pressure ranges. No moving-pen/pressure event or physical headset
-acceptance is claimed yet. Native offscreen USB previews were inspected.
-Final source build, packages, live deployment and TestFlight upload **29** are
-pending delivery; update this section after verification.
+Source `d58b2e5dc51af273f8214e8424b48fb5f107fe5b` passed **31 Linux suites**
+and **18 Apple suites**, macOS build, visionOS simulator compilation and signed
+device archive/export with matching executable/dSYM UUIDs. The simulator was
+compiled, not run. Regressions cover USB priority/fallback, multiple-device
+selection, pen-only detection, absent radio, failed USB verification, ownership
+retention and real Noise/TCP setup plus position/pressure frames with simulated
+hardware. Native offscreen USB previews were inspected.
+
+The installed relay captured the operator moving the USB pen: **324 reports**,
+137 distinct values on each position axis, and 116 pressure values spanning
+**0–6,858 of 8,191**. USB remained attached throughout the 90-second capture.
+This used the installed capture code alongside the daemon without grabbing or
+modifying the input devices. Raw capture summaries remain private. The running
+TCP service reports active USB input and no Bluetooth adapter. Three local TCP
+round trips passed (1,600 bytes each direction). Physical AVP reception and USB
+unplug/replug still require operator acceptance; this was not a headset trace.
+
+Apple upload **29** is **VALID / IN_BETA_TESTING**, with exact tester notes and
+the saved Standard / No France compliance applied and read back. Artifacts are
+in `artifacts/testflight/0.6.0/build-29/`. All one-shot Mac build/upload jobs are
+unloaded. Next Apple upload: **30**.
+
+Both native builds and both clean-install jobs passed in
+[CI 36675629697](https://github.com/instinctual/plank-avp-relay/actions/runs/36675629697).
+Installers are directly in `artifacts/`, with checksums/provenance under
+`artifacts/deb/0.6.0/<platform>/<arch>/`. The
+[v0.6.0 release](https://github.com/instinctual/plank-avp-relay/releases/tag/v0.6.0)
+tag matches the source and all eight asset digests were verified.
+
+The exact arm64 package is installed on the live relay. Upgrade, package and
+configuration checks pass; all three services are active. Relay identity,
+headset/tablet bonds, USB network mode, Wi-Fi policy and profiles were retained.
+Private backups, capture evidence and access details remain in operator notes.
 
 ## Previous delivery — 0.5.9
 
