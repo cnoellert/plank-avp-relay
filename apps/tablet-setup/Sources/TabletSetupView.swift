@@ -207,7 +207,7 @@ struct TabletSetupView: View {
                     setup.cancel()
                 }.buttonStyle(.borderedProminent)
             } else {
-                Button("Start live readings") { setup.startReadings() }
+                Button("Test Tablet") { setup.startReadings() }
                     .buttonStyle(.borderedProminent).disabled(!setup.state.canObserve)
                 if !setup.state.hasTablet {
                     Text(setup.state.activity == .checking ? "Checking the relay’s tablets…" :
