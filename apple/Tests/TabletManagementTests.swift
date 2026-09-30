@@ -15,6 +15,7 @@ enum TabletManagementTests {
         precondition(status.tablets.count == 1 && !status.tablets[0].connected)
         precondition(!status.initialSetup && !status.canManage && status.hostname == "studio-relay")
         precondition(status.enrollmentIdentity == nil && status.headsetAuthorized != true)
+        precondition(status.captureActive == nil && status.captureBusy == nil)
         precondition(!status.canStartReadings) // Saved rows need a selected tablet.
         let selected = fields.merging(["selected": "AA:BB:CC:DD:EE:01"]) { _, new in new }
         let sleepingTablet = try TabletSetupStatus.decode(JSONSerialization.data(withJSONObject: selected), request: 3)
@@ -33,6 +34,19 @@ enum TabletManagementTests {
         let wiredTablet = try TabletSetupStatus.decode(JSONSerialization.data(withJSONObject: wired), request: 3)
         precondition(wiredTablet.canStartReadings && wiredTablet.bluetoothAvailable == false)
         precondition(wiredTablet.activeUSBTablet?.serial == "serial")
+        let available = wired.merging(["canManage": true, "captureActive": false, "captureBusy": false]) { _, new in new }
+        let availableTablet = try TabletSetupStatus.decode(JSONSerialization.data(withJSONObject: available), request: 3)
+        precondition(availableTablet.canStartReadings && availableTablet.canChangeTablet)
+        let managed = available.merging(["captureActive": true]) { _, new in new }
+        let managedTablet = try TabletSetupStatus.decode(JSONSerialization.data(withJSONObject: managed), request: 3)
+        precondition(managedTablet.captureActive == true && managedTablet.canStartReadings)
+        let busy = available.merging(["captureBusy": true]) { _, new in new }
+        let busyTablet = try TabletSetupStatus.decode(JSONSerialization.data(withJSONObject: busy), request: 3)
+        precondition(busyTablet.captureBusy == true && busyTablet.attached && busyTablet.activeUSBTablet != nil)
+        precondition(!busyTablet.canStartReadings && !busyTablet.canChangeTablet)
+        let busyBluetooth = selected.merging(["canManage": true, "captureBusy": true]) { _, new in new }
+        let busyBluetoothTablet = try TabletSetupStatus.decode(JSONSerialization.data(withJSONObject: busyBluetooth), request: 3)
+        precondition(!busyBluetoothTablet.canStartReadings && !busyBluetoothTablet.canChangeTablet)
         let noRadio = selected.merging(["bluetoothAvailable": false]) { _, new in new }
         let noRadioStatus = try TabletSetupStatus.decode(JSONSerialization.data(withJSONObject: noRadio), request: 3)
         precondition(!noRadioStatus.canStartReadings)
@@ -64,6 +78,6 @@ enum TabletManagementTests {
                 fatalError("Invalid or rejected setup status accepted")
             } catch {}
         }
-        print("PASS: setup response binding, identity validation, retained ownership after removal and offline state")
+        print("PASS: setup response binding, capture ownership, identity validation, retained ownership and offline state")
     }
 }

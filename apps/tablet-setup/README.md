@@ -117,6 +117,15 @@ removing USB allows the saved Bluetooth tablet to resume when available.
 Use Manage Tablets or Check tablet status to refresh after plugging a tablet
 into an idle main Tablet page. During testing, input hotplug is automatic.
 
+On a host also running the raw PLANK tablet relay, discovery and tablet status
+remain available while PLANK owns input. Setup reports capture as busy and
+defers tablet scan, pairing, selection and live testing until that session
+stops. Authorized network controls remain available from the Network tab.
+The relay's `attached` status describes physically detected input while
+idle; `captureActive` reports open managed input nodes, and `captureBusy`
+reports a different service holding input. See the
+[shared Linux capture behavior](../../docs/linux-ble-package.md#sharing-a-linux-host-with-the-raw-plank-relay).
+
 ## Network and Bluetooth pairing and readings
 
 Allow Local Network access to discover `_plank-avp-relay._tcp` services. A relay

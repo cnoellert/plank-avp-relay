@@ -18,6 +18,8 @@ public struct USBTablet: Decodable, Identifiable, Equatable, Sendable {
 }
 
 public struct TabletSetupStatus: Decodable, Equatable, Sendable {
+    public static let captureBusyGuidance = "Tablet input is in use by PLANK. Stop that session and retry."
+
     public let version: Int
     public let id: Int
     public let ok: Bool
@@ -27,6 +29,10 @@ public struct TabletSetupStatus: Decodable, Equatable, Sendable {
     public let canManage: Bool
     public let initialSetup: Bool
     public let attached: Bool
+    // Newer relays report capture separately from physical tablet presence.
+    // Keep these optional so an older relay's status remains decodable.
+    public let captureActive: Bool?
+    public let captureBusy: Bool?
     public let selected: String?
     public let secondsRemaining: Int
     public let tablets: [ManagedTablet]
@@ -55,10 +61,12 @@ public struct TabletSetupStatus: Decodable, Equatable, Sendable {
     }
 
     public var operating: Bool { ["pairing", "connecting", "verifying"].contains(phase) }
+    public var canChangeTablet: Bool { canManage && !operating && captureBusy != true }
     // A sleeping paired tablet can reconnect during observation. USB input
     // needs no Bluetooth bond, so a currently attached tablet also qualifies.
     public var canStartReadings: Bool {
-        !operating && (attached || (bluetoothAvailable != false && tablets.contains { $0.paired && $0.id == selected }))
+        !operating && captureBusy != true &&
+            (attached || (bluetoothAvailable != false && tablets.contains { $0.paired && $0.id == selected }))
     }
     public var needsHeadsetRecovery: Bool { !canManage && !initialSetup && headsetAuthorized != true }
     public var activeUSBTablet: USBTablet? { usbTablets?.first { $0.active } }
