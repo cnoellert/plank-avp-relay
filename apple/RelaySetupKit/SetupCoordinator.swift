@@ -167,6 +167,10 @@ public final class SetupCoordinator: ObservableObject {
     public func tabletOperation(_ operation: String, tablet: String? = nil) {
         guard state.activity == .managingTablets, !tabletCommandPending,
               tabletStatus?.operating != true else { return }
+        guard tabletStatus?.captureBusy != true else {
+            message = TabletSetupStatus.captureBusyGuidance
+            return
+        }
         tabletCommand = (operation, tablet)
         tabletCommandPending = true
     }
@@ -219,8 +223,9 @@ public final class SetupCoordinator: ObservableObject {
                         self.message = "The relay confirms this headset is authorized over \(address.transportName)."
                         self.authorizationDiagnostic = .passed(self.message)
                     } else {
-                        self.message = status.canStartReadings ? "Tablet found. Choose Test Tablet to check its input." :
-                            "Connect a USB tablet, or pair and select a Bluetooth tablet before testing."
+                        self.message = status.captureBusy == true ? TabletSetupStatus.captureBusyGuidance :
+                            status.canStartReadings ? "Tablet found. Choose Test Tablet to check its input." :
+                                "Connect a USB tablet, or pair and select a Bluetooth tablet before testing."
                     }
                 }
             } catch {
@@ -664,6 +669,10 @@ public final class SetupCoordinator: ObservableObject {
     }
 
     public func startReadings() {
+        guard tabletStatus?.captureBusy != true else {
+            message = TabletSetupStatus.captureBusyGuidance
+            return
+        }
         guard let address = state.address, let id = state.beginObservation() else { return }
         tabletTest.reset()
         message = "Verifying the relay and starting live tablet readings…"
@@ -691,6 +700,9 @@ public final class SetupCoordinator: ObservableObject {
                             self.message = "This relay has not authorized the headset. Set up a tablet to finish authorization."
                             self.task = nil
                             return
+                        }
+                        guard status.captureBusy != true else {
+                            throw RelaySetupError.rejected(TabletSetupStatus.captureBusyGuidance)
                         }
                         guard status.canStartReadings else {
                             throw RelaySetupError.rejected("Connect a USB tablet, or pair and select a Bluetooth tablet before testing.")

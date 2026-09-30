@@ -168,7 +168,7 @@ struct TabletSetupView: View {
                 Button("Remove Tablet", role: .destructive) {
                     setup.tabletOperation("remove", tablet: tablet.id)
                     tabletToRemove = nil
-                }
+                }.disabled(setup.tabletStatus?.canChangeTablet != true || setup.tabletCommandPending)
             }
         } message: {
             if let tablet = tabletToRemove {
@@ -195,6 +195,7 @@ struct TabletSetupView: View {
             LabeledContent("Relay", value: setup.state.address?.description ?? "")
             LabeledContent("Connection", value: setup.state.address?.transportName ?? "")
             Text("Connect a tablet by USB or pair it over Bluetooth. The relay saves this headset’s authorization once the tablet is verified.")
+            TabletCaptureStatusView(status: setup.tabletStatus)
             Button("Set up a tablet") { setup.manageTablets() }
                 .buttonStyle(.borderedProminent).disabled(setup.state.busy)
         }
@@ -221,6 +222,7 @@ struct TabletSetupView: View {
                 LabeledContent("Tablet connection", value: "USB")
                 if let serial = tablet.serial { LabeledContent("Serial number", value: serial).textSelection(.enabled) }
             }
+            TabletCaptureStatusView(status: setup.tabletStatus)
             if setup.state.activity == .stoppingObservation {
                 ProgressView("Stopping tablet test…")
             } else if setup.state.activity == .observing {
@@ -232,11 +234,14 @@ struct TabletSetupView: View {
                     setup.startReadings()
                     testingTablet = setup.state.activity == .observing
                 }
-                    .buttonStyle(.borderedProminent).disabled(!setup.state.canObserve)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!setup.state.canObserve || setup.tabletStatus?.captureBusy == true)
                 if !setup.state.hasTablet {
-                    Text(setup.state.activity == .checking ? "Checking the relay’s tablets…" :
-                         "Connect a USB tablet, or pair and select a Bluetooth tablet before testing.")
-                        .font(.callout).foregroundStyle(.secondary)
+                    if setup.tabletStatus?.captureBusy != true {
+                        Text(setup.state.activity == .checking ? "Checking the relay’s tablets…" :
+                             "Connect a USB tablet, or pair and select a Bluetooth tablet before testing.")
+                            .font(.callout).foregroundStyle(.secondary)
+                    }
                     if !setup.state.busy {
                         Button("Check tablet status") { setup.refreshTabletStatus() }
                     }
@@ -276,6 +281,25 @@ struct OwnershipRecoveryView: View {
     }
 }
 
+struct TabletCaptureStatusView: View {
+    let status: TabletSetupStatus?
+
+    @ViewBuilder var body: some View {
+        if status?.captureBusy == true {
+            VStack(alignment: .leading, spacing: 6) {
+                Label("Tablet input is in use by PLANK", systemImage: "hand.raised.fill")
+                    .foregroundStyle(.orange)
+                Text("Stop the PLANK session, then check tablet status to test or change tablets.")
+                    .font(.callout).foregroundStyle(.secondary)
+            }.accessibilityIdentifier("tablet-capture-busy")
+        } else if status?.captureActive == true {
+            Label("Relay service is reading tablet input", systemImage: "pencil.tip")
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("tablet-capture-active")
+        }
+    }
+}
+
 struct TabletManagementView: View {
     let status: TabletSetupStatus?
     let relayName: String
@@ -303,6 +327,7 @@ struct TabletManagementView: View {
             if closing {
                 ProgressView("Closing tablet setup…")
             } else if let status {
+                TabletCaptureStatusView(status: status)
                 if status.operating {
                     ProgressView(status.message)
                     Text("\(status.secondsRemaining) seconds remaining").font(.callout).foregroundStyle(.secondary)
@@ -327,7 +352,7 @@ struct TabletManagementView: View {
                                     }.frame(maxWidth: .infinity, alignment: .leading)
                                     if status.canManage && (!trusted || !tablet.active) {
                                         Button(trusted ? "Select Tablet" : "Finish Setup") { operation("use-usb", tablet.id) }
-                                            .disabled(status.operating || pending)
+                                            .disabled(!status.canChangeTablet || pending)
                                     }
                                 }
                             }
@@ -355,14 +380,14 @@ struct TabletManagementView: View {
                                 .font(.callout).foregroundStyle(.secondary)
                             Button(status.phase == "scanning" ? "Scan Again" : "Find Tablets") {
                                 operation("scan", nil)
-                            }.buttonStyle(.borderedProminent).disabled(status.operating || pending)
+                            }.buttonStyle(.borderedProminent).disabled(!status.canChangeTablet || pending)
                             if status.phase == "scanning" {
                                 ProgressView("Scanning · \(status.secondsRemaining) seconds remaining")
                                 ForEach(status.candidates) { tablet in
                                     HStack(alignment: .top, spacing: 16) {
                                         tabletIdentity(tablet)
                                         Button("Pair") { operation("pair", tablet.id) }
-                                            .disabled(pending)
+                                            .disabled(!status.canChangeTablet || pending)
                                             .accessibilityLabel("Pair \(tablet.name), \(tablet.id)")
                                     }
                                 }
@@ -423,7 +448,7 @@ struct TabletManagementView: View {
                 } label: {
                     Image(systemName: "ellipsis.circle")
                         .accessibilityLabel("Manage \(tablet.name), \(tablet.id)")
-                }.disabled(status.operating || pending)
+                }.disabled(!status.canChangeTablet || pending)
             }
         }
     }
