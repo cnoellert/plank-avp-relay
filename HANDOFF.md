@@ -2,6 +2,38 @@
 
 ## Active work — Bluetooth streaming and direct headset installs
 
+**Development candidate 0.6.3 / build32**, source
+`8c5d6345b1536787ac6bac58d9014c2b965060b2`, is committed and pushed on
+`bluetooth-l2cap`. The temporary Tablet-page selector offers Automatic or
+Bluetooth only. It filters routes before preflight and fixes the candidate set
+through every tablet-test retry. Connection diagnostics and the explicit
+authorization check honor the same choice. Preference is retained across app
+launches and locked during active operations; the testing sheet shows the actual
+connection only after input arrives and clears it on interruption.
+
+The policy/defaults key is isolated in `RelayTestTransport.swift`, and the picker
+in `RelayTestTransportView.swift`. `PLANK_ENABLE_TRANSPORT_TESTING=OFF` hides the
+control and ignores a saved Bluetooth-only preference. No protocol/identity
+migration is required to remove it. Network controls and normal discovery keep
+their existing routing. This candidate still uses GATT for Bluetooth, not L2CAP.
+
+All 19 Apple suites pass, along with a separate feature-disabled build/test,
+macOS and visionOS simulator compilation, device archive, development export,
+bundle/profile checks and matching executable/dSYM UUIDs. Native selector
+previews were inspected. All 244 staged source files match the commit above.
+The simulator was compiled, not run. Physical strict-routing acceptance remains
+for the operator; software checks are not an AVP radio performance measurement.
+
+[CI 36769742023](https://github.com/instinctual/plank-avp-relay/actions/runs/36769742023)
+passed both native package builds (31 Linux suites each) and both clean installs.
+Packages are in `artifacts/deb/0.6.3/{ubuntu-26.04/amd64,debian-13/arm64}/`.
+The exact arm64 package is installed on relay02; configuration/dpkg checks and
+all three services pass. Upgrade retained identity, headset/tablet bonds, USB
+mode and Wi-Fi profiles/policy. Linux behavior is unchanged in this candidate.
+The signed app was installed in place on the AVP via mac34; artifacts, previews,
+logs and dSYMs are in `artifacts/development/0.6.3/build-32/`. No TestFlight upload
+or GitHub release was created. Next development build number: 33.
+
 On 2026-09-30 the operator reported that Bluetooth-only tablet testing
 disconnects within seconds while the app stays open. Live relay logs identify
 the half-second input backlog guard added in 0.6.2; the daemon did not restart.
@@ -38,7 +70,8 @@ confirmation; successful in-place installation alone does not establish it.
 On relay02, a read-only capability probe successfully bound/listened on a
 dynamic LE L2CAP PSM and closed the socket. Python's Bluetooth bind tuple lacks
 the address-type field there; an explicit Linux sockaddr_l2 via libc was needed.
-No relay service, app transport or protocol change has been applied yet.
+No L2CAP relay service, app transport or wire-protocol implementation has been
+applied yet; the installed 0.6.3 control isolates the existing Bluetooth path.
 
 ## Current accepted release — 0.6.2 tablet test fidelity
 
