@@ -2,10 +2,10 @@
 
 ## Active work — Bluetooth streaming and direct headset installs
 
-### Approved release 0.6.6 / TestFlight build 38 — in progress
+### Released 0.6.6 / TestFlight build 38 — September 30, 2026
 
 The operator accepted build 37's latest test and explicitly requested commit,
-push, merge and a new TestFlight release. Release 0.6.6 advances app and relay
+push, merge, TestFlight and GitHub releases. Release 0.6.6 advances app and relay
 together; internal Apple upload number 38. The release includes the approved
 L2CAP stream, 15 ms controller preference, direct echo diagnostic, separate
 connection/authentication deadlines and the temporary Bluetooth-only test
@@ -13,11 +13,44 @@ selector. No new input-processing changes are included.
 
 The clean-install workflow's old `powersave`/backup assertions are corrected
 to match the already implemented and tested `schedutil` installer behavior.
-Release notes are `apps/tablet-setup/TestFlight/0.6.6-38.txt`. Native Ubuntu 26.04
-amd64 and Debian 13 arm64 package checks, Apple release validation, main merge,
-upload and metadata/readback are pending. Retain the known limitation that
-initial radio establishment can still be slow; do not describe this release
-as proof that every Bluetooth startup failure is resolved.
+Release notes are `apps/tablet-setup/TestFlight/0.6.6-38.txt`.
+
+[PR #2](https://github.com/instinctual/plank-avp-relay/pull/2) merged
+`bluetooth-l2cap` into `main` as `b6ccbfdbc7e6cd87e01b158519c856c9acdb6980`.
+Tag [v0.6.6](https://github.com/instinctual/plank-avp-relay/releases/tag/v0.6.6)
+identifies that commit. The app archive uses release preparation commit
+`7178459429672e2b8678fb47361465e9ead50528`; its Git tree exactly matches the merge.
+The workspace is now on `main`.
+
+Both pre-merge run `36798346483` and the
+[main package run](https://github.com/instinctual/plank-avp-relay/actions/runs/36798836743)
+passed all four native build/install jobs: Ubuntu 26.04 amd64 and Debian 13
+arm64, 31 Linux suites each, package validation and clean install/upgrade/removal.
+The GitHub release contains both installers, optional debug symbols, SHA-256
+checksums and source provenance. All eight published assets match local hashes
+and sizes. Canonical package files remain only under
+`artifacts/deb/0.6.6/{ubuntu-26.04/amd64,debian-13/arm64}/`.
+
+Apple release validation passes all 21 suites, macOS and visionOS
+simulator/device compilation, signed archive/distribution export, bundle and
+provisioning checks, and matching dSYM UUIDs. Upload completed at 17:59 PDT.
+Apple readback confirms **VALID / IN_BETA_TESTING**, with exact tester notes and
+the saved Standard / No France compliance baseline verified. Evidence, source,
+IPA and archive are under `artifacts/testflight/0.6.6/build-38/`. GUI signing jobs
+are unloaded. Next Apple build number: 39. This release was delivered through
+TestFlight; no direct install of build 38 onto the headset was performed.
+
+Relay02 was upgraded to the published arm64 0.6.6 package at 18:04 PDT. Package
+hash, installed file verification and configuration checks pass. Service PID
+3123 is active with zero restarts, advertising L2CAP PSM 128 and applying the
+15 ms preference. The live CPU governor is schedutil. All 29 pre-upgrade
+configuration, identity and Bluetooth state files have unchanged hashes.
+Private backup: `/var/backups/plank-avp-relay/release-0.6.6/` on relay02.
+
+Retain the known limitation that initial radio establishment can still be slow;
+do not describe this release as proof that every Bluetooth startup failure is
+resolved. Release-package startup is verified; no new physical drawing test was
+performed after this package upgrade.
 
 ### Reboot acceptance and startup deadline correction — build 37
 
@@ -503,12 +536,12 @@ the address-type field there; an explicit Linux sockaddr_l2 via libc was needed.
 No L2CAP relay service, app transport or wire-protocol implementation has been
 applied yet; the installed 0.6.3 control isolates the existing Bluetooth path.
 
-## Current accepted release — 0.6.2 tablet test fidelity
+## Previous accepted release — 0.6.2 tablet test fidelity
 
 On 2026-09-30 the operator reported that the tablet test works much better and
-requested commit, push and merge. **0.6.2 / TestFlight 31 is the accepted
-baseline.** Its implementation is already on `main`; no feature-branch merge
-remains. This confirms the operator's qualitative improvement, not measured
+requested commit, push and merge. **0.6.2 / TestFlight 31 was the accepted
+baseline, now superseded by 0.6.6 above.** Its implementation is on `main`.
+This confirms the operator's qualitative improvement, not measured
 physical report rates or separate acceptance of every transport.
 
 The operator authorized a larger testing popup and a focused correction based
