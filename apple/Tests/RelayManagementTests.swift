@@ -15,7 +15,10 @@ private final class Peer: RelayByteConnection {
     let key: Data
     var incoming = Data()
     var connects = 0
+    var sends = 0
     var disconnected = false
+    var canceled = false
+    var connectDelay: Duration = .zero
     var loseReply = false
     var waiting = false
     var requests: UInt32 { management_peer_requests(storage.value) }
@@ -26,8 +29,14 @@ private final class Peer: RelayByteConnection {
         }!
         storage = PeerStorage(peer); self.key = Data(key)
     }
-    func connect() async throws { precondition(!disconnected); connects += 1 }
+    func connect() async throws {
+        precondition(!disconnected)
+        connects += 1
+        try await Task.sleep(for: connectDelay)
+        if canceled { throw CancellationError() }
+    }
     func send(_ data: Data) async throws {
+        sends += 1
         var bytes = [UInt8](repeating: 0, count: 16384), count = 0
         let result = data.withUnsafeBytes {
             management_peer_receive(storage.value, $0.bindMemory(to: UInt8.self).baseAddress,
@@ -47,7 +56,7 @@ private final class Peer: RelayByteConnection {
         incoming.removeFirst(part.count)
         return Data(part)
     }
-    nonisolated func cancel() {}
+    nonisolated func cancel() { Task { @MainActor in self.canceled = true } }
     func finishDisconnect() async { disconnected = true }
 }
 
@@ -69,6 +78,41 @@ enum RelayManagementTests {
             precondition(!connection.matches(address: address, privateKey: privateKey, relayKey: Data(repeating: 99, count: 32)))
         }
         precondition(peer.disconnected && client.managementConnection == nil && !client.managementScope)
+
+        // A valid transport connection may exceed the management handshake's
+        // 12 s budget. The old enclosing timer canceled this before any Noise
+        // bytes were sent. Keep this real timing regression: connect owns its
+        // separate bounded deadline in the production transport.
+        let slow = Peer(privateKey)
+        slow.connectDelay = .seconds(13)
+        let slowConnection = try RelayManagementConnection(address: address,
+            privateKey: privateKey, relayKey: slow.key, socket: slow)
+        try await client.withManagementSession {
+            client.managementConnection = slowConnection
+            let reply = try await client.managementRequests(address: address,
+                privateKey: privateKey, relayKey: slow.key, payloads: [payload])
+            precondition(reply == [payload] && !slow.canceled && slow.connects == 1)
+        }
+        precondition(slow.disconnected && slow.requests == 1)
+
+        let starting = Peer(privateKey)
+        starting.connectDelay = .seconds(100)
+        let startingConnection = try RelayManagementConnection(address: address,
+            privateKey: privateKey, relayKey: starting.key, socket: starting)
+        let startupTask = Task {
+            try await client.withManagementSession {
+                client.managementConnection = startingConnection
+                _ = try await client.managementRequests(address: address,
+                    privateKey: privateKey, relayKey: starting.key, payloads: [payload])
+            }
+        }
+        while starting.connects == 0 { await Task.yield() }
+        startupTask.cancel()
+        do { try await startupTask.value; fatalError("Startup cancellation must throw") }
+        catch is CancellationError {}
+        await Task.yield()
+        precondition(starting.canceled && starting.disconnected && starting.sends == 0)
+        precondition(client.managementConnection == nil && !client.managementScope)
 
         let canceled = Peer(privateKey)
         canceled.loseReply = true
@@ -93,6 +137,6 @@ enum RelayManagementTests {
         catch RelaySetupError.protocolError {}
         await rejected.close()
         precondition(wrong.requests == 0 && wrong.disconnected)
-        print("PASS: one encrypted connection for repeated requests, teardown, cancellation without replay, pinned identity")
+        print("PASS: transport startup before handshake deadline, one encrypted connection, teardown, cancellation without replay, pinned identity")
     }
 }

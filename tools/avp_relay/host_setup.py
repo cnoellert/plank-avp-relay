@@ -15,7 +15,7 @@ def configure_armbian(root=Path('/')):
         return False
     config = (root / 'etc/default/cpufrequtils').resolve()
     original = config.read_text() if config.exists() else ''
-    settings = {'GOVERNOR': 'powersave', 'ENABLED': 'true'}
+    settings = {'GOVERNOR': 'schedutil', 'ENABLED': 'true'}
     seen = set()
 
     def replace(match):
@@ -33,7 +33,7 @@ def configure_armbian(root=Path('/')):
     if updated == original:
         return False
     if config.exists():
-        backup = root / 'var/backups/plank-avp-relay/cpufrequtils.before-powersave'
+        backup = root / 'var/backups/plank-avp-relay/cpufrequtils.before-schedutil'
         backup.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         try:
             descriptor = os.open(backup, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
@@ -57,7 +57,7 @@ def configure_armbian(root=Path('/')):
     finally:
         if os.path.exists(temporary):
             os.unlink(temporary)
-    print('Configured Armbian CPU governor: powersave (enabled)', flush=True)
+    print('Configured Armbian CPU governor: schedutil (enabled)', flush=True)
     return True
 
 

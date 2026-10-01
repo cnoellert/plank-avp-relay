@@ -13,7 +13,7 @@ from avp_relay.capture import Capture, SAMPLE, candidates, usb_identifier
 from avp_relay.config import hostname_name, read_settings
 from avp_relay.controller import clear_advertisements
 from avp_relay.notify import ready
-from avp_relay.bluez import Server, PROPERTIES
+from avp_relay.bluez import Server, PROPERTIES, L2CAPEndpoint
 from avp_relay.core import RelayCore
 
 
@@ -209,15 +209,18 @@ class ServiceTests(unittest.TestCase):
         properties.Get.return_value = True  # Discovery already running.
         with patch('avp_relay.bluez.dbus.Interface', return_value=properties), \
                 patch('avp_relay.bluez.clear_advertisements') as clear, \
+                patch('avp_relay.bluez.configure_le_connection_parameters') as parameters, \
                 patch('avp_relay.bluez.disable_address_resolution') as workaround:
             with self.assertRaisesRegex(RuntimeError, 'no scan'):
                 Server.register_bluetooth(server)
             properties.Set.assert_not_called()
             clear.assert_not_called()
+            parameters.assert_not_called()
             workaround.assert_not_called()
 
     def test_ready_after_advertisement_without_a_network_listener(self):
         server = MagicMock()
+        server.adapter = '/org/bluez/hci2'
         server.controller_workaround = server.exclusive_adapter = False
         server.registration_generation = 0
         gatt, advertising, properties = MagicMock(), MagicMock(), MagicMock()
@@ -226,10 +229,69 @@ class ServiceTests(unittest.TestCase):
         advertising.RegisterAdvertisement.side_effect = lambda *a, **k: k['reply_handler']()
         interfaces = {'org.bluez.GattManager1': gatt,
                       'org.bluez.LEAdvertisingManager1': advertising, PROPERTIES: properties}
-        with patch('avp_relay.bluez.dbus.Interface', side_effect=lambda _, kind: interfaces[kind]):
+        with patch('avp_relay.bluez.dbus.Interface', side_effect=lambda _, kind: interfaces[kind]), \
+                patch('avp_relay.bluez.configure_le_connection_parameters') as parameters:
             Server.register_bluetooth(server)
+        parameters.assert_called_once_with('hci2')
         self.assertTrue(server.advertising)
         server.notify_ready.assert_called_once()
+
+    def test_l2cap_listener_registered_after_controller_policy_and_before_gatt(self):
+        server = MagicMock()
+        server.adapter = '/org/bluez/hci2'
+        server.exclusive_adapter = False
+        server.controller_workaround = True
+        server.registration_generation = 0
+        server.l2cap = None
+        server.peer = server.echo.peer = None
+        server.setup = None
+        properties = MagicMock()
+        properties.Get.side_effect = lambda kind, field: {
+            'Discovering': False, 'ActiveInstances': 0, 'Powered': True,
+            'Address': 'AA:BB:CC:DD:EE:FF', 'AddressType': 'public'}[field]
+        order = []
+        gatt = MagicMock()
+        gatt.RegisterApplication.side_effect = lambda *a, **k: order.append('gatt')
+        def listening(*args, **kwargs):
+            order.append('listen')
+            return MagicMock(psm=128)
+        with patch('avp_relay.bluez.dbus.Interface', side_effect=lambda _, name:
+                   gatt if name == 'org.bluez.GattManager1' else properties), \
+                patch('avp_relay.bluez.disable_address_resolution', side_effect=lambda _: order.append('policy')), \
+                patch('avp_relay.bluez.configure_le_connection_parameters', side_effect=lambda _: order.append('interval')), \
+                patch('avp_relay.bluez.L2CAPServer', side_effect=listening) as listener:
+            Server.register_bluetooth(server)
+        self.assertEqual(order, ['policy', 'interval', 'listen', 'gatt'])
+        listener.assert_called_once()
+        self.assertEqual(listener.call_args.args, (server.core, 'AA:BB:CC:DD:EE:FF', 'public'))
+        self.assertFalse(listener.call_args.kwargs['busy']())
+        endpoint = MagicMock(server=server)
+        self.assertEqual(bytes(L2CAPEndpoint.ReadValue(endpoint, {})), b'\x01\x80\x00')
+        with self.assertRaises(Exception): L2CAPEndpoint.ReadValue(endpoint, {'offset': 1})
+        active = server.l2cap
+        Server.unregister_bluetooth(server)
+        active.close.assert_called_once()
+        self.assertIsNone(server.l2cap)
+        server.network.close.assert_not_called()
+
+    def test_failed_controller_preferences_do_not_advertise_or_stop_tcp(self):
+        server = MagicMock()
+        server.adapter = '/org/bluez/hci2'
+        server.controller_workaround = server.exclusive_adapter = False
+        server.l2cap = None
+        properties = MagicMock()
+        properties.Get.return_value = True
+        with patch('avp_relay.bluez.dbus.Interface', return_value=properties), \
+                patch('avp_relay.bluez.configure_le_connection_parameters',
+                      side_effect=RuntimeError('readback mismatch')), \
+                patch('avp_relay.bluez.L2CAPServer') as listener:
+            with self.assertRaisesRegex(RuntimeError, 'readback mismatch'):
+                Server.register_bluetooth(server)
+        listener.assert_not_called()
+        properties.RegisterApplication.assert_not_called()
+        properties.RegisterAdvertisement.assert_not_called()
+        server.network.close.assert_not_called()
+        server.loop.quit.assert_not_called()
 
     def test_tcp_configuration_and_port_bounds(self):
         self.assertTrue(self.read('[relay]\n').tcp_enabled)

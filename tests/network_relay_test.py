@@ -236,10 +236,17 @@ class NetworkTests(unittest.TestCase):
                         sample = SAMPLE.unpack(data)
                         received.append(sample)
                         delays.append(time.monotonic_ns() / 1000 - sample[4])
+        # A byte stream can split the final records across SDUs/reads.
+        while len(received) < 200:
+            for kind, data in self.feed(sock, client, self.read(sock)):
+                if kind == 14:
+                    sample = SAMPLE.unpack(data)
+                    received.append(sample)
+                    delays.append(time.monotonic_ns() / 1000 - sample[4])
         self.assertEqual([sample[5] for sample in received], list(range(1, 201)))
         self.assertEqual([sample[7] for sample in received], [n * 10 for n in range(1, 201)])
         elapsed = time.monotonic() - start
-        print(f'Synthetic evdev/Noise TCP: {len(received)} reports, {len(received)/elapsed:.1f}/s; '
+        print(f'Synthetic evdev/Noise {self.core.owner.split(":")[0]}: {len(received)} reports, {len(received)/elapsed:.1f}/s; '
               f'local input-to-decode mean {sum(delays)/len(delays)/1000:.2f} ms, '
               f'max {max(delays)/1000:.2f} ms. Not a hardware/AVP measurement.')
 
@@ -387,6 +394,87 @@ class NetworkTests(unittest.TestCase):
             publisher.changed('', ':old', ':new'); publisher.tick()
             self.assertEqual(group.Commit.call_count, 2)
             publisher.close(); group.Free.assert_called_once()
+
+
+class L2CAPTests(unittest.TestCase):
+    """Real sequenced-packet sockets, capture and Noise; no radio claim."""
+    setUp = NetworkTests.setUp
+    approve = NetworkTests.approve
+    pump = NetworkTests.pump
+    read = NetworkTests.read
+    feed = NetworkTests.feed
+    send = NetworkTests.send
+    request = NetworkTests.request
+    test_echo = NetworkTests.test_three_bidirectional_echo_roundtrips_without_tablet
+    test_report_order = NetworkTests.test_burst_of_reports_survives_noise_tcp_in_order
+    test_paced_reports = NetworkTests.test_paced_200_report_source_through_capture_and_noise_tcp
+    test_usb_input = NetworkTests.test_usb_setup_and_pressure_over_noise_tcp_without_bluetooth
+    test_authorized_network_controls = NetworkTests.test_network_mode_requires_approved_noise_identity
+    test_authorized_wifi_controls = NetworkTests.test_wifi_commands_require_approved_noise_and_do_not_echo_password
+    test_tablet_enrollment = NetworkTests.test_new_tablet_commits_only_provisional_network_owner
+    test_backpressure = NetworkTests.test_idle_probe_and_backpressure_release_only_their_connection
+
+    def socket(self, channel):
+        from avp_relay.l2cap import L2CAPConnection, PREFACE, BT_SNDMTU, BT_RCVMTU
+        import struct
+        # Exercise production SDU boundaries on a real socket. The only stub is
+        # the two Bluetooth-specific MTU queries unavailable on AF_UNIX.
+        class Socket:
+            def __init__(self, sock): self.sock = sock
+            def __getattr__(self, name): return getattr(self.sock, name)
+            def getsockopt(self, level, option, size):
+                assert option in (BT_SNDMTU, BT_RCVMTU) and size == 2
+                return struct.pack('H', 255 if option == BT_SNDMTU else 4096)
+        client, peer = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+        self.addCleanup(client.close)
+        client.settimeout(0.05)
+        connection = L2CAPConnection(self.server, Socket(peer))
+        self.server.connections.add(connection)
+        self.l2cap_connection = connection
+        for byte in PREFACE + bytes([channel]):
+            client.sendall(bytes([byte]))
+            self.pump()
+        return client
+
+    def connect(self, transport=1, private=None):
+        return NetworkTests.connect(self, transport, private)
+
+    def test_preserves_bluetooth_noise_identity_and_rejects_wrong_transcript(self):
+        self.approve()
+        for transport, private in ((1, bytes(range(1, 33))), (2, self.private)):
+            sock, client, connected = self.connect(transport, private)
+            self.assertFalse(connected)
+            sock.close(); self.pump()
+        sock, client, connected = self.connect()
+        self.assertTrue(connected)
+        self.assertTrue(self.core.owner.startswith('l2cap:'))
+        self.assertTrue(self.request(sock, client)['headsetAuthorized'])
+        with self.assertRaises(ProtocolError):
+            self.core.claim('tcp:other', 2, lambda _: None, lambda: False, lambda: None)
+        self.assertTrue(self.request(sock, client)['headsetAuthorized'])
+
+    def test_truncated_sdu_closes_only_its_channel(self):
+        sock = self.socket(2)
+        sock.sendall(bytes(4097))
+        self.pump()
+        self.assertTrue(self.l2cap_connection.closed)
+        self.assertIsNone(self.core.owner)
+        self.assertEqual(sock.recv(1), b'')
+        self.assertIsNotNone(self.core.tcp_port)
+
+    def test_credit_stall_defers_write_without_loss(self):
+        sock = self.socket(2)
+        connection = self.l2cap_connection
+        with patch.object(connection.sock, 'send', side_effect=BlockingIOError):
+            connection.append(bytes(range(256)) * 4)
+            self.assertEqual(len(connection.output), 1024)
+            self.assertFalse(connection.closed)
+        connection.flush()
+        received = bytearray()
+        while len(received) < 1024:
+            received.extend(sock.recv(4096))
+        self.assertEqual(received, bytes(range(256)) * 4)
+        self.assertFalse(connection.output)
 
 
 if __name__ == '__main__': unittest.main()

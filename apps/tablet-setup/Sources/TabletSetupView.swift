@@ -48,6 +48,8 @@ struct TabletSetupView: View {
                         tabletManagementPage
                     } else {
                         Text(setup.state.step.title).font(.largeTitle.bold())
+                        RelayTestTransportPicker(selection: Binding(
+                            get: { setup.testTransport }, set: { setup.setTestTransport($0) }), busy: setup.state.busy)
                         switch setup.state.step {
                         case .relay: Text("Select a relay to set up your tablet.")
                         case .tablet: tabletPage

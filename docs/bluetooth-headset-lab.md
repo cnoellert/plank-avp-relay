@@ -1,5 +1,165 @@
 # Bluetooth headset input lab
 
+## 0.6.5 development build 37 — management startup deadlines
+
+After the September 30 relay reboot, the first Tablet Test found the relay but
+the app canceled its pending Bluetooth connection after about 12 seconds.
+The management-status preflight wrapped transport startup and authentication
+in one 12-second deadline, cutting short Bluetooth's own 20-second budget.
+No tablet stream or authorization exchange started during that failed attempt.
+The next manual attempt finished setup in 9.57 seconds and the operator
+reported smooth drawing. AVP logs confirmed the persisted 15 ms preference.
+
+Management now waits for transport startup with its existing deadline, then
+starts the 12-second authentication timer. Cancellation remains explicit in
+both phases and cleanup finishes before releasing management ownership.
+Request deadlines, retries and the tablet data path are unchanged. Regression
+coverage includes a 13-second transport startup followed by encrypted requests
+and cancellation during startup without sending protocol bytes. This removes
+the conflicting timers; it does not establish why the first radio connection
+was slow or guarantee that waiting the full transport budget would succeed.
+
+## Low-latency LE connection preference
+
+The relay configures its selected adapter for a preferred 15 ms LE interval,
+zero peripheral latency and 720 ms supervision before advertising. It uses
+Linux's bounded MGMT Read/Set Default System Configuration interface, checks
+the returned settings, and reapplies them at service startup and adapter
+re-registration. The package includes this code; no per-host startup command
+is needed. Unrelated controller settings are preserved. This affects new LE
+links on that adapter, not the wireless tablet's BR/EDR connection.
+
+Linux requests an interval update when a new peripheral link arrives outside
+the preferred range. The headset decides whether to accept: the startup log
+reports configured preferences, not measured negotiated timing. The interface
+requires kernel 5.8 or newer, within the supported Ubuntu/Armbian targets.
+An unavailable or rejected preference prevents Bluetooth registration through
+the existing retry path; it does not stop the TCP listener.
+
+September 30 tests on relay02 confirmed the AVP accepted 15 ms and the operator
+reported three smooth wireless drawing runs, including Tablet → Relay → Tablet.
+Sustained output was about 200 input records/s, with typical controller
+completion timing around 25–35 ms and no sustained measured socket backlog.
+Two preceding 30 ms runs delivered about 114–132 records/s and hit the relay's
+pending-input guard. The return-to-30 ms comparison failed during connection
+setup before drawing, so it cannot establish a controlled throughput reversal.
+Some earlier 30 ms runs were also smooth. Startup reliability and longer runs
+still need acceptance. Controller completion is not pen-to-display latency.
+
+This change preserves all input reports, their format and ordering. It adds
+no application pacing, acknowledgement, frame dropping or buffering layer.
+The TCP and app rendering paths are unchanged.
+
+References: [BlueZ MGMT system configuration](https://github.com/bluez/bluez/blob/5.82/doc/mgmt-api.txt)
+and Linux's `l2cap_le_conn_ready` in
+[L2CAP core](https://github.com/torvalds/linux/blob/v6.18/net/bluetooth/l2cap_core.c).
+
+## 0.6.5 development build 36 — direct byte diagnostic
+
+IMG_0068 and the September 30 16:21 captures expose build 35's remaining
+channel-close race. Status completes; the app closes its L2CAP streams at
+16:21:48.362 and asks the same central to reopen PSM128 at 48.363. CoreBluetooth
+rejects the request as already connected at 48.367. The relay receives the
+previous channel's disconnect request at 48.389. No echo channel starts.
+
+Test Relay Connection now opens the echo channel directly, sending its three
+payloads on that one connection. It needs no preliminary status connection:
+the diagnostic tests byte delivery and neither checks nor establishes trust.
+Automatic routing tries eligible routes in order, cleaning up before fallback;
+the temporary Bluetooth-only setting still forbids TCP fallback. Cancellation
+keeps the operation reserved until transport cleanup completes.
+
+The build 35 physical-link sharing experiment is removed, including its extra
+link/session classes. Tablet testing returns to its pre-build35 authenticated
+status/observer lifecycle. Input transport, Linux protocol/package, radio
+settings and startup deadlines are unchanged. Initial radio establishment
+failures remain a separate unresolved issue; removing this diagnostic handoff
+does not establish that those failures or drawing backlogs are resolved.
+
+Regression tests run the actual three-payload echo loop on one connection,
+fragment replies, check corruption, route cleanup and Bluetooth-only failure,
+and verify that cancellation completes teardown before return or fallback.
+
+## Superseded 0.6.5 development build 35 — shared physical link
+
+The September 30 paired captures showed another handoff failure: the status
+channel succeeded, but the app canceled its peripheral connection and created
+a new central for the echo test. CoreBluetooth attached that central while the
+previous link was disconnecting. No echo channel reached the relay before the
+startup deadline. Tablet testing could recover through its whole-operation
+retry, explaining why it sometimes worked after the diagnostic failed.
+
+In build 35, Test Relay Connection and each Test Tablet attempt owned a single physical
+BLE link across their preliminary status and final test channels. Each logical
+channel closes its streams before the next opens; the central, peripheral and
+discovered PSM remain owned until the operation succeeds, fails or is canceled.
+Physical failures retire the link. Cancellation during channel startup also
+retires it, so a late OS callback cannot be assigned to a later channel.
+Operation completion waits for bounded peripheral cleanup before releasing the
+UI. The next operation starts with a fresh owner and discovers its current PSM.
+
+Regression tests exercise actual plaintext status decoding followed by all
+three echo round trips on one mock physical link, partial stream writes,
+corrupt replies, cancellation cleanup and recovery after a physical failure.
+Physical testing exposed the PSM close/reopen race described above; the mock
+physical link did not model CoreBluetooth's asynchronous channel teardown.
+Input timing, buffering, the relay's backlog guard, radio parameters and TCP
+transport are unchanged.
+
+## 0.6.5 build 34 connection handoff
+
+IMG_0067 exposed a scan-only handoff problem after the new L2CAP bootstrap.
+The radio trace shows successful status request/reply on PSM128, followed by
+closure of that channel. The physical connection remained up for another
+33 seconds; the relay resumed advertising only after its disconnection. The
+app had started a new central manager and waited for an advertisement, so its
+20-second discovery deadline expired before it could open the echo channel.
+This happens before tablet streaming and is separate from the GATT backlog.
+
+Before scanning, the app now asks CoreBluetooth for system-connected peripherals
+with the relay service, matches the selected peripheral identifier, and calls
+connect on that peripheral through the manager that will own the new session.
+It still reads the current PSM, opens a new L2CAP channel, and performs the
+normal identity/authorization checks. If the selected relay is not already
+connected, it scans as before. This does not add saved/offline devices to the
+discovery list or fall back to TCP in Bluetooth-only mode. The existing bounded
+startup-disconnect retry remains for a physical link that closes during handoff.
+
+## 0.6.4 development transport
+
+The Setup app now requires LE credit-based L2CAP for Bluetooth sessions. The
+service UUID remains `462f3a10-7a31-4ab3-9e7f-c36af495ecf0`. A read-only
+characteristic, `462f3a17-7a31-4ab3-9e7f-c36af495ecf0`, returns three bytes:
+endpoint schema 1 and the kernel-allocated PSM as a little-endian uint16.
+Read it on each connection; a restart or adapter replacement can change the PSM.
+
+The Linux listener binds the selected adapter's LE address, sets a 4096-byte
+receive MTU after binding, and uses the negotiated send MTU for each socket SDU.
+CoreBluetooth exposes the resulting channel as input/output byte streams. Both
+sides handle partial records; SDU boundaries are not message boundaries. The
+app sends `PLTRLEC1` followed by a channel byte: 0 for the existing authenticated
+session, 1 for read-only bootstrap status, or 2 for the bounded echo test.
+Channel 0 retains the Bluetooth CPace/Noise transcript, saved keys, ownership,
+80-byte input messages, full report order and normal authorization rules.
+OS credits control delivery; there is no app-level fragment ACK or timer.
+
+The channel uses application authentication/encryption without requesting an
+AVP OS bond. Controller address-resolution setup and the battery-client policy
+remain necessary and unchanged. TCP still uses its existing transport and
+preface. The old GATT channels remain on the relay temporarily for the already
+installed app/comparison; the new app never falls back to them. Remove them
+once physical AVP L2CAP acceptance is complete. The older GATT investigation
+below explains the original hardware findings, not the new data path.
+
+Tests cover actual sequenced-packet sockets, synthetic evdev input, Noise,
+report ordering, MTU fragmentation, credit stalls, authentication and session
+cleanup. Apple stream tests cover partial writes, backpressure, cancellation,
+disconnect and bounded input. These tests and a successful hardware listener
+bind do not establish actual AVP radio throughput. Test sustained pressure and
+motion on the headset with Bluetooth only selected before claiming this fixes
+the reported half-second backlog failure.
+
+
 The standalone Test Setup app can discover a Linux relay over Bluetooth LE,
 authorize a pending headset using three presses of one tablet button, and display pen,
 pressure, tilt, button and touch readings. This is an explicit diagnostic mode;

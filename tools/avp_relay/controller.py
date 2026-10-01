@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Explicit lab workaround for controller private-address resolution failures."""
+"""Bounded Linux Bluetooth controller configuration for the relay."""
 import ctypes
 import os
 import socket
@@ -101,6 +101,51 @@ def clear_advertisements(adapter):
         result = management_command(channel, index, 0x003f, b'\x00')
         if result != b'\x00':
             raise RuntimeError('Malformed advertising removal response')
+
+
+def _system_configuration(payload):
+    values = {}
+    offset = 0
+    while offset < len(payload):
+        if len(payload) - offset < 3:
+            raise RuntimeError('Malformed controller system configuration')
+        kind, length = struct.unpack_from('<HB', payload, offset)
+        offset += 3
+        if kind in values or offset + length > len(payload):
+            raise RuntimeError('Malformed controller system configuration')
+        values[kind] = payload[offset:offset + length]
+        offset += length
+    return values
+
+
+def configure_le_connection_parameters(adapter):
+    """Prefer 15 ms LE links before advertising, without resetting the radio.
+
+    Linux requests these defaults when a new peripheral connection arrives
+    outside the preferred interval. The central decides whether to accept;
+    successful configuration alone does not establish the negotiated timing.
+    These defaults affect new LE links on this adapter, not BR/EDR tablets.
+    """
+    index = adapter_index(adapter)
+    # MGMT Read/Set Default System Configuration (kernel 5.8+).
+    # Intervals use 1.25 ms units; supervision uses 10 ms units. Zero latency
+    # and 720 ms supervision match the measured AVP link during the 15 ms trial.
+    wanted = {0x0017: 12, 0x0018: 12, 0x0019: 0, 0x001a: 72}
+    wanted = {kind: struct.pack('<H', value) for kind, value in wanted.items()}
+    with socket.socket(socket.AF_BLUETOOTH, socket.SOCK_RAW, socket.BTPROTO_HCI) as channel:
+        bind_control(channel)
+        current = _system_configuration(management_command(channel, index, 0x004b))
+        if any(len(current.get(kind, b'')) != 2 for kind in wanted):
+            raise RuntimeError('Controller LE connection parameters unavailable')
+        if all(current[kind] == value for kind, value in wanted.items()):
+            return
+        # Write only these four preferences; retain every other system setting.
+        parameters = b''.join(struct.pack('<HB', kind, len(value)) + value
+                              for kind, value in wanted.items())
+        management_command(channel, index, 0x004c, parameters)
+        actual = _system_configuration(management_command(channel, index, 0x004b))
+        if any(actual.get(kind) != value for kind, value in wanted.items()):
+            raise RuntimeError('Controller LE connection parameter readback mismatch')
 
 
 def disable_address_resolution(adapter):

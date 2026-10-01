@@ -153,11 +153,19 @@ identity-store or tablet arguments. The test sends three random payloads and
 verifies 1,600 returned bytes across three round trips. The tablet may be off;
 there is no approval gesture. A passing byte test establishes communication,
 without creating or verifying saved pairing trust. Progress/timeout messages
-show which connection stage was reached and the last signal strength when
-available. See the lab guide for its dedicated, bounded echo channels.
+show which connection stage was reached. Discovery also reports signal strength
+when available. See the lab guide for its dedicated, bounded echo channels.
+
+The byte diagnostic opens its echo channel directly and sends all three
+payloads over that connection. It does not run a preliminary status/identity
+lookup or use tablet setup. Automatic routing may try the next available route
+after closing a failed one; Bluetooth-only mode remains restricted to Bluetooth.
+Cancellation waits for connection cleanup before enabling another operation.
+The byte test does not establish saved trust; Check Headset Authorization
+performs that separate authenticated check.
 
 Connection startup recovers once if the previous physical Bluetooth link closes
-before the new reply subscription is ready. The fresh attempt uses the original
+before the new L2CAP channel is ready. The fresh attempt uses the original
 20-second deadline. This handles a setup/approval transition where CoreBluetooth
 briefly reuses a link that Linux is still closing. Recovery happens before any
 authorization or input protocol bytes are sent; established sessions and
@@ -287,9 +295,49 @@ For the local macOS preview, apply an ad-hoc signature to the unsigned app
 before opening it if required by the local launcher. This is a UI preview,
 not evidence about gaze/pinch, headset behavior or Bluetooth hardware.
 
+## Direct headset testing
+
+During transport qualification the Tablet page has a **Relay → Headset
+connection** selector: Automatic or Bluetooth only. It applies to tablet test
+preflight/readings/retries, Test Relay Connection and Check Headset Authorization.
+Bluetooth-only fails if the selected relay has no Bluetooth route; it never
+falls back to TCP. Selection is saved locally and locked while an operation is
+active. The testing sheet reports the actual connection after readings arrive
+and clears it on interruption. Discovery, tablet management and the Network tab
+retain normal routing. This does not change the tablet-to-relay connection.
+
+This is temporary app-only qualification code. Build with
+`PLANK_ENABLE_TRANSPORT_TESTING=OFF bash scripts/build-tablet-setup.sh device`
+to hide the selector and ignore even a previously saved Bluetooth-only choice.
+The CMake option has the same name. `RelayTestTransport.swift` owns the policy
+and single defaults key; `RelayTestTransportView.swift` owns the selector UI.
+Removal needs no Linux, wire-protocol or identity migration. The current
+Starting with 0.6.4, Bluetooth connections require the relay's LE credit-based
+L2CAP endpoint. GATT only discovers its dynamic PSM; input, management and echo
+use the socket stream. There is no automatic GATT fallback. Update both app and
+relay together. The test sheet identifies the active path as Bluetooth · L2CAP
+only after a sample arrives. Physical throughput acceptance is still pending.
+
+Development builds are installed directly through the Mac paired with the AVP.
+Build/signing can run on another authorized Mac, then transfer the signed app
+to the paired Mac. The headset must be reachable, have Developer Mode enabled,
+and be included in the development provisioning profile. Keep the same bundle
+identifier and signing team so an update can retain app data and relay trust.
+Do not uninstall the existing app as part of this workflow.
+
+Use `scripts/export-tablet-development.sh <archive> <new-output-directory>` to export a development
+app from a validated archive, then run
+`scripts/install-tablet-development.sh <signed.app> <device-identifier>` on the
+paired Mac. These commands do not upload to App Store Connect. Record the source
+revision, software version and build number for each installed candidate.
+
+After physical testing and operator approval, distribute that approved source
+through TestFlight using the separate workflow below. Direct development builds
+still need valid Apple signing/provisioning; they bypass TestFlight processing.
+
 ## TestFlight delivery
 
-TestFlight is the selected headset delivery method. Ordinary build commands
+TestFlight is used for operator-approved versions. Ordinary build commands
 above produce unsigned SDK bundles; the separate archive/export commands below
 produce signed distribution packages. Neither is automatically available in
 TestFlight. The app requires visionOS27; verify the tester's headset OS.

@@ -38,9 +38,11 @@ target_link_libraries(CRelayProtocol PUBLIC "${PLANK_SODIUM_PREFIX}/lib/libsodiu
 add_library(RelaySetupKit STATIC
     "${RELAY_ROOT}/apple/RelaySetupKit/SetupState.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/SetupCoordinator.swift"
+    "${RELAY_ROOT}/apple/RelaySetupKit/RelayTestTransport.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayBackgroundRefresh.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayBluetooth.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayBLEConnection.swift"
+    "${RELAY_ROOT}/apple/RelaySetupKit/RelayL2CAPStream.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayTCPConnection.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayScanner.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayDiscovery.swift"
@@ -54,13 +56,17 @@ target_link_libraries(RelaySetupKit PUBLIC CRelayProtocol
     "-framework CoreBluetooth" "-framework Network")
 target_compile_options(RelaySetupKit PRIVATE -strict-concurrency=complete)
 target_compile_options(RelaySetupKit PRIVATE "$<$<CONFIG:Debug>:-enable-testing>")
+option(PLANK_ENABLE_TRANSPORT_TESTING "Temporary strict Bluetooth test selector" ON)
+if(PLANK_ENABLE_TRANSPORT_TESTING)
+    target_compile_options(RelaySetupKit PRIVATE "$<$<COMPILE_LANGUAGE:Swift>:-DPLANK_TRANSPORT_TESTING>")
+endif()
 set_target_properties(CRelayProtocol RelaySetupKit PROPERTIES
     XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO"
     XCODE_ATTRIBUTE_GCC_GENERATE_DEBUGGING_SYMBOLS "YES"
     XCODE_ATTRIBUTE_SKIP_INSTALL "YES")
 
 add_executable(PlankTabletSetup MACOSX_BUNDLE
-    Sources/TabletSetupApp.swift Sources/TabletSetupView.swift Sources/TabletReadingsView.swift Sources/RelayNetworkSettingsView.swift Sources/RelayWifiView.swift)
+    Sources/TabletSetupApp.swift Sources/TabletSetupView.swift Sources/TabletReadingsView.swift Sources/RelayNetworkSettingsView.swift Sources/RelayWifiView.swift Sources/RelayTestTransportView.swift)
 configure_file("${PLANK_SODIUM_PREFIX}/share/licenses/libsodium/LICENSE"
     "${CMAKE_CURRENT_BINARY_DIR}/libsodium-LICENSE.txt" COPYONLY)
 set(APP_LICENSES "${RELAY_ROOT}/LICENSE" "${RELAY_ROOT}/apple/NOTICE.md"
@@ -118,7 +124,7 @@ endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     enable_testing()
-    add_executable(setup-preview Sources/PreviewMain.swift Sources/TabletSetupView.swift Sources/TabletReadingsView.swift Sources/RelayNetworkSettingsView.swift Sources/RelayWifiView.swift)
+    add_executable(setup-preview Sources/PreviewMain.swift Sources/TabletSetupView.swift Sources/TabletReadingsView.swift Sources/RelayNetworkSettingsView.swift Sources/RelayWifiView.swift Sources/RelayTestTransportView.swift)
     target_include_directories(setup-preview PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
     target_link_libraries(setup-preview PRIVATE RelaySetupKit "-framework SwiftUI" "-framework AppKit")
     add_executable(setup-state-tests
@@ -135,6 +141,16 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     target_include_directories(relay-connection-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
     target_link_libraries(relay-connection-tests PRIVATE RelaySetupKit)
     add_test(NAME relay-connection-tests COMMAND relay-connection-tests)
+    add_executable(relay-diagnostic-tests "${RELAY_ROOT}/apple/Tests/RelayDiagnosticTests.swift")
+    target_include_directories(relay-diagnostic-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+    target_link_libraries(relay-diagnostic-tests PRIVATE RelaySetupKit)
+    add_test(NAME relay-diagnostic-tests COMMAND relay-diagnostic-tests)
+    set_tests_properties(relay-diagnostic-tests PROPERTIES TIMEOUT 30)
+
+    add_executable(relay-l2cap-stream-tests "${RELAY_ROOT}/apple/Tests/RelayL2CAPStreamTests.swift")
+    target_include_directories(relay-l2cap-stream-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+    target_link_libraries(relay-l2cap-stream-tests PRIVATE RelaySetupKit)
+    add_test(NAME relay-l2cap-stream-tests COMMAND relay-l2cap-stream-tests)
     add_library(ManagementPeer STATIC "${RELAY_ROOT}/apple/Tests/ManagementPeer/ManagementPeer.c")
     target_include_directories(ManagementPeer PUBLIC "${RELAY_ROOT}/apple/Tests/ManagementPeer")
     target_link_libraries(ManagementPeer PUBLIC CRelayProtocol)
@@ -146,6 +162,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     target_include_directories(relay-network-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
     target_link_libraries(relay-network-tests PRIVATE RelaySetupKit)
     add_test(NAME relay-network-tests COMMAND relay-network-tests)
+    add_executable(relay-test-transport-tests "${RELAY_ROOT}/apple/Tests/RelayTestTransportTests.swift")
+    target_include_directories(relay-test-transport-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+    target_link_libraries(relay-test-transport-tests PRIVATE RelaySetupKit)
+    add_test(NAME relay-test-transport-tests COMMAND relay-test-transport-tests)
     add_executable(relay-key-store-tests "${RELAY_ROOT}/apple/Tests/RelayKeyStoreTests.swift")
     target_include_directories(relay-key-store-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
     target_link_libraries(relay-key-store-tests PRIVATE RelaySetupKit)

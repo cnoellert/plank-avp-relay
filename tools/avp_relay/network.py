@@ -14,18 +14,31 @@ MAX_PENDING = 16384
 
 
 class Connection:
+    preface = PREFACE
+    link_type = 2
+    owner_prefix = 'tcp'
+
     def __init__(self, server, sock):
         self.server, self.sock = server, sock
-        self.owner = 'tcp:' + str(next(server.identifiers))
+        self.owner = self.owner_prefix + ':' + str(next(server.identifiers))
         self.channel = None
         self.input, self.output = bytearray(), bytearray()
         self.started = self.last_progress = time.monotonic()
         self.closed = self.claimed = False
         self.received = self.requests = 0
         sock.setblocking(False)
-        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+        self.configure_socket()
         server.selector.register(sock, selectors.EVENT_READ, self)
+
+    def configure_socket(self):
+        self.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+
+    def send_chunk(self):
+        return self.sock.send(self.output)
+
+    def read_chunk(self):
+        return self.sock.recv(4096)
 
     def append(self, data):
         if not data:
@@ -44,7 +57,7 @@ class Connection:
         if not self.output:
             return
         try:
-            count = self.sock.send(self.output)
+            count = self.send_chunk()
         except BlockingIOError:
             return
         if count:
@@ -58,7 +71,7 @@ class Connection:
             self.input.extend(data)
             if len(self.input) < 9:
                 return
-            if self.input[:8] != PREFACE or self.input[8] not in (0, 1, 2):
+            if self.input[:8] != self.preface or self.input[8] not in (0, 1, 2):
                 raise ProtocolError('Unsupported network relay protocol.')
             self.channel = self.input[8]
             data = bytes(self.input[9:])
@@ -69,7 +82,7 @@ class Connection:
             if not self.claimed:
                 if self.server.busy():
                     raise ProtocolError('Relay setup is already in use.')
-                self.server.core.claim(self.owner, 2, self.append, lambda: bool(self.output), self.close)
+                self.server.core.claim(self.owner, self.link_type, self.append, lambda: bool(self.output), self.close)
                 self.claimed = True
             self.server.core.receive(self.owner, data)
         elif self.channel == 1:
@@ -101,7 +114,7 @@ class Connection:
     def ready(self, events):
         try:
             if events & selectors.EVENT_READ:
-                data = self.sock.recv(4096)
+                data = self.read_chunk()
                 if not data:
                     self.close()
                     return
@@ -130,6 +143,8 @@ class Connection:
 
 
 class TCPServer:
+    connection_type = Connection
+
     def __init__(self, core, port, busy=lambda: False, host=None):
         self.core, self.busy = core, busy
         self.selector = selectors.DefaultSelector()
@@ -176,7 +191,7 @@ class TCPServer:
                         sock.close()
                     else:
                         try:
-                            self.connections.add(Connection(self, sock))
+                            self.connections.add(self.connection_type(self, sock))
                         except OSError:
                             sock.close()
         now = time.monotonic()

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import Foundation
 
-/// Only a disconnect before the reply subscription is ready can be retried.
+/// Only a disconnect before the L2CAP stream is ready can be retried.
 /// No pairing, authorization or input protocol bytes have been sent yet.
 struct RelayBLEStartupDisconnect: LocalizedError {
     let reason: String

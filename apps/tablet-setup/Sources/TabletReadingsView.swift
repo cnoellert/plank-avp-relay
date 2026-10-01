@@ -137,6 +137,11 @@ struct TabletTestingView: View {
                 }.buttonStyle(.borderedProminent)
             }
             Text(setup.state.address?.description ?? "").font(.callout).foregroundStyle(.secondary)
+            if RelayTestTransport.isAvailable {
+                LabeledContent("Test connection", value: setup.testTransport.title)
+            }
+            LabeledContent("Active connection", value: setup.tabletTestConnection ??
+                (setup.state.activity == .observing ? "Connecting…" : "Disconnected"))
             ScrollView {
                 if let readings = test.latest {
                     TabletReadingsView(readings: readings, count: test.count, trail: test.trail, rates: test.rates)

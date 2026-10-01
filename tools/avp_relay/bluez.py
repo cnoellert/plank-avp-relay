@@ -12,8 +12,9 @@ import time
 
 from .core import RelayCore
 from .network import TCPServer
+from .l2cap import L2CAPServer
 from .discovery import Publisher
-from .controller import clear_advertisements, disable_address_resolution
+from .controller import clear_advertisements, configure_le_connection_parameters, disable_address_resolution
 from .notify import ready
 from .native import ProtocolError
 from .transport import EchoChannel, Indications, SetupChannel, write_peer
@@ -26,6 +27,7 @@ ECHO_RX_UUID = '462f3a13-7a31-4ab3-9e7f-c36af495ecf0'
 ECHO_TX_UUID = '462f3a14-7a31-4ab3-9e7f-c36af495ecf0'
 SETUP_RX_UUID = '462f3a15-7a31-4ab3-9e7f-c36af495ecf0'
 SETUP_TX_UUID = '462f3a16-7a31-4ab3-9e7f-c36af495ecf0'
+L2CAP_PSM_UUID = '462f3a17-7a31-4ab3-9e7f-c36af495ecf0'
 PROPERTIES = 'org.freedesktop.DBus.Properties'
 OBJECTS = 'org.freedesktop.DBus.ObjectManager'
 GATT = 'org.bluez.GattCharacteristic1'
@@ -120,6 +122,20 @@ class Characteristic(Object):
             self.endpoint.queue.confirm()
 
 
+class L2CAPEndpoint(Object):
+    def __init__(self, server):
+        self.server = server
+        super().__init__(server.bus, BASE + '/service/l2cap', GATT, {
+            'UUID': L2CAP_PSM_UUID, 'Service': dbus.ObjectPath(BASE + '/service'),
+            'Flags': dbus.Array(['read'], signature='s')})
+
+    @dbus.service.method(GATT, in_signature='a{sv}', out_signature='ay')
+    def ReadValue(self, options):
+        if not self.server.l2cap or int(options.get('offset', 0)) != 0:
+            raise Rejected('Bluetooth L2CAP is unavailable.')
+        return dbus.Array(b'\x01' + self.server.l2cap.psm.to_bytes(2, 'little'), signature='y')
+
+
 class Server(dbus.service.Object):
     def __init__(self, args):
         dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
@@ -141,6 +157,7 @@ class Server(dbus.service.Object):
         self.setup = SetupChannel(self.emit_setup, self.close_peer,
             self.tablet_request, self.cancel_tablet_setup) if self.core else None
         self.network = self.publisher = None
+        self.l2cap = None
         self.tcp_enabled = getattr(args, 'tcp_enabled', False) and self.core is not None
         self.tcp_port = getattr(args, 'tcp_port', 28991)
         self.version = getattr(args, 'version', 'development')
@@ -157,6 +174,7 @@ class Server(dbus.service.Object):
         self.echo_rx, self.echo_tx = Characteristic(self, False, True), Characteristic(self, True, True)
         self.setup_rx = Characteristic(self, False, setup=True) if self.setup else None
         self.setup_tx = Characteristic(self, True, setup=True) if self.setup else None
+        self.l2cap_endpoint = L2CAPEndpoint(self) if self.core else None
         self.advertisement = Advertisement(self.bus, getattr(args, 'name', 'PLANK Relay Lab'))
         self.gatt_registered = self.advertising = False
         self.bus.add_signal_receiver(self.device_changed, dbus_interface=PROPERTIES,
@@ -171,7 +189,7 @@ class Server(dbus.service.Object):
     @dbus.service.method(OBJECTS, out_signature='a{oa{sa{sv}}}')
     def GetManagedObjects(self):
         return {dbus.ObjectPath(obj.path): {obj.interface: obj.properties}
-                for obj in (self.service, self.rx, self.tx, self.echo_rx, self.echo_tx, self.setup_rx, self.setup_tx) if obj is not None}
+                for obj in (self.service, self.rx, self.tx, self.echo_rx, self.echo_tx, self.setup_rx, self.setup_tx, self.l2cap_endpoint) if obj is not None}
 
     def cancel_tablet_setup(self, peer):
         if self.core:
@@ -294,6 +312,9 @@ class Server(dbus.service.Object):
         self.next_registration = time.monotonic() + 5
 
     def unregister_bluetooth(self):
+        if self.l2cap:
+            self.l2cap.close()
+            self.l2cap = None
         for enabled, kind, method, path in (
             (self.advertising, 'org.bluez.LEAdvertisingManager1', 'UnregisterAdvertisement', self.advertisement.path),
             (self.gatt_registered, 'org.bluez.GattManager1', 'UnregisterApplication', BASE)):
@@ -305,6 +326,8 @@ class Server(dbus.service.Object):
         self.gatt_registered = self.advertising = False
 
     def tick(self):
+        if self.l2cap:
+            self.l2cap.poll()
         if self.network:
             self.network.poll()
             self.publisher.tick()
@@ -362,6 +385,16 @@ class Server(dbus.service.Object):
         if self.controller_workaround:
             disable_address_resolution(self.adapter.rsplit('/', 1)[1])
             print('Controller address-resolution workaround applied.', flush=True)
+
+        configure_le_connection_parameters(self.adapter.rsplit('/', 1)[1])
+        print('Bluetooth LE connection preference configured: 15 ms, latency 0, supervision 720 ms.', flush=True)
+
+        if self.core and self.l2cap is None:
+            self.l2cap = L2CAPServer(self.core,
+                str(properties.Get('org.bluez.Adapter1', 'Address')),
+                str(properties.Get('org.bluez.Adapter1', 'AddressType')),
+                busy=lambda: bool(self.peer or self.echo.peer or (self.setup and self.setup.peer)))
+            print('Bluetooth L2CAP listening on PSM ' + str(self.l2cap.psm) + '.', flush=True)
 
         self.registering = True
         self.registration_generation += 1

@@ -5,13 +5,7 @@ import Foundation
 import OSLog
 
 private let relayService = CBUUID(string: "462F3A10-7A31-4AB3-9E7F-C36AF495ECF0")
-private let relayRX = CBUUID(string: "462F3A11-7A31-4AB3-9E7F-C36AF495ECF0")
-private let relayTX = CBUUID(string: "462F3A12-7A31-4AB3-9E7F-C36AF495ECF0")
-private let echoRX = CBUUID(string: "462F3A13-7A31-4AB3-9E7F-C36AF495ECF0")
-private let echoTX = CBUUID(string: "462F3A14-7A31-4AB3-9E7F-C36AF495ECF0")
-
-private let setupRX = CBUUID(string: "462F3A15-7A31-4AB3-9E7F-C36AF495ECF0")
-private let setupTX = CBUUID(string: "462F3A16-7A31-4AB3-9E7F-C36AF495ECF0")
+private let relayPSM = CBUUID(string: "462F3A17-7A31-4AB3-9E7F-C36AF495ECF0")
 
 enum RelayBLEChannel { case relay, echo, setup }
 
@@ -102,27 +96,20 @@ final class RelayBLEAttempt: NSObject, RelayBLEAttemptConnection,
     @preconcurrency CBCentralManagerDelegate, @preconcurrency CBPeripheralDelegate {
     private let identifier: UUID
     private let channel: RelayBLEChannel
-    private let requireTabletSetup: Bool
     private var diagnostic: Bool { channel == .echo }
-    private var rxUUID: CBUUID { channel == .setup ? setupRX : diagnostic ? echoRX : relayRX }
-    private var txUUID: CBUUID { channel == .setup ? setupTX : diagnostic ? echoTX : relayTX }
     private let onProgress: ((String) -> Void)?
     private let logger = Logger(subsystem: "la.instinctual.PLANK.TabletSetup", category: "Bluetooth")
     private var phase = "waiting for Bluetooth"
     private var signal: Int?
     private var central: CBCentralManager!
     private var peripheral: CBPeripheral?
-    private var rx: CBCharacteristic?
-    private var tx: CBCharacteristic?
+    private var stream: RelayL2CAPStream?
+    private var l2capChannel: CBL2CAPChannel?
+    private var streamTask: Task<Void, Never>?
     private var connectWaiter: CheckedContinuation<Void, Error>?
-    private var writeWaiter: CheckedContinuation<Void, Error>?
-    private var readWaiter: CheckedContinuation<Data, Error>?
-    private var input: [Data] = []
-    private var inputBytes = 0
     private var failure: (any Error)?
     private var started = false
     private var connectDeadline: Task<Void, Never>?
-    private var writeDeadline: Task<Void, Never>?
     private var disconnectWaiter: CheckedContinuation<Void, Never>?
     private var disconnected = false
 
@@ -148,7 +135,6 @@ final class RelayBLEAttempt: NSObject, RelayBLEAttemptConnection,
          onProgress: ((String) -> Void)? = nil) {
         self.identifier = identifier
         self.channel = channel
-        self.requireTabletSetup = requireTabletSetup
         self.onProgress = onProgress
         super.init()
         central = CBCentralManager(delegate: self, queue: .main)
@@ -164,7 +150,7 @@ final class RelayBLEAttempt: NSObject, RelayBLEAttemptConnection,
                 do { try await Task.sleep(until: deadline, clock: .continuous) } catch { return }
                 guard let self else { return }
                 let strength = self.signal.map { " Last signal: \($0) dBm." } ?? ""
-                self.fail(RelaySetupError.network("Timed out while \(self.phase).\(strength) Tap Pair to retry."))
+                self.fail(RelaySetupError.network("Timed out while \(self.phase).\(strength) Try again."))
             }
             beginConnect()
         }
@@ -180,6 +166,16 @@ final class RelayBLEAttempt: NSObject, RelayBLEAttemptConnection,
         }
         guard !started else { return }
         started = true
+        // Closing a CBL2CAPChannel does not immediately close the physical
+        // connection. In the captured status -> echo handoff the link stayed
+        // up for 33 seconds, suppressing advertisements for our entire scan.
+        // Attach through this manager to that system-connected peripheral;
+        // cached identifiers alone are not evidence of an available link.
+        if let connected = central.retrieveConnectedPeripherals(withServices: [relayService])
+            .first(where: { $0.identifier == identifier }) {
+            attach(connected, reusingConnection: true)
+            return
+        }
         // Discover with the same manager that will own the connection. This
         // also confirms the selected relay is advertising now, instead of
         // waiting on a peripheral returned from the system's saved cache.
@@ -193,48 +189,26 @@ final class RelayBLEAttempt: NSObject, RelayBLEAttemptConnection,
         onProgress?(message)
     }
 
-    private func attach(_ device: CBPeripheral) {
+    private func attach(_ device: CBPeripheral, reusingConnection: Bool = false) {
         central.stopScan()
         peripheral = device
         device.delegate = self
         let strength = signal.map { " Signal: \($0) dBm." } ?? ""
-        progress("establishing the Bluetooth link", "Relay found. Connecting…\(strength)")
+        progress(reusingConnection ? "attaching to the existing Bluetooth link" : "establishing the Bluetooth link",
+                 reusingConnection ? "Using the relay's existing Bluetooth connection…" : "Relay found. Connecting…\(strength)")
         central.connect(device)
     }
 
     func send(_ data: Data) async throws {
-        try Task.checkCancellation()
         if let failure { throw failure }
-        guard let peripheral, let rx, tx?.isNotifying == true, writeWaiter == nil else {
-            throw RelaySetupError.invalidState
-        }
-        let maximum = min(512, peripheral.maximumWriteValueLength(for: .withResponse))
-        guard maximum > 0 else { throw RelaySetupError.protocolError }
-        for offset in stride(from: 0, to: data.count, by: maximum) {
-            try Task.checkCancellation()
-            if let failure { throw failure }
-            let fragment = data.subdata(in: offset..<min(offset + maximum, data.count))
-            try await withCheckedThrowingContinuation { continuation in
-                writeWaiter = continuation
-                writeDeadline = Task { [weak self] in
-                    do { try await Task.sleep(for: .seconds(10)) } catch { return }
-                    self?.fail(RelaySetupError.timedOut)
-                }
-                peripheral.writeValue(fragment, for: rx, type: .withResponse)
-            }
-        }
+        guard let stream else { throw RelaySetupError.invalidState }
+        try await stream.send(data)
     }
 
     func receive() async throws -> Data {
-        try Task.checkCancellation()
         if let failure { throw failure }
-        if !input.isEmpty {
-            let data = input.removeFirst()
-            inputBytes -= data.count
-            return data
-        }
-        guard readWaiter == nil else { throw RelaySetupError.invalidState }
-        return try await withCheckedThrowingContinuation { readWaiter = $0 }
+        guard let stream else { throw RelaySetupError.invalidState }
+        return try await stream.receive()
     }
 
     nonisolated func cancel() {
@@ -247,14 +221,12 @@ final class RelayBLEAttempt: NSObject, RelayBLEAttemptConnection,
         logger.notice("Connection ended during: \(self.phase, privacy: .public)")
         failure = error
         connectDeadline?.cancel(); connectDeadline = nil
-        writeDeadline?.cancel(); writeDeadline = nil
+        streamTask?.cancel(); streamTask = nil
+        stream?.close(error); stream = nil; l2capChannel = nil
         if central.state == .poweredOn { central.stopScan() }
-        let connecting = connectWaiter, writing = writeWaiter, reading = readWaiter
-        connectWaiter = nil; writeWaiter = nil; readWaiter = nil
-        input.removeAll(); inputBytes = 0
+        let connecting = connectWaiter
+        connectWaiter = nil
         connecting?.resume(throwing: error)
-        writing?.resume(throwing: error)
-        reading?.resume(throwing: error)
         if let peripheral, central.state == .poweredOn { central.cancelPeripheralConnection(peripheral) }
     }
 
@@ -303,63 +275,57 @@ final class RelayBLEAttempt: NSObject, RelayBLEAttemptConnection,
         guard error == nil, let service = peripheral.services?.first(where: { $0.uuid == relayService }) else {
             fail(RelaySetupError.network("The selected relay does not expose the input test service.")); return
         }
-        progress("opening the relay data channels", "Relay service found. Opening its data channels…")
-        peripheral.discoverCharacteristics(requireTabletSetup ? [rxUUID, txUUID, setupRX, setupTX] : [rxUUID, txUUID], for: service)
+        progress("reading the Bluetooth channel", "Relay service found. Opening Bluetooth L2CAP…")
+        peripheral.discoverCharacteristics([relayPSM], for: service)
     }
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
-        if requireTabletSetup && !(service.characteristics?.contains(where: { $0.uuid == setupRX }) == true &&
-                                    service.characteristics?.contains(where: { $0.uuid == setupTX }) == true) {
-            fail(RelaySetupError.network("Update the Linux relay package to use tablet setup from this app."))
+        guard failure == nil else { return }
+        guard error == nil, let endpoint = service.characteristics?.first(where: { $0.uuid == relayPSM }),
+              endpoint.properties.contains(.read) else {
+            fail(RelaySetupError.network("Update the Linux relay package to use Bluetooth L2CAP with this app."))
             return
         }
-        guard failure == nil else { return }
-        rx = service.characteristics?.first { $0.uuid == rxUUID }
-        tx = service.characteristics?.first { $0.uuid == txUUID }
-        guard error == nil, let rx, let tx, rx.properties.contains(.write), tx.properties.contains(.indicate) else {
-            fail(RelaySetupError.network(channel == .setup
-                ? "Update the Linux relay package to use tablet setup from this app." : diagnostic
-                ? "This relay does not expose the Bluetooth test. Update the relay lab first."
-                : "The relay's pairing service is unavailable. It may be running the transport-only test.")); return
-        }
-        progress("enabling relay replies", "Relay channels found. Enabling replies…")
-        peripheral.setNotifyValue(true, for: tx)
-    }
-
-    func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
-        guard failure == nil, characteristic.uuid == txUUID else { return }
-        guard error == nil, characteristic.isNotifying else {
-            fail(RelaySetupError.network("Could not subscribe to the relay.")); return
-        }
-        let waiter = connectWaiter
-        connectWaiter = nil
-        connectDeadline?.cancel(); connectDeadline = nil
-        progress(diagnostic ? "starting the byte test" : "starting authorization",
-                 diagnostic ? "Relay connected. Starting the byte test…" : "Relay connected. Starting authorization…")
-        waiter?.resume()
-    }
-
-    func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
-        guard failure == nil, characteristic.uuid == rxUUID else { return }
-        if let error { fail(RelaySetupError.network(error.localizedDescription)); return }
-        let waiter = writeWaiter
-        writeWaiter = nil
-        writeDeadline?.cancel(); writeDeadline = nil
-        waiter?.resume()
+        peripheral.readValue(for: endpoint)
     }
 
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
-        guard failure == nil, characteristic.uuid == txUUID else { return }
-        guard error == nil, let data = characteristic.value, !data.isEmpty, data.count <= 512 else {
+        guard failure == nil, characteristic.uuid == relayPSM else { return }
+        guard error == nil, let data = characteristic.value, data.count == 3, data[0] == 1 else {
             fail(RelaySetupError.protocolError); return
         }
-        if let waiter = readWaiter {
-            readWaiter = nil
-            waiter.resume(returning: data)
-        } else {
-            guard inputBytes + data.count <= 16384 else { fail(RelaySetupError.protocolError); return }
-            input.append(data)
-            inputBytes += data.count
+        let psm = UInt16(data[1]) | UInt16(data[2]) << 8
+        guard (0x80...0xff).contains(psm) else { fail(RelaySetupError.protocolError); return }
+        progress("opening Bluetooth L2CAP", "Opening the relay's Bluetooth stream…")
+        peripheral.openL2CAPChannel(psm)
+    }
+
+    func peripheral(_ peripheral: CBPeripheral, didOpen channel: CBL2CAPChannel?, error: Error?) {
+        guard failure == nil else { return }
+        guard error == nil, let channel else {
+            fail(RelaySetupError.network(error?.localizedDescription ?? "Could not open Bluetooth L2CAP."))
+            return
+        }
+        guard stream == nil else { fail(RelaySetupError.protocolError); return }
+        l2capChannel = channel
+        let stream = RelayL2CAPStream(input: channel.inputStream, output: channel.outputStream) { [weak self] error in
+            self?.fail(error)
+        }
+        self.stream = stream
+        streamTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await stream.open()
+                try await stream.send(Data("PLTRLEC1".utf8) + [self.channel == .setup ? 1 : self.diagnostic ? 2 : 0])
+                guard self.failure == nil else { return }
+                let waiter = self.connectWaiter
+                self.connectWaiter = nil
+                self.connectDeadline?.cancel(); self.connectDeadline = nil
+                self.progress(self.diagnostic ? "starting the byte test" : "starting authorization",
+                              self.diagnostic ? "Bluetooth L2CAP connected. Starting the byte test…"
+                                              : "Bluetooth L2CAP connected. Starting authorization…")
+                waiter?.resume()
+            } catch { self.fail(error) }
         }
     }
 }

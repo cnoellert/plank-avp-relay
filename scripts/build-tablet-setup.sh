@@ -65,6 +65,7 @@ app_build="$build_root/$platform"
     -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=27.0 \
     -DPLANK_DEVELOPMENT_TEAM= \
     -DPLANK_SETUP_BUILD_NUMBER="${PLANK_SETUP_BUILD_NUMBER:-1}" \
+    -DPLANK_ENABLE_TRANSPORT_TESTING="${PLANK_ENABLE_TRANSPORT_TESTING:-ON}" \
     -DPLANK_SODIUM_PREFIX="$prefix"
 "$cmake_bin" --build "$app_build" --config Debug --parallel "$jobs" -- -quiet CODE_SIGNING_ALLOWED=NO
 if [[ $platform == macos ]]; then

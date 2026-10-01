@@ -33,17 +33,17 @@ class ArmbianInstallationTests(unittest.TestCase):
     def test_armbian_preserves_other_settings_and_original_across_upgrades(self):
         (self.root / 'etc/armbian-release').write_text('VENDOR="Armbian"\n')
         original = ('# Board frequency limits\nMIN_SPEED=408000\nMAX_SPEED=2016000\n'
-                    'BOOST=false\nENABLE=true\nGOVERNOR=ondemand\n'
+                    'BOOST=false\nENABLE=true\nGOVERNOR=powersave\n'
                     'export GOVERNOR="performance"\nENABLED=false\n')
         self.config.write_text(original)
         self.config.chmod(0o640)
         self.assertTrue(configure_armbian(self.root))
         changed = self.config.read_bytes()
         self.assertIn(b'MIN_SPEED=408000\nMAX_SPEED=2016000\nBOOST=false\nENABLE=true\n', changed)
-        self.assertIn(b'GOVERNOR="powersave"\nexport GOVERNOR="powersave"\nENABLED="true"\n', changed)
+        self.assertIn(b'GOVERNOR="schedutil"\nexport GOVERNOR="schedutil"\nENABLED="true"\n', changed)
         self.assertTrue(changed.startswith(b'# Board frequency limits\n'))
         self.assertEqual(self.config.stat().st_mode & 0o777, 0o640)
-        backup = self.root / 'var/backups/plank-avp-relay/cpufrequtils.before-powersave'
+        backup = self.root / 'var/backups/plank-avp-relay/cpufrequtils.before-schedutil'
         self.assertEqual(backup.read_text(), original)
         self.assertEqual(backup.stat().st_mode & 0o777, 0o600)
         self.assertFalse(configure_armbian(self.root))
@@ -55,10 +55,10 @@ class ArmbianInstallationTests(unittest.TestCase):
     def test_armbian_creates_missing_settings(self):
         (self.root / 'etc/armbian-release').touch()
         self.assertTrue(configure_armbian(self.root))
-        self.assertEqual(self.config.read_text(), 'GOVERNOR="powersave"\nENABLED="true"\n')
+        self.assertEqual(self.config.read_text(), 'GOVERNOR="schedutil"\nENABLED="true"\n')
         self.config.write_text('MAX_SPEED=2016000')  # No trailing newline.
         self.assertTrue(configure_armbian(self.root))
-        self.assertEqual(self.config.read_text(), 'MAX_SPEED=2016000\nGOVERNOR="powersave"\nENABLED="true"\n')
+        self.assertEqual(self.config.read_text(), 'MAX_SPEED=2016000\nGOVERNOR="schedutil"\nENABLED="true"\n')
 
 
 class HardwareTests(unittest.TestCase):
