@@ -7,6 +7,7 @@ import socket
 import time
 
 from .native import ProtocolError
+from .network_routes import local_addresses, usable_addresses
 
 PREFACE = b'PLTRTCP1'
 SERVICE_TYPE = '_plank-avp-relay._tcp'
@@ -147,6 +148,7 @@ class TCPServer:
 
     def __init__(self, core, port, busy=lambda: False, host=None):
         self.core, self.busy = core, busy
+        self.host = host
         self.selector = selectors.DefaultSelector()
         self.connections = set()
         self.identifiers = itertools.count()
@@ -172,9 +174,16 @@ class TCPServer:
                         raise
             self.port = port
             self.core.tcp_port = port
+            self.core.network_endpoints = self.endpoint_addresses
         except Exception:
             self.close()
             raise
+
+    def endpoint_addresses(self):
+        families = {listener.family for listener in self.listeners}
+        if self.host and self.host != '0.0.0.0':
+            return usable_addresses([self.host], families)
+        return local_addresses(families)
 
     def poll(self):
         for key, events in self.selector.select(0):
@@ -200,6 +209,7 @@ class TCPServer:
 
     def close(self):
         self.core.tcp_port = None
+        self.core.network_endpoints = lambda: []
         for connection in list(self.connections):
             connection.close()
         for sock in self.listeners:

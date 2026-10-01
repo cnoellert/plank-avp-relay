@@ -15,6 +15,7 @@ class RelayCore:
     def __init__(self, args, backend):
         self.native = Native(args.library, args.state_dir)
         self.tcp_port = None
+        self.network_endpoints = lambda: []
         self.owner = None
         self.emit = self.busy = self.close_connection = None
         self.capture = Capture(args.tablet, self.button, fixed=bool(args.tablet))
@@ -80,6 +81,12 @@ class RelayCore:
         if response.get('ok'):
             response['enrollmentVersion'] = 1
             response['relayKey'] = self.native.public_key
+            # Bluetooth is a rendezvous route across subnets that do not carry
+            # mDNS. Endpoint hints are sent only to the authenticated owner;
+            # connecting to one still requires the same pinned Noise identity.
+            if command.get('op') == 'status' and authenticated and peer == self.owner:
+                response['tcpPort'] = self.tcp_port
+                response['networkAddresses'] = self.network_endpoints()
         encoded = json.dumps(response, separators=(',', ':'), ensure_ascii=False).encode()
         while len(encoded) > 4096 and response.get('candidates'):
             response['candidates'].pop()

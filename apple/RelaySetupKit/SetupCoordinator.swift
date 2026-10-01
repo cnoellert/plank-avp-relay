@@ -86,7 +86,7 @@ public final class SetupCoordinator: ObservableObject {
         var failure: any Error = RelaySetupError.timedOut
         let candidates = try testTransport.candidates(networkRoutes.ordered(
             addresses.isEmpty ? [selected] : addresses, preferBluetooth: false))
-        for address in candidates {
+        for address in RelayControlRoutes.fallbackOrder(candidates) {
             do {
                 let status = try await client.setupStatus(address) { [weak self] in
                     self?.message = $0
@@ -112,8 +112,18 @@ public final class SetupCoordinator: ObservableObject {
     }
 
     private func networkConnected(_ address: RelayAddress) {
-        networkConnectionMessage = address.networkHost != nil ? "Connected over Wi-Fi." :
-            "Connected over \(address.transportName.lowercased())."
+        networkConnectionMessage = "Connected over \(address.transportName.lowercased())."
+    }
+
+    private func rememberNetworkRoutes(_ status: TabletSetupStatus, address: RelayAddress, relayKey: Data) {
+        guard status.headsetAuthorized == true, let identity = status.enrollmentIdentity,
+              identity == relayKey, status.networkAddresses != nil, status.tcpPort != nil else { return }
+        // Replace previous literal hints after DHCP or interface changes. Keep
+        // Bonjour and Bluetooth discovery, and bound learned routes to eight.
+        addresses.removeAll { $0.networkHost != nil }
+        for route in status.routes(name: address.description, relayKey: relayKey) where !addresses.contains(route) {
+            addresses.append(route)
+        }
     }
 
     public func manageTablets() {
@@ -146,6 +156,9 @@ public final class SetupCoordinator: ObservableObject {
                     }, onStatus: { [weak self] status in
                         guard let self, self.state.operation == id else { return }
                         self.tabletStatus = status
+                        if let key = try? self.keys.relayKey(address) {
+                            self.rememberNetworkRoutes(status, address: address, relayKey: key)
+                        }
                         self.state.updateTabletAvailability(status.canStartReadings, operation: id)
                         // An earlier status poll must not acknowledge a command
                         // queued while that poll was in flight.
@@ -225,6 +238,7 @@ public final class SetupCoordinator: ObservableObject {
                 guard self.state.operation == id else { return }
                 self.state.useAddress(address, operation: id)
                 self.tabletStatus = status
+                self.rememberNetworkRoutes(status, address: address, relayKey: relayKey)
                 if status.headsetAuthorized != true {
                     self.state.cancel()
                     self.state.forget()
@@ -286,7 +300,7 @@ public final class SetupCoordinator: ObservableObject {
                 try Task.checkCancellation()
                 let candidates = try transport.candidates(self.networkRoutes.ordered(
                     self.addresses.isEmpty ? [address] : self.addresses, preferBluetooth: false))
-                let (address, result) = try await self.client.testConnection(addresses: candidates) { [weak self] candidate, message in
+                let (address, result) = try await self.client.testConnection(addresses: RelayControlRoutes.fallbackOrder(candidates)) { [weak self] candidate, message in
                     guard let self, self.state.operation == id else { return }
                     self.state.useAddress(candidate, operation: id)
                     self.message = message
@@ -709,59 +723,48 @@ public final class SetupCoordinator: ObservableObject {
             do {
                 try Task.checkCancellation()
                 guard let relayKey = try self.keys.relayKey(address) else { throw RelaySetupError.invalidStoredKey }
-                let candidates = try transport.candidates(self.networkRoutes.ordered(
-                    self.addresses.isEmpty ? [address] : self.addresses, preferBluetooth: false))
-                for attempt in 0..<4 {
-                    let candidate = candidates[attempt % candidates.count]
-                    self.state.useAddress(candidate, operation: id)
-                    do {
-                        let status = try await self.client.tabletStatus(address: candidate,
-                            privateKey: self.keys.clientKey(), relayKey: relayKey)
-                        try Task.checkCancellation()
-                        guard self.state.operation == id else { return }
+                let candidates = self.networkRoutes.ordered(
+                    self.addresses.isEmpty ? [address] : self.addresses, preferBluetooth: false)
+                try await RelayTabletTest(client: self.client).run(addresses: candidates, transport: transport,
+                    privateKey: self.keys.clientKey(), relayKey: relayKey,
+                    onStatus: { [weak self] candidate, status in
+                        guard let self, self.state.operation == id else { throw CancellationError() }
                         self.tabletStatus = status
+                        self.rememberNetworkRoutes(status, address: candidate, relayKey: relayKey)
                         self.state.updateTabletAvailability(status.canStartReadings, operation: id)
                         if status.headsetAuthorized != true {
                             self.state.cancel()
                             self.state.forget()
                             self.message = "This relay has not authorized the headset. Set up a tablet to finish authorization."
                             self.task = nil
-                            return
+                        } else {
+                            self.networkRoutes.succeeded(candidate)
                         }
-                        guard status.captureBusy != true else {
-                            throw RelaySetupError.rejected(TabletSetupStatus.captureBusyGuidance)
-                        }
-                        guard status.canStartReadings else {
-                            throw RelaySetupError.rejected("Connect a USB tablet, or pair and select a Bluetooth tablet before testing.")
-                        }
-                        try await self.client.observe(address: candidate, privateKey: self.keys.clientKey(), relayKey: relayKey,
-                            onProgress: { [weak self] message in
-                                guard let self, self.state.operation == id, self.state.activity == .observing else { return }
-                                self.message = message
-                            }) { [weak self] sample in
-                                guard let self, self.state.operation == id, self.state.activity == .observing else { return }
-                                if !self.state.connectionVerified { self.state.verifyObservation(id) }
-                                let activeTransport = candidate.linkType == 1 ? "Bluetooth · L2CAP" : candidate.transportName
-                                if self.tabletTestConnection != activeTransport {
-                                    self.tabletTestConnection = activeTransport
-                                }
-                                self.tabletTest.accept(sample)
-                                let message = sample.attached ? "Receiving live tablet readings over \(candidate.transportName)." :
-                                    "The relay is connected. Reconnect the USB tablet or wake the Bluetooth tablet to resume input. Saved pairings are retained."
-                                if self.message != message { self.message = message }
-                            }
-                        break
-                    } catch {
-                        try Task.checkCancellation()
-                        guard self.state.operation == id, attempt < 3, Self.transportFailure(error) else { throw error }
+                    }, onProgress: { [weak self] candidate, message in
+                        guard let self, self.state.operation == id, self.state.activity == .observing else { return }
+                        self.state.useAddress(candidate, operation: id)
+                        self.message = message
+                    }, onRetry: { [weak self] candidate in
+                        guard let self, self.state.operation == id else { return }
+                        self.networkRoutes.failed(candidate)
                         self.tabletTest.reset()
                         self.tabletTestConnection = nil
                         self.message = transport == .bluetoothOnly
                             ? "Bluetooth interrupted. Reconnecting over Bluetooth only…"
                             : "Connection interrupted. Reconnecting to the same authorized relay…"
-                        try await Task.sleep(for: .seconds(1))
-                    }
-                }
+                    }, onSample: { [weak self] candidate, sample in
+                        guard let self, self.state.operation == id, self.state.activity == .observing else { return }
+                        if !self.state.connectionVerified { self.state.verifyObservation(id) }
+                        let activeTransport = candidate.linkType == 1 ? "Bluetooth · L2CAP" : candidate.transportName
+                        if self.tabletTestConnection != activeTransport {
+                            self.tabletTestConnection = activeTransport
+                            self.networkRoutes.succeeded(candidate)
+                        }
+                        self.tabletTest.accept(sample)
+                        let message = sample.attached ? "Receiving live tablet readings over \(candidate.transportName)." :
+                            "The relay is connected. Reconnect the USB tablet or wake the Bluetooth tablet to resume input. Saved pairings are retained."
+                        if self.message != message { self.message = message }
+                    })
                 try Task.checkCancellation()
                 if self.state.finishObservation(id) { self.message = "Tablet test stopped." }
             } catch is CancellationError {

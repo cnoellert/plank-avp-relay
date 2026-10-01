@@ -42,6 +42,20 @@ VLAN boundaries can prevent discovery. An existing restrictive firewall must
 allow the configured TCP port and mDNS UDP 5353 on the intended LAN. The
 installer does not disable an administrator's firewall or create router rules.
 
+Authenticated tablet status supplies up to eight usable local TCP listener
+addresses. An approved headset can discover the relay over
+Bluetooth, learn its current Ethernet/Wi-Fi addresses, then verify that same
+relay identity over TCP for live readings. Public discovery status does not
+include these addresses. This bypasses multicast discovery across subnets, not
+network routing or firewall requirements. The addresses refresh after DHCP or
+interface changes; no fixed IP is required.
+
+The relay reads the kernel's read-only interface list without opening a
+netlink socket, preserving the main service's existing address-family policy.
+Unavailable address hints return an empty list rather than closing an
+authenticated status connection. The app learns these hints through existing
+status requests; tablet testing does not require an extra discovery exchange.
+
 Names and discovery TXT records are hints. Noise proves the pinned relay key
 and approved headset identity before input or management. Existing Bluetooth
 trust can be used over TCP; an IP change does not create a new relay identity.

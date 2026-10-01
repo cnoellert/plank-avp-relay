@@ -39,6 +39,7 @@ add_library(RelaySetupKit STATIC
     "${RELAY_ROOT}/apple/RelaySetupKit/SetupState.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/SetupCoordinator.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayTestTransport.swift"
+    "${RELAY_ROOT}/apple/RelaySetupKit/RelayTabletTest.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayBackgroundRefresh.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayBluetooth.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayBLEConnection.swift"
@@ -166,6 +167,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     target_include_directories(relay-test-transport-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
     target_link_libraries(relay-test-transport-tests PRIVATE RelaySetupKit)
     add_test(NAME relay-test-transport-tests COMMAND relay-test-transport-tests)
+    add_executable(relay-tablet-test-tests "${RELAY_ROOT}/apple/Tests/RelayTabletTestTests.swift")
+    target_compile_options(relay-tablet-test-tests PRIVATE -parse-as-library)
+    target_link_libraries(relay-tablet-test-tests PRIVATE RelaySetupKit)
+    add_test(NAME relay-tablet-test-tests COMMAND relay-tablet-test-tests)
     add_executable(relay-key-store-tests "${RELAY_ROOT}/apple/Tests/RelayKeyStoreTests.swift")
     target_include_directories(relay-key-store-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
     target_link_libraries(relay-key-store-tests PRIVATE RelaySetupKit)

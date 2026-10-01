@@ -136,21 +136,37 @@ name can group unverified discovery candidates, but grants no trust. Ambiguous
 names or known distinct identities stay separate. Any fallback must prove the
 selected relay key before an operation is authorized.
 
-The relay reports its active TCP port with authenticated Wi-Fi status. The app
-keeps those literal Wi-Fi addresses as separate routes to the same saved relay
-identity. If Bonjour still resolves the withdrawn Ethernet address after a cable
-change, Wi-Fi is tried before Bluetooth. Changing addresses never creates new
-authorization. USB still follows the physical Ethernet cable; relay Wi-Fi is not
-forwarded to USB. Physical cable handover needs device acceptance testing.
+Authenticated tablet status also returns the active TCP port and up to eight
+local listener addresses to the authorized headset. The app learns these during
+existing tablet management, status refresh and test status requests, including
+over Bluetooth. Starting a tablet test adds no discovery probe or extra status
+connection. Learned routes are available for subsequent connection selection;
+they do not interrupt the current stream. Each new connection verifies the same
+relay key. This permits discovery when Bonjour cannot cross subnets; the LAN
+must still permit routed TCP traffic. Loopback, link-local, multicast and
+nonliteral addresses are rejected.
+New status replaces old literal routes after DHCP or interface changes. Older
+relays retain the existing Bonjour and authenticated Wi-Fi status behavior.
+
+Address enumeration respects the installed Linux service's restrictions.
+Unavailable optional route hints leave authenticated status usable.
+
+Changing addresses never creates new authorization. USB Ethernet still follows
+the physical Ethernet cable; relay Wi-Fi is not forwarded to USB. Physical cable
+handover needs device acceptance testing.
 
 Ownership is shared across transports. Existing BLE Keychain records and the
 headset private key are retained; authenticated enrollment also records the
 relay key independently of its address. Discovery claims alone are never
 written as approved keys. Network address/service-name changes retain trust.
 
-Readings recover through at most three fresh connection attempts after a
-transport failure, trying network routes before Bluetooth. A working stream is kept;
-the app does not switch it just because TCP appears later. Identity/protocol
+Tablet startup allows at most four attempts. It prefers known working network
+routes, but tries Bluetooth after at most two network candidates when available.
+Bluetooth-only testing filters out network candidates before any connection.
+After readings begin, up to three stream recoveries have their own bounded
+startup attempts, first retrying the route that delivered readings. Initial
+failures do not spend this recovery allowance. A working stream is kept; the
+app does not switch it just because TCP appears later. Identity/protocol
 failures stop recovery. Interrupted setup mutations are not replayed: reopen
 Manage tablets to inspect saved state. A read-only preflight can try another
 transport before starting setup. See [network service details](../../docs/linux-ble-package.md).

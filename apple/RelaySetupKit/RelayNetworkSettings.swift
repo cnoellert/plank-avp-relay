@@ -2,12 +2,45 @@
 import Foundation
 import CRelayProtocol
 import OSLog
+import Network
+
+// Route hints come from an authenticated response. A literal endpoint never
+// grants approval; the connection must prove the same saved relay key.
+func networkRelayRoutes(_ hosts: [String], port: UInt16, name: String, relayKey: Data) -> [RelayAddress] {
+    guard port > 0, relayKey.count == 32, hosts.count <= 8 else { return [] }
+    var routes: [RelayAddress] = []
+    for host in hosts {
+        if let v4 = IPv4Address(host) {
+            let bytes = Array(v4.rawValue)
+            guard bytes[0] != 0, bytes[0] != 127, bytes[0] < 224,
+                  !(bytes[0] == 169 && bytes[1] == 254) else { continue }
+        } else if let v6 = IPv6Address(host) {
+            let bytes = Array(v6.rawValue)
+            guard !host.contains("%"), bytes[0] != 0, bytes[0] != 0xff,
+                  !(bytes[0] == 0xfe && bytes[1] & 0xc0 == 0x80) else { continue }
+        } else { continue }
+        let route = RelayAddress(wifiHost: host, port: port, name: name, key: relayKey)
+        if !routes.contains(route) { routes.append(route) }
+    }
+    return routes
+}
 
 /// Prefer a working route during confirmation; failed routes get a short
 /// cooldown instead of being retried on every other status request.
 struct RelayControlRoutes {
     private(set) var successful: RelayAddress?
     private var failures: [RelayAddress: ContinuousClock.Instant] = [:]
+
+    // Try at most two preferred network routes before Bluetooth. A relay can
+    // advertise eight IPs; these must not consume the entire startup budget.
+    static func fallbackOrder(_ ordered: [RelayAddress]) -> [RelayAddress] {
+        var unique: [RelayAddress] = []
+        for address in ordered where !unique.contains(address) { unique.append(address) }
+        if let bluetooth = unique.firstIndex(where: { $0.linkType == 1 }), bluetooth > 2 {
+            unique.insert(unique.remove(at: bluetooth), at: 2)
+        }
+        return unique
+    }
 
     mutating func succeeded(_ address: RelayAddress) {
         successful = address

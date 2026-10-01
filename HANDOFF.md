@@ -1,6 +1,6 @@
 # PLANK AVP Relay and Setup app
 
-## Active work — shared tablet capture
+## Active work — authenticated route discovery
 
 Release policy: publish a GitHub release only alongside a matching TestFlight
 release. Normal Linux builds must not generate or publish dbgsym packages.
@@ -10,6 +10,47 @@ Commit `500f16f` implements the packaging rule. Follow-up workflow run
 including the new requirement for exactly one installer per architecture.
 The published 0.6.6 installers retain their original release provenance;
 release notes and checksums now omit the removed debug-symbol downloads.
+
+### Route discovery integration — October 1, 2026
+
+The operator approved the remaining route work from PR #1 after discussing
+two required changes: learn authenticated addresses through existing status
+requests, with no additional tablet-test startup preflight; and prevent the
+larger IP list from exhausting attempts before Bluetooth fallback.
+
+Branch `authenticated-route-discovery` starts from `main` at `d51d272` and
+incorporates the route portions of cnoellert's `b37d169` and `5a915a7`. The older
+PR version/changelog entries are excluded. The shared source version remains
+0.6.6; these changes have not been released or installed on either live device.
+Advance the matching app/relay version before the next distributable release.
+
+Authenticated tablet status supplies up to eight literal listener addresses,
+read without AF_NETLINK or added service privileges. The app learns them during
+management, refresh and the existing test status request. New routes are hints,
+not approval: every connection still proves the saved relay identity. Optional
+unavailable hints leave status usable. General IP connections are described as
+Network, since these addresses are no longer necessarily Wi-Fi addresses.
+
+Startup retains four bounded attempts, with Bluetooth no later than the third
+candidate when available. Duplicate candidates are removed; Bluetooth-only
+filtering occurs before connecting. Read-only selection and echo diagnostics
+also try Bluetooth before exhausting a long address list. Once samples arrive,
+up to three separate recoveries start with the route that delivered readings,
+each with its own bounded startup attempts. A working stream stays in place;
+learning an address does not switch it mid-test. Protocol/identity/authorization
+and capture-busy failures do not trigger transport fallback. Current L2CAP,
+radio preferences, startup/authentication deadlines and capture ownership are
+preserved.
+
+Validation: all 33 Linux CTest suites pass; the new route reader also passes
+under systemd with the installed service's RestrictAddressFamilies policy.
+Authenticated address disclosure is covered over TCP and simulated L2CAP.
+All 22 Apple suites pass on mac12, including new executable tablet-startup,
+fallback, stream-recovery, Bluetooth-only and cancellation scenarios. macOS,
+visionOS simulator and visionOS device builds pass. The Apple fixture needed
+an explicit MainActor annotation under Swift 6.4; its corrected build passes.
+Native amd64/arm64 package validation is pending. No live radio latency or
+physical handover claim is made from the synthetic checks.
 
 ### Capture ownership integration — October 1, 2026
 

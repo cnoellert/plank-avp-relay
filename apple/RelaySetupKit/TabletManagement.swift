@@ -42,6 +42,8 @@ public struct TabletSetupStatus: Decodable, Equatable, Sendable {
     public let enrollmentVersion: Int?
     public let headsetAuthorized: Bool?
     public let relayKey: String?
+    public let tcpPort: UInt16?
+    public let networkAddresses: [String]?
 
     public static func decode(_ data: Data, request: Int) throws -> Self {
         struct Envelope: Decodable { let version: Int; let id: Int; let ok: Bool; let error: String? }
@@ -57,7 +59,17 @@ public struct TabletSetupStatus: Decodable, Equatable, Sendable {
               (result.usbTablets ?? []).allSatisfy({ $0.id.hasPrefix("usb:") && $0.id.utf8.count <= 64 &&
                   $0.name.utf8.count <= 64 && ($0.serial?.utf8.count ?? 0) <= 64 && $0.port.utf8.count <= 40 }),
               result.message.utf8.count <= 1024 else { throw RelaySetupError.protocolError }
+        guard result.tcpPort == nil || result.tcpPort! > 0,
+              (result.networkAddresses?.count ?? 0) <= 8,
+              (result.networkAddresses ?? []).allSatisfy({ $0.utf8.count <= 64 }) else {
+            throw RelaySetupError.protocolError
+        }
         return result
+    }
+
+    func routes(name: String, relayKey: Data) -> [RelayAddress] {
+        guard headsetAuthorized == true, enrollmentIdentity == relayKey, let tcpPort else { return [] }
+        return networkRelayRoutes(networkAddresses ?? [], port: tcpPort, name: name, relayKey: relayKey)
     }
 
     public var operating: Bool { ["pairing", "connecting", "verifying"].contains(phase) }
