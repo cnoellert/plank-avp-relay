@@ -1,5 +1,24 @@
 # Bluetooth headset input lab
 
+## 0.6.5 development build 37 — management startup deadlines
+
+After the September 30 relay reboot, the first Tablet Test found the relay but
+the app canceled its pending Bluetooth connection after about 12 seconds.
+The management-status preflight wrapped transport startup and authentication
+in one 12-second deadline, cutting short Bluetooth's own 20-second budget.
+No tablet stream or authorization exchange started during that failed attempt.
+The next manual attempt finished setup in 9.57 seconds and the operator
+reported smooth drawing. AVP logs confirmed the persisted 15 ms preference.
+
+Management now waits for transport startup with its existing deadline, then
+starts the 12-second authentication timer. Cancellation remains explicit in
+both phases and cleanup finishes before releasing management ownership.
+Request deadlines, retries and the tablet data path are unchanged. Regression
+coverage includes a 13-second transport startup followed by encrypted requests
+and cancellation during startup without sending protocol bytes. This removes
+the conflicting timers; it does not establish why the first radio connection
+was slow or guarantee that waiting the full transport budget would succeed.
+
 ## Low-latency LE connection preference
 
 The relay configures its selected adapter for a preferred 15 ms LE interval,

@@ -210,8 +210,14 @@ final class RelayManagementConnection {
         let codec = link.value
         if !ready {
             let start = ContinuousClock.now
-            try await client.bounded(socket: socket, seconds: 12, closing: false) {
+            // Transport startup owns its deadline (BLE 20 s, TCP 8 s). Starting
+            // the authorization timer before connect truncated BLE startup to
+            // 12 s and reported "Bluetooth interrupted" before a link existed.
+            try await withTaskCancellationHandler {
                 try await self.socket.connect()
+                try Task.checkCancellation()
+            } onCancel: { self.socket.cancel() }
+            try await client.bounded(socket: socket, seconds: 12, closing: false) {
                 var output = [UInt8](repeating: 0, count: 8448)
                 var written = 0
                 guard pltr_client_link_start(codec, &output, output.count, &written) == 0 else { throw RelaySetupError.protocolError }

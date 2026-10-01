@@ -2,6 +2,50 @@
 
 ## Active work — Bluetooth streaming and direct headset installs
 
+### Reboot acceptance and startup deadline correction — build 37
+
+The operator rebooted relay02 at 17:25 PDT September 30. First Tablet Test
+reported “Bluetooth interrupted”; the next test was smooth, described as the
+best yet. The startup preference survived: relay applied/read back 15 ms at
+17:25:46 and advertised immediately afterward. PID 805, restart count zero,
+no backlog exception or adapter reset. The installed source matches `d7a9d1a`.
+AVP logs confirm the successful post-reboot link negotiated 15 ms, latency zero,
+supervision 720 ms at 17:29:19. The Wacom attached at 17:29:23; the failed first
+attempt therefore preceded active tablet input in this boot.
+
+Fresh AVP logs identify a concrete app deadline conflict. First startup begins
+17:28:18.626, discovers the relay at 19.122, then the app cancels the pending
+physical connection at 31.015 (~12.4 s). `RelayManagementConnection.requests`
+wrapped `socket.connect()` and authentication in one 12-second timer, truncating
+the BLE transport's own 20-second startup budget. The automatic retry begins
+32.081 and ends 34.907 as the app becomes inactive; do not call that second
+cancellation a separate radio failure. The next manual test completes setup
+in 9.57 s and streams normally. No first-attempt GATT/L2CAP/authorization/input
+session reached the relay. Unrelated devices' `762` errors in the AVP log are
+not this relay's errors. The reason the initial radio connection took so long
+is still unknown; the later relay packet capture started after both attempts.
+
+Build 37 lets each transport own connection startup (BLE 20 s, TCP 8 s), then
+starts the unchanged 12-second authentication deadline. Explicit cancellation
+still closes the socket and releases management ownership. It does not change
+tablet capture, streaming, rendering, radio settings, trust or retries.
+All 21 Apple suites pass, including a real 13-second simulated startup followed
+by encrypted management, plus cancellation during startup without sending any
+protocol bytes. Simulator compilation, signed archive/export, bundle/profile
+and dSYM checks pass. This fixes the contradictory deadline; it does not prove
+the radio would have connected within 20 seconds on the failed attempt.
+
+App 0.6.5/build 37 installed in place via mac34 at approximately 17:40 PDT;
+installed-app readback confirms version/build. No TestFlight upload or relay
+deployment in this follow-up. Relay remains 0.6.5 with the `d7a9d1a` development
+update. Exact source, IPA, symbols, logs and provenance are under ignored
+`artifacts/development/0.6.5/build-37`; GUI jobs are unloaded. Live acceptance
+of the corrected startup remains pending. Next development build number: 38.
+Paired diagnostic evidence is private in `captures/20260930-reboot-1729`.
+A new ten-minute radio capture `plank-build37-startup-capture` began at
+17:42:48 PDT, expires 17:52:48, file `/var/tmp/plank-build37-startup/trace.btsnoop`.
+It does not survive reboot. Relay remains PID 805; no service restart occurred.
+
 ### 15 ms Bluetooth preference — September 30, 17:21 PDT
 
 Checkpoint committed and pushed first as `586cbab` on `bluetooth-l2cap`, as
