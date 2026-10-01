@@ -45,7 +45,7 @@ these are software checks, not physical radio or pen-to-display measurements.
 
 Validation evidence and the exact source snapshot are under ignored
 `artifacts/validation/capture-ownership/d59bb54/`. The one-time Apple validation
-job is unloaded. This selective integration is ready for `main`; the original
+job is unloaded. This selective integration is merged into `main`; the original
 PR's route changes remain separate. No live host/headset deployment or new
 TestFlight/GitHub release occurred. Physical handoff with the matching drawing
 service still needs qualification. The installed release remains 0.6.6/build 38;
