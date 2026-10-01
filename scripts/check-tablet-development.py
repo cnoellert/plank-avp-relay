@@ -17,7 +17,7 @@ profile = plistlib.loads(subprocess.check_output([
     'security', 'cms', '-D', '-i', str(args.app / 'embedded.mobileprovision')]))
 entitlements = plistlib.loads(subprocess.check_output([
     'codesign', '--display', '--entitlements', ':-', str(args.app)], stderr=subprocess.DEVNULL))
-bundle = 'la.instinctual.PLANK.TabletSetup'
+bundle = 'la.instinctual.PLANK.AVPrelay'
 if info.get('CFBundleIdentifier') != bundle or info.get('CFBundleSupportedPlatforms') != ['XROS']:
     parser.error('Expected the PLANK AVP Relay Setup device app.')
 if profile.get('ExpirationDate', datetime.datetime.min) <= datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None):

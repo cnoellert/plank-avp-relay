@@ -1,6 +1,6 @@
 # PLANK AVP Relay and Setup app
 
-## Active work — authenticated route discovery
+## Active work — AVP app identity and authenticated route discovery
 
 Release policy: publish a GitHub release only alongside a matching TestFlight
 release. Normal Linux builds must not generate or publish dbgsym packages.
@@ -10,6 +10,38 @@ Commit `500f16f` implements the packaging rule. Follow-up workflow run
 including the new requirement for exactly one installer per architecture.
 The published 0.6.6 installers retain their original release provenance;
 release notes and checksums now omit the removed debug-symbol downloads.
+
+### AVP app bundle identity — October 1, 2026
+
+The operator approved the exact bundle ID `la.instinctual.PLANK.AVPrelay`.
+The Xcode target, Info.plist template, bundle/development validators, Bluetooth
+and network log subsystems, and Keychain service now use that identity. The
+Keychain service is `la.instinctual.PLANK.AVPrelay.pairing.v1`; no old-identity
+migration or shared-access entitlement was added. Display name remains
+PLANK AVP Relay Setup. The new identity is a separate app install and will need
+fresh relay authorization; reset relay headset ownership via the documented
+SSH command when deploying it, retaining tablet bonds. No live ownership reset
+or device deployment has been performed.
+
+The new bundle ID is registered in the existing Apple developer account as a
+UNIVERSAL identifier and verified by API readback. The private TestFlight
+metadata configuration now targets the new bundle ID; its previous exact
+configuration is backed up privately for the earlier TestFlight record.
+The confirmed Standard / No France baseline is retained. Do not change or
+delete the previous app record or registered ID, which contain release history.
+
+All 22 Apple suites pass, and unsigned macOS, visionOS simulator and visionOS
+device builds pass the updated bundle validation on mac12. No Linux changes
+were needed. Source version remains 0.6.6; build 1 is only unsigned validation.
+Advance the matching app/relay software version before the next distribution.
+
+Remaining external setup: create a new visionOS app record on the App Store
+Connect website for `la.instinctual.PLANK.AVPrelay`. Apple's public Apps API
+manages existing apps and cannot create that record. Suggested name is
+PLANK AVP Relay (the earlier record uses PLANK AVP Relay Setup), SKU
+`plank-avp-relay`, primary language English (U.S.). Matching signing profiles
+must be generated during the next signed archive/export. No new App Store
+Connect record, signed delivery, TestFlight upload or GitHub release is claimed.
 
 ### Route discovery integration — October 1, 2026
 

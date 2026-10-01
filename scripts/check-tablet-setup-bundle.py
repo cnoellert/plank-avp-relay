@@ -14,7 +14,7 @@ contents = args.bundle / "Contents" if args.platform == "macos" else args.bundle
 resources = contents / "Resources" if args.platform == "macos" else contents
 with (contents / "Info.plist").open("rb") as source:
     info = plistlib.load(source)
-assert info["CFBundleIdentifier"] == "la.instinctual.PLANK.TabletSetup"
+assert info["CFBundleIdentifier"] == "la.instinctual.PLANK.AVPrelay"
 assert info.get("NSBluetoothAlwaysUsageDescription")
 assert info.get("NSLocalNetworkUsageDescription")
 assert info["NSBonjourServices"] == ["_plank-avp-relay._tcp"]

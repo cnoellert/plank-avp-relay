@@ -98,7 +98,7 @@ final class RelayBLEAttempt: NSObject, RelayBLEAttemptConnection,
     private let channel: RelayBLEChannel
     private var diagnostic: Bool { channel == .echo }
     private let onProgress: ((String) -> Void)?
-    private let logger = Logger(subsystem: "la.instinctual.PLANK.TabletSetup", category: "Bluetooth")
+    private let logger = Logger(subsystem: "la.instinctual.PLANK.AVPrelay", category: "Bluetooth")
     private var phase = "waiting for Bluetooth"
     private var signal: Int?
     private var central: CBCentralManager!

@@ -42,7 +42,7 @@ public enum RelaySetupError: LocalizedError, Sendable {
 /// Separate namespace: test-app pairing never replaces the full Client's trust.
 @MainActor
 public final class RelayKeyStore {
-    private let service = "la.instinctual.PLANK.TabletSetup.pairing.v1"
+    private let service = "la.instinctual.PLANK.AVPrelay.pairing.v1"
     public init() {}
 
     private func query(_ account: String) -> [String: Any] {

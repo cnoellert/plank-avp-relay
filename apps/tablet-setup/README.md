@@ -374,6 +374,21 @@ The archive command generates and includes application debug symbols. Both
 archive and export/upload commands reject missing symbols or executable/dSYM
 UUID mismatches before delivery.
 
+The current app bundle ID is `la.instinctual.PLANK.AVPrelay`. The earlier
+`la.instinctual.PLANK.TabletSetup` TestFlight record remains associated with its
+existing builds. Apple locks a record's bundle ID after a build is uploaded, so
+the new identity requires its own App Store Connect record and matching signing
+profiles. Register the bundle ID in the developer account, then create the
+visionOS app record on the App Store Connect website; Apple's public API can
+register bundle IDs but cannot create app records. Point the private metadata
+configuration's `bundle_id` at the new identifier before the next delivery.
+
+The new identity installs as a separate app with its own preferences and
+`la.instinctual.PLANK.AVPrelay.pairing.v1` Keychain service. It does not migrate
+the earlier app's saved headset key. When switching the live headset to the new
+app, use the documented [SSH ownership reset](../../docs/bluetooth-tablet-pairing.md)
+and authorize it again; tablet Bluetooth bonds can remain in place.
+
 Complete these gates before promising an invitation:
 
 1. Configure usable Xcode developer-account access, or provision an App Store
@@ -383,7 +398,7 @@ Complete these gates before promising an invitation:
    target in Release. The app is included in archives; static libraries are not
    separate installable products. Use Apple distribution provisioning, not
    macOS Developer ID/notarization.
-3. Create the visionOS app record for `la.instinctual.PLANK.TabletSetup` and
+3. Create the visionOS app record for `la.instinctual.PLANK.AVPrelay` and
    complete the account owner's encryption questionnaire accurately. Live mode
    includes CPace/Noise/libsodium; do not claim the binary only uses OS-provided
    encryption or disable encryption to avoid the questionnaire.

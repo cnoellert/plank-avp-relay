@@ -217,7 +217,7 @@ final class RelayManagementConnection {
     private var ready = false
     private var closed = false
     private var exchanging = false
-    private let logger = Logger(subsystem: "la.instinctual.PLANK.TabletSetup", category: "NetworkControl")
+    private let logger = Logger(subsystem: "la.instinctual.PLANK.AVPrelay", category: "NetworkControl")
 
     init(address: RelayAddress, privateKey: Data, relayKey: Data, socket: any RelayByteConnection) throws {
         self.address = address; self.privateKey = privateKey; self.relayKey = relayKey; self.socket = socket

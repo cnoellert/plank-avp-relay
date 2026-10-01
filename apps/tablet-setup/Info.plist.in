@@ -2,7 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
     <key>CFBundleExecutable</key><string>${MACOSX_BUNDLE_EXECUTABLE_NAME}</string>
-    <key>CFBundleIdentifier</key><string>la.instinctual.PLANK.TabletSetup</string>
+    <key>CFBundleIdentifier</key><string>la.instinctual.PLANK.AVPrelay</string>
     <key>CFBundleName</key><string>PLANK AVP Relay Setup</string>
     <key>CFBundleDisplayName</key><string>PLANK AVP Relay Setup</string>
     <key>CFBundlePackageType</key><string>APPL</string>
