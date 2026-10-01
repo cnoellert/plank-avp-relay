@@ -52,11 +52,40 @@ TestFlight readback are under `artifacts/testflight/0.6.7/build-39/`. The one-ti
 mac12 signing/upload LaunchAgents were unloaded.
 
 No live relay upgrade, AVP development install or headset-ownership reset was
-performed during publication. The new app installs separately and needs fresh
-authorization. When ready to switch, install the matching relay package, run
-`sudo plank-avp-relay-admin reset-headsets --yes` through SSH, then complete
-setup in the new app; tablet Bluetooth bonds remain. Physical wireless latency,
-capture handover and route recovery still need live validation.
+performed during publication; the subsequent host upgrade is recorded below.
+The new app installs separately and needs fresh authorization. When ready to
+switch, run `sudo plank-avp-relay-admin reset-headsets --yes` through SSH, then
+complete setup in the new app; tablet Bluetooth bonds remain. Physical wireless
+latency, capture handover and route recovery still need live validation.
+
+### Relay-02 upgraded; TestFlight distribution status — October 1, 2026
+
+At the operator's request, upgraded `plank-avp-relay-02` from 0.6.6 to the
+published 0.6.7 arm64 package. This host runs Armbian Debian 13 userspace with
+kernel `6.18.54-current-rockchip64`. Verified the installer checksum before
+installation. A private state/configuration backup remains on the host at
+`/var/backups/plank-avp-relay/upgrade-0.6.7-20261001/`; its contents stay outside
+the repository. Relay identity, headset approvals, tablet selection and relay
+configuration were compared before/after and retained. No ownership reset was
+performed.
+
+Configuration validation passes. The relay, Bluetooth, Avahi, Wi-Fi and USB
+services are active with no restarts observed after installation. Startup logs
+confirm TCP 28991 listeners, network discovery registration, Bluetooth L2CAP
+PSM 128 and advertising, with the existing 15 ms connection preference.
+Deployment evidence is in `artifacts/deployments/0.6.7/relay02-20261001/`.
+Temporary upgrade files and the one-time systemd upgrade unit were cleaned up.
+No physical tablet/headset test was performed as part of this installation.
+
+The operator asked why External Testing shows no builds. API readback confirms
+build 39 is IN_BETA_TESTING in the internal PLANK Testing group; the operator's
+internal tester state is now INSTALLED. A separate external PLANK Testing group
+exists with one tester and no builds. Build 39 is READY_FOR_BETA_SUBMISSION
+externally; no external review submission or distribution was performed.
+
+PR #1 was closed at the operator's request after verifying its head remained
+`5a915a7`; its approved work was integrated separately and released in 0.6.7.
+GitHub correctly shows closed rather than directly merged.
 
 ### AVP app bundle identity — October 1, 2026
 
