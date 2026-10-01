@@ -1,6 +1,6 @@
 # PLANK AVP Relay and Setup app
 
-## Active work — AVP app identity and authenticated route discovery
+## Current state — 0.6.7 released; live validation pending
 
 Release policy: publish a GitHub release only alongside a matching TestFlight
 release. Normal Linux builds must not generate or publish dbgsym packages.
@@ -11,17 +11,52 @@ including the new requirement for exactly one installer per architecture.
 The published 0.6.6 installers retain their original release provenance;
 release notes and checksums now omit the removed debug-symbol downloads.
 
-### Release 0.6.7 / build 39 preparation — October 1, 2026
+### Release 0.6.7 / build 39 completed — October 1, 2026
 
-After approving the new bundle identity and creating its App Store Connect
-record, the operator requested proceeding with delivery. Prepare matching app
-and relay version 0.6.7, Apple build 39, with the approved capture-ownership and
-authenticated-route changes. TestFlight must target `la.instinctual.PLANK.AVPrelay`
-and app record `6818323499`. Publish the regular amd64/arm64 installers alongside
-TestFlight; no dbgsym. Tester notes are `apps/tablet-setup/TestFlight/0.6.7-39.txt`.
-This is a new app install requiring fresh headset authorization. Build, signing,
-processing, metadata and package validation are in progress; no release or live
-deployment is claimed by this preparation entry.
+The operator requested delivery after creating the new App Store Connect
+record. Matching app and relay version 0.6.7 is published, including the approved
+capture-ownership and authenticated-route changes. Source commit
+`7ebe1a50189c619c0af9392b81376ce18c30f261` was fast-forward merged from
+`authenticated-route-discovery` into `main` and tagged `v0.6.7`; both app and
+installers were built from that exact commit. The entries below describe the
+earlier preparation stages; this release entry supersedes their pending status.
+
+TestFlight: PLANK AVP Relay, bundle `la.instinctual.PLANK.AVPrelay`, app record
+`6818323499`, version 0.6.7, build 39. Upload completed at 22:07:36 UTC. Apple
+reports VALID and IN_BETA_TESTING. The notes in
+`apps/tablet-setup/TestFlight/0.6.7-39.txt` and the previously confirmed
+Standard / No France compliance baseline were saved and read back successfully.
+The new internal PLANK Testing group has automatic distribution enabled and
+contains only the operator; its build access and INVITED state were verified.
+The previous app's internal tester ID could not be assigned directly: creating
+the membership with the same account email and new group produced a distinct
+tester resource for this app. No external testers or public links were added.
+Private API configuration continues to target this new app; the old app record
+and its configuration backup remain intact.
+
+[GitHub release v0.6.7](https://github.com/instinctual/plank-avp-relay/releases/tag/v0.6.7)
+contains the regular Ubuntu Server 26.04 amd64 and Debian 13 / Armbian arm64
+installers, architecture provenance, checksums and source commit. No dbgsym was
+built or published. Local installers are only in
+`artifacts/deb/0.6.7/<platform>/<architecture>/`; release metadata is in
+`artifacts/releases/0.6.7/` without duplicate installers.
+
+Validation: all 33 Linux suites pass on each architecture. Native workflow
+[36932402141](https://github.com/instinctual/plank-avp-relay/actions/runs/36932402141)
+passes both package builds, installed-package checks, and clean-install/upgrade/
+removal jobs. All 22 Apple suites, macOS and visionOS simulator/device builds,
+signed archive/export, bundle and dSYM checks pass. The exported distribution
+profile matches the new app identity and team, is unexpired, and disables
+development debugging. Archive, IPA, hashes, signing/upload logs, provenance and
+TestFlight readback are under `artifacts/testflight/0.6.7/build-39/`. The one-time
+mac12 signing/upload LaunchAgents were unloaded.
+
+No live relay upgrade, AVP development install or headset-ownership reset was
+performed during publication. The new app installs separately and needs fresh
+authorization. When ready to switch, install the matching relay package, run
+`sudo plank-avp-relay-admin reset-headsets --yes` through SSH, then complete
+setup in the new app; tablet Bluetooth bonds remain. Physical wireless latency,
+capture handover and route recovery still need live validation.
 
 ### AVP app bundle identity — October 1, 2026
 
