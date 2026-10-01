@@ -2,6 +2,23 @@
 
 ## Active work — Bluetooth streaming and direct headset installs
 
+### Approved release 0.6.6 / TestFlight build 38 — in progress
+
+The operator accepted build 37's latest test and explicitly requested commit,
+push, merge and a new TestFlight release. Release 0.6.6 advances app and relay
+together; internal Apple upload number 38. The release includes the approved
+L2CAP stream, 15 ms controller preference, direct echo diagnostic, separate
+connection/authentication deadlines and the temporary Bluetooth-only test
+selector. No new input-processing changes are included.
+
+The clean-install workflow's old `powersave`/backup assertions are corrected
+to match the already implemented and tested `schedutil` installer behavior.
+Release notes are `apps/tablet-setup/TestFlight/0.6.6-38.txt`. Native Ubuntu 26.04
+amd64 and Debian 13 arm64 package checks, Apple release validation, main merge,
+upload and metadata/readback are pending. Retain the known limitation that
+initial radio establishment can still be slow; do not describe this release
+as proof that every Bluetooth startup failure is resolved.
+
 ### Reboot acceptance and startup deadline correction — build 37
 
 The operator rebooted relay02 at 17:25 PDT September 30. First Tablet Test

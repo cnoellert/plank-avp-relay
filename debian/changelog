@@ -1,3 +1,11 @@
+plank-avp-relay (0.6.6) experimental; urgency=medium
+
+  * Prefer 15 ms LE links for wireless tablet streaming, reapplied at startup.
+  * Configure schedutil on Armbian and align clean-install validation.
+  * Match the app's direct Bluetooth diagnostic and separate startup deadline.
+
+ -- PLANK contributors <625982+alatteri@users.noreply.github.com>  Thu, 01 Oct 2026 00:51:15 +0000
+
 plank-avp-relay (0.6.5) experimental; urgency=medium
 
   * Match the app's reuse of an existing Bluetooth connection between sessions.

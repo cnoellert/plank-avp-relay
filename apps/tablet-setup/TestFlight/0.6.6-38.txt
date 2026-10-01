@@ -1,0 +1,15 @@
+PLANK AVP Relay 0.6.6
+
+Bluetooth tablet testing now uses an L2CAP stream with a preferred 15 ms connection interval. The relay reapplies this preference after reboot. Wireless testing showed smoother drawing and lower delay.
+
+Test Relay Connection uses one connection for all three round trips. Tablet startup now gets the full Bluetooth connection budget before its authorization timer begins.
+
+Use the matching 0.6.6 Linux relay package. On Armbian, installation configures the schedutil CPU governor.
+
+What to test:
+- In Connection Diagnostics, select Bluetooth Only, then run Test Tablet with a wirelessly connected Wacom. Check position, pressure, smoothness and sustained drawing.
+- Stop Testing, run Test Relay Connection, then run Test Tablet again.
+- Reboot the relay and test the first connection after rediscovery.
+- Switch back to Automatic and check tablet testing over the network.
+
+Known limit: initial Bluetooth connection establishment can still be slow or fail on some attempts. Report the displayed stage/error and whether retry succeeds. The Bluetooth Only selector is temporary for testing. Saved tablet and headset authorization should remain intact.

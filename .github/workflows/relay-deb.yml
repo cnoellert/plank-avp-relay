@@ -203,10 +203,10 @@ jobs:
           cp /var/lib/plank-avp-relay/wifi/wpa.conf /tmp/wifi-before
           apt-get install --reinstall -y "./${package[0]}"
           cmp /var/lib/plank-avp-relay/wifi/wpa.conf /tmp/wifi-before
-          grep -qx 'GOVERNOR="powersave"' /etc/default/cpufrequtils
+          grep -qx 'GOVERNOR="schedutil"' /etc/default/cpufrequtils
           grep -qx 'ENABLED="true"' /etc/default/cpufrequtils
           grep -qx 'MAX_SPEED=2016000' /etc/default/cpufrequtils
-          cmp /var/backups/plank-avp-relay/cpufrequtils.before-powersave /tmp/cpufrequtils-before
+          cmp /var/backups/plank-avp-relay/cpufrequtils.before-schedutil /tmp/cpufrequtils-before
           apt-get remove -y plank-avp-relay
           cmp /var/lib/plank-avp-relay/wifi/wpa.conf /tmp/wifi-before
           test ! -e /etc/systemd/network/03-plank-wifi.network
@@ -217,8 +217,8 @@ jobs:
           test ! -e /usr/lib/plank-avp-relay/libplank_avp_relay.so
           test ! -e /usr/lib/systemd/system/bluetooth.service.d/10-plank-avp-relay.conf
           test -x /usr/sbin/avahi-daemon
-          grep -qx 'GOVERNOR="powersave"' /etc/default/cpufrequtils
-          cmp /var/backups/plank-avp-relay/cpufrequtils.before-powersave /tmp/cpufrequtils-before
+          grep -qx 'GOVERNOR="schedutil"' /etc/default/cpufrequtils
+          cmp /var/backups/plank-avp-relay/cpufrequtils.before-schedutil /tmp/cpufrequtils-before
           # The next fixture requires an empty new namespace. Retention was
           # checked above; move only our known Wi-Fi fixture out of its way.
           mv /var/lib/plank-avp-relay/wifi/wpa.conf /tmp/wifi-retained-after-removal
