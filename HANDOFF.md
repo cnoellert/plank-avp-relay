@@ -49,8 +49,18 @@ All 22 Apple suites pass on mac12, including new executable tablet-startup,
 fallback, stream-recovery, Bluetooth-only and cancellation scenarios. macOS,
 visionOS simulator and visionOS device builds pass. The Apple fixture needed
 an explicit MainActor annotation under Swift 6.4; its corrected build passes.
-Native amd64/arm64 package validation is pending. No live radio latency or
-physical handover claim is made from the synthetic checks.
+Native package workflow
+[36926700347](https://github.com/instinctual/plank-avp-relay/actions/runs/36926700347)
+passes both builds and both clean-install jobs (Ubuntu 26.04 amd64, Debian 13
+arm64), including exactly one regular installer per architecture and no dbgsym.
+The verified implementation is `e25012508455e7a5dfd8026067243b211f71164f`, committed
+with upstream attribution and pushed on `authenticated-route-discovery`.
+Source and validation evidence are under ignored
+`artifacts/validation/authenticated-route-discovery/e250125/`; hashes of all 78
+Apple validation source files match the Mac build. The one-time mac12 job is
+unloaded. No live radio latency or physical handover claim is made from the
+synthetic checks. The integration branch is ready; `main` remains at `d51d272`.
+No device deployment, TestFlight upload or GitHub release was performed.
 
 ### Capture ownership integration — October 1, 2026
 
