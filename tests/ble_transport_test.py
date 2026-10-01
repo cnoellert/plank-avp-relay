@@ -13,7 +13,10 @@ from avp_relay.core import RelayCore
 
 class CaptureTests(unittest.TestCase):
     def setUp(self):
-        self.capture = Capture()
+        # Report-processing fixtures must never claim a real drawing session.
+        lease = MagicMock()
+        lease.acquire.return_value = True
+        self.capture = Capture(lease=lease)
         self.addCleanup(self.capture.close)
         self.read, self.write = os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
         self.addCleanup(os.close, self.write)

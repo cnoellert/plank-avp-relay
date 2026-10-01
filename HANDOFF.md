@@ -1,6 +1,6 @@
 # PLANK AVP Relay and Setup app
 
-## Active work — Bluetooth streaming and direct headset installs
+## Active work — shared tablet capture
 
 Release policy: publish a GitHub release only alongside a matching TestFlight
 release. Normal Linux builds must not generate or publish dbgsym packages.
@@ -10,6 +10,32 @@ Commit `500f16f` implements the packaging rule. Follow-up workflow run
 including the new requirement for exactly one installer per architecture.
 The published 0.6.6 installers retain their original release provenance;
 release notes and checksums now omit the removed debug-symbol downloads.
+
+### Capture ownership integration — October 1, 2026
+
+The operator requested the capture-ownership portion of cnoellert's PR #1.
+Branch `capture-ownership` starts from released main and cherry-picks the
+ownership, busy-state UI, documentation, cleanup and test-isolation commits
+(`4d9d03a`, `d119ffd`, `1d16b31`, `d41a925`, `38032e4`) with attribution.
+The PR's generalized route hints and extra startup preflight are excluded.
+L2CAP, 15 ms preferences, separate startup/authentication deadlines and the
+Bluetooth-only selector remain intact. No version or release change is made.
+
+Idle inventory no longer opens tablet input. Observation, button approval and
+tablet mutations acquire the shared abstract AF_UNIX datagram ownership socket.
+The Setup app reports PLANK ownership and disables competing tablet actions;
+status and network management remain available. The separate drawing service
+must implement the same `plank-tablet-capture-v1` contract (verified against
+the upstream checkpoint); this package does not install that service.
+
+Additional checks cover real cross-process contention and automatic cleanup,
+TCP/L2CAP management while drawing owns input, observer ownership/release, and
+a competing capture acquired between status and observation. Synthetic tests
+use isolated ownership names; the report-only fixture uses a mock lease.
+The network fixture also supports this workstation's Python 3.9 without a
+runtime compatibility shim. Local Linux checks pass; Apple compilation/model
+checks and native package validation are pending. No live host or headset
+deployment has occurred for this integration.
 
 ### Released 0.6.6 / TestFlight build 38 — September 30, 2026
 

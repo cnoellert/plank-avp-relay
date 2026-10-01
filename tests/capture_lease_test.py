@@ -2,8 +2,10 @@
 """Portable coverage for the Linux abstract-socket capture contract."""
 import errno
 import json
+import os
 from pathlib import Path
 import socket
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -79,6 +81,34 @@ class Backend:
 
 
 class CaptureLeaseTests(unittest.TestCase):
+    @unittest.skipUnless(sys.platform.startswith('linux'), 'Linux abstract sockets')
+    def test_real_process_contention_and_automatic_release_on_exit(self):
+        address = b'\0plank-lease-test-' + os.urandom(12).hex().encode()
+        child = '''
+import sys
+sys.path.insert(0, sys.argv[1])
+from avp_relay import capture_lease
+capture_lease.ADDRESS = bytes.fromhex(sys.argv[2])
+lease = capture_lease.CaptureLease()
+if sys.argv[3] == 'busy':
+    assert lease.busy() and not lease.acquire()
+else:
+    assert not lease.busy() and lease.acquire()
+# Intentionally leave an acquired socket open: process exit releases ownership.
+'''
+        tools = str(Path(__file__).resolve().parents[1] / 'tools')
+        with patch('avp_relay.capture_lease.ADDRESS', address):
+            lease = CaptureLease()
+            self.addCleanup(lease.release)
+            self.assertTrue(lease.acquire())
+            subprocess.run([sys.executable, '-c', child, tools, address.hex(), 'busy'],
+                           check=True, timeout=5)
+            lease.release()
+            subprocess.run([sys.executable, '-c', child, tools, address.hex(), 'free'],
+                           check=True, timeout=5)
+            self.assertFalse(lease.busy())
+            self.assertTrue(lease.acquire())
+
     def test_same_abstract_address_contends_and_reacquires_after_close(self):
         FakeSocket.bound.clear()
         first, second = CaptureLease(), CaptureLease()

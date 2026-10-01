@@ -42,8 +42,10 @@ class NetworkTests(unittest.TestCase):
     def setUp(self):
         # Loopback/fake-evdev tests must not claim the installed tablet lease.
         # Keep the real Linux exclusivity behavior in a test-only namespace.
-        self.enterContext(patch('avp_relay.capture_lease.ADDRESS',
-            b'\0plank-network-test-' + os.urandom(12).hex().encode()))
+        lease_address = patch('avp_relay.capture_lease.ADDRESS',
+            b'\0plank-network-test-' + os.urandom(12).hex().encode())
+        lease_address.start()
+        self.addCleanup(lease_address.stop)
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.path = Path(self.temp.name)
@@ -210,6 +212,71 @@ class NetworkTests(unittest.TestCase):
         self.assertEqual(received, expected)
         self.assertEqual([SAMPLE.unpack(data)[4] for data in received],
                          [1000000 + n * 5000 for n in range(100)])
+
+    def test_busy_capture_keeps_management_available_without_stealing_input(self):
+        from avp_relay.capture import Capture
+        from avp_relay.capture_lease import CaptureLease
+        from avp_relay.gadget_client import unavailable
+        self.approve()
+        drawing = CaptureLease()
+        self.addCleanup(drawing.release)
+        self.assertTrue(drawing.acquire())
+        patch.object(Capture, 'available', new_callable=PropertyMock, return_value=True).start()
+        sock, client, connected = self.connect()
+        self.assertTrue(connected)
+        status = self.request(sock, client)
+        self.assertTrue(status['headsetAuthorized'])
+        self.assertTrue(status['attached'])
+        self.assertTrue(status['captureBusy'])
+        self.assertFalse(status['captureActive'])
+        self.assertFalse(self.request(sock, client, 'scan')['ok'])
+        self.assertIsNone(self.core.tablets.owner)
+        self.assertFalse(self.core.capture.lease.held)
+        self.core.gadget = MagicMock()
+        self.core.gadget.request.return_value = dict(unavailable(), supported=True, phase='idle')
+        self.assertTrue(self.request(sock, client, 'network-status')['ok'])
+        self.assertTrue(drawing.held)
+        drawing.release()
+        self.assertFalse(self.request(sock, client)['captureBusy'])
+
+    def test_observation_holds_capture_until_disconnect(self):
+        from avp_relay.capture_lease import CaptureLease
+        self.approve()
+        drawing = CaptureLease()
+        self.addCleanup(drawing.release)
+        sock, client, connected = self.connect()
+        self.assertTrue(connected)
+        self.assertFalse(self.core.capture.lease.held)
+        self.send(sock, client, 13, b'\x01')
+        frames = []
+        for _ in range(5):
+            frames += self.feed(sock, client, self.read(sock))
+            if any(kind == 14 for kind, _ in frames): break
+        self.assertTrue(any(kind == 14 for kind, _ in frames))
+        self.assertTrue(self.core.capture.lease.held)
+        self.assertFalse(drawing.acquire())
+        sock.close(); self.pump()
+        self.assertIsNone(self.core.owner)
+        self.assertFalse(self.core.capture.attached)
+        self.assertFalse(self.core.capture.lease.held)
+        self.assertTrue(drawing.acquire())
+
+    def test_capture_race_closes_setup_without_releasing_drawing_owner(self):
+        from avp_relay.capture_lease import CaptureLease
+        self.approve()
+        drawing = CaptureLease()
+        self.addCleanup(drawing.release)
+        sock, client, connected = self.connect()
+        self.assertTrue(connected)
+        self.assertFalse(self.request(sock, client)['captureBusy'])
+        self.assertTrue(drawing.acquire())  # Ownership changes after status.
+        self.send(sock, client, 13, b'\x01')
+        self.assertEqual(self.read(sock, allow_closed=True), b'')
+        self.assertIsNone(self.core.owner)
+        self.assertFalse(self.core.capture.lease.held)
+        self.assertFalse(self.core.capture.attached)
+        self.assertTrue(drawing.held)
+        self.assertTrue(self.core.native.has_clients)
 
     def test_paced_200_report_source_through_capture_and_noise_tcp(self):
         from avp_relay.capture import SAMPLE, EVENT
@@ -421,6 +488,9 @@ class L2CAPTests(unittest.TestCase):
     test_authorized_wifi_controls = NetworkTests.test_wifi_commands_require_approved_noise_and_do_not_echo_password
     test_tablet_enrollment = NetworkTests.test_new_tablet_commits_only_provisional_network_owner
     test_backpressure = NetworkTests.test_idle_probe_and_backpressure_release_only_their_connection
+    test_busy_capture_management = NetworkTests.test_busy_capture_keeps_management_available_without_stealing_input
+    test_capture_ownership = NetworkTests.test_observation_holds_capture_until_disconnect
+    test_capture_race = NetworkTests.test_capture_race_closes_setup_without_releasing_drawing_owner
 
     def socket(self, channel):
         from avp_relay.l2cap import L2CAPConnection, PREFACE, BT_SNDMTU, BT_RCVMTU
