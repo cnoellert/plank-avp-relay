@@ -5,6 +5,11 @@
 Release policy: publish a GitHub release only alongside a matching TestFlight
 release. Normal Linux builds must not generate or publish dbgsym packages.
 The operator explicitly requested both rules after the 0.6.6 release.
+Commit `500f16f` implements the packaging rule. Follow-up workflow run
+`36799799368` passes both native package builds and both clean-install jobs,
+including the new requirement for exactly one installer per architecture.
+The published 0.6.6 installers retain their original release provenance;
+release notes and checksums now omit the removed debug-symbol downloads.
 
 ### Released 0.6.6 / TestFlight build 38 — September 30, 2026
 
