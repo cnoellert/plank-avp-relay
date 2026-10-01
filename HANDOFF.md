@@ -5,6 +5,13 @@
 Release policy: publish a GitHub release only alongside a matching TestFlight
 release. Normal Linux builds must not generate or publish dbgsym packages.
 The operator explicitly requested both rules after the 0.6.6 release.
+Every approved TestFlight release must also be assigned to all existing external
+testing groups for this app and submitted for Apple's beta review when required,
+with automatic tester notification enabled. Internal availability alone is not
+completion. This standing instruction was given on October 1, 2026; do not ask
+for permission again on future releases. Report review-pending status separately
+from external availability. Keep reviewer contact details in App Store Connect
+or private deployment files, never in Git.
 Commit `500f16f` implements the packaging rule. Follow-up workflow run
 `36799799368` passes both native package builds and both clean-install jobs,
 including the new requirement for exactly one installer per architecture.
@@ -82,6 +89,27 @@ build 39 is IN_BETA_TESTING in the internal PLANK Testing group; the operator's
 internal tester state is now INSTALLED. A separate external PLANK Testing group
 exists with one tester and no builds. Build 39 is READY_FOR_BETA_SUBMISSION
 externally; no external review submission or distribution was performed.
+
+The operator then instructed that every future TestFlight release must also be
+submitted to external groups and supplied the review contact details. Those
+details and the feedback email were saved in App Store Connect and a private
+`tablet-setup-review-contact.json` beside the existing API configuration; do not
+copy them into Git. Version 0.6.7 / build 39 is now assigned to the external
+PLANK Testing group, with automatic notification enabled, and submitted for
+beta review. Readback reports WAITING_FOR_REVIEW / WAITING_FOR_BETA_REVIEW;
+external installation awaits Apple's approval. Evidence is in
+`artifacts/testflight/0.6.7/build-39/external-verification.json`.
+
+`scripts/update-tablet-testflight.py` now performs this external step by default
+after notes/compliance verification. It uses only the exact selected app/build
+and that app's existing external groups, validates review prerequisites, reuses
+pending submissions, and reports pending review separately from availability.
+`--inspect` remains read-only. Group members and public links are preserved.
+All 14 offline metadata/distribution tests pass, including multiple groups,
+retries, missing contact, rejected reviews and failed write verification.
+Reusable beta description/reviewer instructions are under
+`apps/tablet-setup/TestFlight/`; contact details remain private. This automation
+change does not change the app binary or the installed relay package.
 
 PR #1 was closed at the operator's request after verifying its head remained
 `5a915a7`; its approved work was integrated separately and released in 0.6.7.

@@ -140,5 +140,118 @@ class MetadataTests(unittest.TestCase):
                 testflight.private_file(path)
 
 
+class ExternalAPI:
+    def __init__(self):
+        self.groups = [{'id': name, 'attributes': {'isInternalGroup': internal}}
+                       for name, internal in [('internal', True), ('external-a', False), ('external-b', False)]]
+        self.assignments = {item['id']: [] for item in self.groups}
+        self.detail = {'id': 'detail', 'attributes': {
+            'externalBuildState': 'READY_FOR_BETA_SUBMISSION', 'autoNotifyEnabled': False}}
+        self.contact = {key: 'fixture' for key in
+                        ('contactFirstName', 'contactLastName', 'contactPhone', 'contactEmail')}
+        self.contact['demoAccountRequired'] = False
+        self.localizations = [{'attributes': {'description': 'Fixture app', 'feedbackEmail': 'test@example.invalid'}}]
+        self.reviews = []
+        self.writes = []
+        self.persist_assignment = True
+        self.persist_review = True
+
+    def collection(self, path, query=None):
+        if path == '/v1/apps/app-fixture/betaGroups':
+            result = self.groups
+        elif path == '/v1/apps/app-fixture/betaAppLocalizations':
+            result = self.localizations
+        elif path == '/v1/betaAppReviewSubmissions':
+            assert query['filter[build]'] == 'build-fixture'
+            result = self.reviews
+        elif path.startswith('/v1/betaGroups/') and path.endswith('/relationships/builds'):
+            result = self.assignments[path.split('/')[3]]
+        else:
+            raise AssertionError(path)
+        return copy.deepcopy(result)
+
+    def request(self, method, path, query=None, body=None):
+        if method == 'GET':
+            if path == '/v1/builds/build-fixture/buildBetaDetail':
+                return {'data': copy.deepcopy(self.detail)}
+            if path == '/v1/apps/app-fixture/betaAppReviewDetail':
+                return {'data': {'attributes': copy.deepcopy(self.contact)}}
+            raise AssertionError(path)
+        self.writes.append((method, path, copy.deepcopy(body)))
+        if path == '/v1/buildBetaDetails/detail':
+            self.detail['attributes'].update(body['data']['attributes'])
+        elif path.startswith('/v1/betaGroups/'):
+            if self.persist_assignment:
+                self.assignments[path.split('/')[3]].extend(body['data'])
+        elif path == '/v1/betaAppReviewSubmissions':
+            assert body['data']['relationships']['build']['data']['id'] == 'build-fixture'
+            if self.persist_review:
+                self.reviews = [{'id': 'review', 'attributes': {'betaReviewState': 'WAITING_FOR_REVIEW'}}]
+                self.detail['attributes']['externalBuildState'] = 'WAITING_FOR_BETA_REVIEW'
+        elif path == '/v1/buildBetaNotifications':
+            self.detail['attributes']['externalBuildState'] = 'IN_BETA_TESTING'
+        else:
+            raise AssertionError(path)
+        return {}
+
+
+class ExternalTests(unittest.TestCase):
+    def setUp(self):
+        self.api = ExternalAPI()
+
+    def submit(self):
+        testflight.submit_external(self.api, 'app-fixture', 'build-fixture')
+
+    def test_every_external_group_and_exact_build_then_idempotent_retry(self):
+        self.submit()
+        self.assertFalse(self.api.assignments['internal'])
+        for group in ('external-a', 'external-b'):
+            self.assertEqual(self.api.assignments[group], [{'type': 'builds', 'id': 'build-fixture'}])
+        self.assertEqual(len(self.api.reviews), 1)
+        self.assertTrue(self.api.detail['attributes']['autoNotifyEnabled'])
+        self.api.writes.clear()
+        self.submit()
+        self.assertFalse(self.api.writes)
+
+    def test_no_groups_or_missing_review_contact_prevents_publication(self):
+        for change in (lambda a: setattr(a, 'groups', []),
+                       lambda a: a.contact.pop('contactPhone'),
+                       lambda a: a.contact.pop('demoAccountRequired'),
+                       lambda a: a.contact.update(demoAccountRequired=True),
+                       lambda a: setattr(a, 'localizations', [])):
+            self.api = ExternalAPI()
+            change(self.api)
+            with self.assertRaises(ValueError):
+                self.submit()
+            self.assertFalse(self.api.writes)
+
+    def test_rejected_review_is_not_resubmitted(self):
+        self.api.reviews = [{'attributes': {'betaReviewState': 'REJECTED'}}]
+        with self.assertRaises(ValueError):
+            self.submit()
+        self.assertFalse(self.api.writes)
+
+    def test_lost_group_assignment_does_not_submit_review(self):
+        self.api.persist_assignment = False
+        with self.assertRaises(RuntimeError):
+            self.submit()
+        self.assertFalse(self.api.reviews)
+
+    def test_lost_submission_is_reported_as_incomplete(self):
+        self.api.persist_review = False
+        with self.assertRaises(RuntimeError):
+            self.submit()
+
+    def test_approved_build_is_released_without_another_review(self):
+        self.api.reviews = [{'attributes': {'betaReviewState': 'APPROVED'}}]
+        self.api.detail['attributes']['externalBuildState'] = 'READY_FOR_BETA_TESTING'
+        self.submit()
+        self.assertEqual(self.api.detail['attributes']['externalBuildState'], 'IN_BETA_TESTING')
+        self.assertFalse(any(path == '/v1/betaAppReviewSubmissions' for _, path, _ in self.api.writes))
+        self.api.writes.clear()
+        self.submit()
+        self.assertFalse(self.api.writes)
+
+
 if __name__ == '__main__':
     unittest.main()

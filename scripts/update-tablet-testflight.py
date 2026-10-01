@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Complete notes/compliance for one exact TestFlight build using private config.
+"""Complete metadata and external distribution for one exact TestFlight build.
 
 Requires Python's cryptography package. Keys and JWTs are never printed or saved.
 Use --inspect first when establishing a confirmed compliance baseline.
@@ -197,6 +197,77 @@ def update_metadata(api, config, app_id, build, notes, locale):
     print('Test notes and confirmed compliance metadata saved and read back successfully.')
 
 
+def submit_external(api, app_id, build_id):
+    """Use this app's existing external groups; preserve testers and public links."""
+    groups = [item for item in api.collection(f'/v1/apps/{app_id}/betaGroups', {'limit': 200})
+              if item['attributes'].get('isInternalGroup') is False]
+    if not groups:
+        raise ValueError('No external TestFlight group exists for this app.')
+    detail_path = f'/v1/builds/{build_id}/buildBetaDetail'
+    detail = api.request('GET', detail_path)['data']
+    state = detail['attributes']['externalBuildState']
+    review_path = '/v1/betaAppReviewSubmissions'
+    reviews = api.collection(review_path, {'filter[build]': build_id, 'limit': 200})
+    if len(reviews) > 1:
+        raise ValueError('Multiple beta review submissions require review before continuing.')
+    review_state = reviews[0]['attributes']['betaReviewState'] if reviews else None
+    if review_state not in (None, 'WAITING_FOR_REVIEW', 'IN_REVIEW', 'APPROVED'):
+        raise ValueError('Beta review requires attention: ' + str(review_state))
+    needs_review = not reviews and state not in ('READY_FOR_BETA_TESTING', 'IN_BETA_TESTING')
+    if needs_review:
+        if state != 'READY_FOR_BETA_SUBMISSION':
+            raise ValueError('Build is not ready for external submission: ' + state)
+        contact = api.request('GET', f'/v1/apps/{app_id}/betaAppReviewDetail')['data']['attributes']
+        required = ('contactFirstName', 'contactLastName', 'contactPhone', 'contactEmail')
+        missing = [key for key in required if not (contact.get(key) or '').strip()]
+        if type(contact.get('demoAccountRequired')) is not bool:
+            missing.append('demoAccountRequired')
+        elif contact['demoAccountRequired']:
+            missing.extend(key for key in ('demoAccountName', 'demoAccountPassword') if not contact.get(key))
+        localizations = api.collection(f'/v1/apps/{app_id}/betaAppLocalizations', {'limit': 200})
+        if not localizations or any(not (item['attributes'].get('description') or '').strip()
+                                    or not (item['attributes'].get('feedbackEmail') or '').strip()
+                                    for item in localizations):
+            missing.append('localized beta description/feedback email')
+        if missing:
+            raise ValueError('External review information is missing: ' + ', '.join(missing))
+    if not detail['attributes'].get('autoNotifyEnabled'):
+        api.request('PATCH', '/v1/buildBetaDetails/' + detail['id'], body={'data': {
+            'type': 'buildBetaDetails', 'id': detail['id'], 'attributes': {'autoNotifyEnabled': True}}})
+    for group in groups:
+        path = f"/v1/betaGroups/{group['id']}/relationships/builds"
+        if not any(item['id'] == build_id for item in api.collection(path, {'limit': 200})):
+            api.request('POST', path, body={'data': [{'type': 'builds', 'id': build_id}]})
+        if not any(item['id'] == build_id for item in api.collection(path, {'limit': 200})):
+            raise RuntimeError('External group build assignment was not saved.')
+    if needs_review:
+        api.request('POST', review_path, body={'data': {
+            'type': 'betaAppReviewSubmissions', 'relationships': {
+                'build': {'data': {'type': 'builds', 'id': build_id}}}}})
+        reviews = api.collection(review_path, {'filter[build]': build_id, 'limit': 200})
+        if len(reviews) != 1:
+            raise RuntimeError('External beta review submission could not be verified.')
+        review_state = reviews[0]['attributes']['betaReviewState']
+        if review_state not in ('WAITING_FOR_REVIEW', 'IN_REVIEW', 'APPROVED'):
+            raise RuntimeError('External beta review requires attention: ' + str(review_state))
+    # An already-approved build may still need the Start Testing operation.
+    saved = api.request('GET', detail_path)['data']['attributes']
+    if saved['externalBuildState'] == 'READY_FOR_BETA_TESTING':
+        api.request('POST', '/v1/buildBetaNotifications', body={'data': {
+            'type': 'buildBetaNotifications', 'relationships': {
+                'build': {'data': {'type': 'builds', 'id': build_id}}}}})
+        saved = api.request('GET', detail_path)['data']['attributes']
+    if not saved.get('autoNotifyEnabled'):
+        raise RuntimeError('Automatic tester notification could not be verified.')
+    if review_state not in ('WAITING_FOR_REVIEW', 'IN_REVIEW') and saved['externalBuildState'] != 'IN_BETA_TESTING':
+        raise RuntimeError('External distribution is still pending; retry after Apple updates the build state.')
+    print(f'Exact build assigned to all {len(groups)} external group(s).')
+    print('External beta review:', review_state or 'Not required')
+    print('External TestFlight state:', saved['externalBuildState'])
+    if review_state in ('WAITING_FOR_REVIEW', 'IN_REVIEW'):
+        print('Submitted for review; external tester availability awaits Apple approval.')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config', type=Path, default=Path.home()/'.local/share/plank/private-notes/tablet-setup-asc.json')
@@ -231,11 +302,12 @@ def main():
                                       for x in detail.get('included', [])]}, indent=2))
     else:
         update_metadata(api, config, app_id, build, notes, args.locale)
+        submit_external(api, app_id, build['id'])
 
 
 if __name__ == '__main__':
     try:
         main()
     except (ValueError, KeyError, OSError, RuntimeError) as error:
-        print('TestFlight metadata incomplete: ' + str(error), file=sys.stderr)
+        print('TestFlight delivery incomplete: ' + str(error), file=sys.stderr)
         sys.exit(1)

@@ -1,0 +1,7 @@
+PLANK AVP Relay is a hardware setup and diagnostic utility for Apple Vision Pro running visionOS 27. It requires a separate Linux relay host. Tablet readings require a Wacom tablet connected to that host by USB or Bluetooth. There is no cloud login, paid account or demo-account password.
+
+Relay installers and setup documentation are available at https://github.com/instinctual/plank-avp-relay/releases and https://github.com/instinctual/plank-avp-relay/blob/main/docs/linux-ble-package.md. Use the relay package matching the app's software version. Ubuntu Server 26.04 amd64 and Debian 13 / Armbian arm64 packages are provided.
+
+Allow Bluetooth and Local Network access when prompted. On the Relay tab, select the relay discovered on the same local network or nearby over Bluetooth. Test Relay Connection checks the link without requiring a tablet. For tablet testing, connect a Wacom tablet to the relay, complete tablet setup and headset authorization, then choose Test Tablet. The test displays pen position and pressure. The Network tab manages relay Wi-Fi and supported USB Ethernet functions after authorization.
+
+The app does not provide simulated tablet readings. Without relay hardware it displays discovery and connection status. A previously owned relay may require its owner to reset headset authorization before a replacement app installation can enroll; this retains its tablet Bluetooth bonds.

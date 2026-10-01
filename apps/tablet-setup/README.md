@@ -365,6 +365,11 @@ still need valid Apple signing/provisioning; they bypass TestFlight processing.
 Publish a GitHub release of the Linux installers only when also delivering the
 matching TestFlight release. Routine CI or development builds do not authorize
 a GitHub release. Linux packages exclude separate dbgsym downloads.
+Every approved TestFlight delivery includes the app's existing external testing
+groups, beta review submission when required, and automatic notification after
+approval. Internal testing alone does not complete a release. This is the
+operator's standing instruction; no separate external-distribution approval is
+needed for subsequent approved releases.
 
 TestFlight is used for operator-approved versions. Ordinary build commands
 above produce unsigned SDK bundles; the separate archive/export commands below
@@ -412,6 +417,11 @@ Complete these gates before promising an invitation:
    infer an exemption from an answer about standard encryption. Verify the
    exact app, version and build before updating it, and report any incomplete
    metadata separately from successful binary upload.
+6. Assign the exact build to every existing external group for this app. Ensure
+   the beta app description, feedback email and Apple review contact are saved,
+   submit for beta review when required, and enable automatic notification.
+   Report a pending Apple review as pending; verify external availability
+   before claiming that external testers can install it.
 
 Prepare tester notes alongside each build's source revision. Keep them focused
 on changed behavior, testing steps and known limits. The notes for
@@ -452,9 +462,16 @@ classification already entered on a build.
 For each future upload, prepare the new notes file and run the helper with that
 exact version/build once Xcode finishes uploading. It waits up to ten minutes
 for processing, updates notes idempotently, and reads back notes and compliance
-before reporting success. Retry later if Apple is still processing. This step
-does not invite testers, change groups or submit a public release. Offline
-verification is `python3 tests/testflight_metadata_test.py`.
+before assigning the build to all existing external groups. It verifies review
+metadata, submits for beta review when required, and enables automatic tester
+notification. Repeated runs preserve group members/public links and reuse an
+existing review submission. A missing group or review contact is an incomplete
+delivery, not an internal-only success. Keep review contacts and any required
+demo credentials in App Store Connect or private files. `--inspect` remains
+read-only. This workflow does not submit an App Store public release. Retry
+later if Apple is still processing; pending beta review is reported separately
+from external availability. Offline verification is
+`python3 tests/testflight_metadata_test.py`.
 
 ```sh
 # Team is provided privately; choose a new number for each uploaded build.

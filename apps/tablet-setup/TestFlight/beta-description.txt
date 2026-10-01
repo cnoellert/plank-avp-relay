@@ -1,0 +1,5 @@
+Set up and test a PLANK AVP Relay from Apple Vision Pro. Discover a nearby relay over Bluetooth or your local network, connect a USB or Bluetooth Wacom tablet, authorize your headset, and test pen position, pressure, tilt and tablet controls.
+
+Manage the relay's Wi-Fi connection and, on supported relay hardware, choose Bridge or Router mode for USB Ethernet. Connection diagnostics help test the headset-to-relay link.
+
+Requires visionOS 27 and a separate Linux host running the matching PLANK AVP Relay package. Tablet testing also requires a supported Wacom tablet connected to that host. This app configures and tests the relay; it is not a standalone drawing application. No cloud account or subscription is required.
