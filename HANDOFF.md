@@ -11,6 +11,18 @@ including the new requirement for exactly one installer per architecture.
 The published 0.6.6 installers retain their original release provenance;
 release notes and checksums now omit the removed debug-symbol downloads.
 
+### Release 0.6.7 / build 39 preparation — October 1, 2026
+
+After approving the new bundle identity and creating its App Store Connect
+record, the operator requested proceeding with delivery. Prepare matching app
+and relay version 0.6.7, Apple build 39, with the approved capture-ownership and
+authenticated-route changes. TestFlight must target `la.instinctual.PLANK.AVPrelay`
+and app record `6818323499`. Publish the regular amd64/arm64 installers alongside
+TestFlight; no dbgsym. Tester notes are `apps/tablet-setup/TestFlight/0.6.7-39.txt`.
+This is a new app install requiring fresh headset authorization. Build, signing,
+processing, metadata and package validation are in progress; no release or live
+deployment is claimed by this preparation entry.
+
 ### AVP app bundle identity — October 1, 2026
 
 The operator approved the exact bundle ID `la.instinctual.PLANK.AVPrelay`.

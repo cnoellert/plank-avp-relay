@@ -1,0 +1,11 @@
+PLANK AVP Relay 0.6.7
+
+This is the first build under the new PLANK AVP Relay app identity. It installs separately from the earlier app and requires fresh relay authorization. Before first setup, reset headset ownership on the relay through SSH; existing tablet Bluetooth bonds can remain.
+
+What to test:
+- Set up the new app and confirm pen position and pressure in Test Tablet.
+- Check Automatic and Bluetooth Only connections. Network address failures should still allow Bluetooth fallback, and an interrupted tablet test should first retry the connection that was working.
+- The app learns Ethernet and Wi-Fi addresses from existing authenticated status requests. Starting Test Tablet does not add a discovery connection.
+- If the PLANK drawing service owns the tablet, Setup should report it as busy while network management remains usable. After drawing stops, check tablet status and start testing again.
+
+Use relay package 0.6.7 for the new capture-ownership and address-discovery features. Physical radio timing and handover still need live testing.

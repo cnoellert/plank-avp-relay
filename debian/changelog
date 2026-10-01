@@ -1,3 +1,11 @@
+plank-avp-relay (0.6.7) experimental; urgency=medium
+
+  * Coordinate tablet capture with the PLANK drawing service.
+  * Supply authenticated TCP address hints within the service sandbox.
+  * Match the app's bounded Bluetooth fallback and new bundle identity.
+
+ -- PLANK contributors <625982+alatteri@users.noreply.github.com>  Thu, 01 Oct 2026 22:00:24 -0000
+
 plank-avp-relay (0.6.6) experimental; urgency=medium
 
   * Prefer 15 ms LE links for wireless tablet streaming, reapplied at startup.
