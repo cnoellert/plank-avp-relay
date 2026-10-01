@@ -2,6 +2,56 @@
 
 ## Active work — Bluetooth streaming and direct headset installs
 
+### 15 ms Bluetooth preference — September 30, 17:21 PDT
+
+Checkpoint committed and pushed first as `586cbab` on `bluetooth-l2cap`, as
+requested. Subsequent wireless testing left app 0.6.5/build 36 unchanged.
+Two baseline drawing runs at 30 ms hit the half-second pending-input guard at
+17:03:47 and 17:04:48; the relay process did not crash. Delivery was roughly
+114–132 input records/s with controller completions around 120 ms.
+
+The selected controller's default LE interval was then set to 15 ms, latency
+zero, supervision 720 ms. AVP accepted the request and HCI confirmed 15 ms.
+The operator reports three smooth tablet runs (17:07:28–17:08:20,
+17:08:45–17:09:11, 17:16:15–17:16:50), including Tablet → Relay → Tablet.
+Drawing sustained about 200 input records/s; controller completions were
+typically 25–35 ms. These timings are not pen-to-display latency measurements.
+Read-only 5 Hz socket-memory measurements show no sustained send backlog.
+
+The brief return to original defaults at 17:10:13 did not produce a drawing
+comparison: the next physical link timed out, followed by establishment
+failures (`0x3e`) before any tablet observer started. The operator saw
+“Bluetooth interrupted.” Restoring 15 ms at 17:15 led to the third smooth run;
+do not claim this proves the separate startup failure is fixed. Earlier good
+30 ms runs also exist. The improvement is promising, not long-term acceptance.
+
+The relay now applies and verifies this preference before advertising, using
+the existing bounded MGMT interface. It reapplies at service startup and
+adapter re-registration. These are defaults for new LE links on the selected
+adapter; the central still chooses actual timing. BR/EDR tablet capture,
+sample ordering, buffering, authentication, TCP and Apple code are unchanged.
+Missing/rejected/mismatched settings fail Bluetooth registration through its
+existing retry path while TCP remains available. All 31 Linux CTest suites
+pass, including new configuration/readback and registration checks.
+
+Development deployment: updated `controller.py` and `bluez.py` installed on
+relay02 with original files saved privately; hashes match this source. Service
+restarted deliberately at 17:20:29, PID 10994, active/advertising, Wacom attached,
+15 ms preference read back. This verifies service restart, not a full reboot
+or a post-deployment drawing test. App and relay version remain 0.6.5; no new
+deb, app build or TestFlight upload. Existing package rules include these files
+on the next build. Do not reinstall the older deb and expect this update.
+
+Evidence and lab scripts: private `captures/20260930-queue-1702`. Original
+kernel defaults were interval 24–40 (30–50 ms), latency 0, supervision 42
+(420 ms); actual baseline AVP links used 30 ms/720 ms. Trial and final defaults
+are 12/12/0/72. The rollback timer is stopped; temporary capture/sampler units
+are stopped. The first `/proc/net/l2cap` sampler missed accepted sockets and
+must not be cited as queue evidence; the corrected pidfd/TIOCOUTQ sampler
+reports allocated socket memory including SKB overhead, not queued payload
+bytes. New AVP sysdiagnose collection failed on mac34; this session's packet
+measurements come from the relay, not a fresh paired AVP archive.
+
 ### Build 36: variable wireless latency measured — September 30
 
 Operator reports reliable connections, slow `Bluetooth · L2CAP`, fast network,

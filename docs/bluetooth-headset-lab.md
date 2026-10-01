@@ -1,5 +1,40 @@
 # Bluetooth headset input lab
 
+## Low-latency LE connection preference
+
+The relay configures its selected adapter for a preferred 15 ms LE interval,
+zero peripheral latency and 720 ms supervision before advertising. It uses
+Linux's bounded MGMT Read/Set Default System Configuration interface, checks
+the returned settings, and reapplies them at service startup and adapter
+re-registration. The package includes this code; no per-host startup command
+is needed. Unrelated controller settings are preserved. This affects new LE
+links on that adapter, not the wireless tablet's BR/EDR connection.
+
+Linux requests an interval update when a new peripheral link arrives outside
+the preferred range. The headset decides whether to accept: the startup log
+reports configured preferences, not measured negotiated timing. The interface
+requires kernel 5.8 or newer, within the supported Ubuntu/Armbian targets.
+An unavailable or rejected preference prevents Bluetooth registration through
+the existing retry path; it does not stop the TCP listener.
+
+September 30 tests on relay02 confirmed the AVP accepted 15 ms and the operator
+reported three smooth wireless drawing runs, including Tablet → Relay → Tablet.
+Sustained output was about 200 input records/s, with typical controller
+completion timing around 25–35 ms and no sustained measured socket backlog.
+Two preceding 30 ms runs delivered about 114–132 records/s and hit the relay's
+pending-input guard. The return-to-30 ms comparison failed during connection
+setup before drawing, so it cannot establish a controlled throughput reversal.
+Some earlier 30 ms runs were also smooth. Startup reliability and longer runs
+still need acceptance. Controller completion is not pen-to-display latency.
+
+This change preserves all input reports, their format and ordering. It adds
+no application pacing, acknowledgement, frame dropping or buffering layer.
+The TCP and app rendering paths are unchanged.
+
+References: [BlueZ MGMT system configuration](https://github.com/bluez/bluez/blob/5.82/doc/mgmt-api.txt)
+and Linux's `l2cap_le_conn_ready` in
+[L2CAP core](https://github.com/torvalds/linux/blob/v6.18/net/bluetooth/l2cap_core.c).
+
 ## 0.6.5 development build 36 — direct byte diagnostic
 
 IMG_0068 and the September 30 16:21 captures expose build 35's remaining

@@ -14,7 +14,7 @@ from .core import RelayCore
 from .network import TCPServer
 from .l2cap import L2CAPServer
 from .discovery import Publisher
-from .controller import clear_advertisements, disable_address_resolution
+from .controller import clear_advertisements, configure_le_connection_parameters, disable_address_resolution
 from .notify import ready
 from .native import ProtocolError
 from .transport import EchoChannel, Indications, SetupChannel, write_peer
@@ -385,6 +385,9 @@ class Server(dbus.service.Object):
         if self.controller_workaround:
             disable_address_resolution(self.adapter.rsplit('/', 1)[1])
             print('Controller address-resolution workaround applied.', flush=True)
+
+        configure_le_connection_parameters(self.adapter.rsplit('/', 1)[1])
+        print('Bluetooth LE connection preference configured: 15 ms, latency 0, supervision 720 ms.', flush=True)
 
         if self.core and self.l2cap is None:
             self.l2cap = L2CAPServer(self.core,
