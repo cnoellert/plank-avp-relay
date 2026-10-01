@@ -14,7 +14,7 @@ release notes and checksums now omit the removed debug-symbol downloads.
 ### Capture ownership integration — October 1, 2026
 
 The operator requested the capture-ownership portion of cnoellert's PR #1.
-Branch `capture-ownership` starts from released main and cherry-picks the
+Integration branch `capture-ownership` starts from released main and cherry-picks the
 ownership, busy-state UI, documentation, cleanup and test-isolation commits
 (`4d9d03a`, `d119ffd`, `1d16b31`, `d41a925`, `38032e4`) with attribution.
 The PR's generalized route hints and extra startup preflight are excluded.
@@ -33,9 +33,23 @@ TCP/L2CAP management while drawing owns input, observer ownership/release, and
 a competing capture acquired between status and observation. Synthetic tests
 use isolated ownership names; the report-only fixture uses a mock lease.
 The network fixture also supports this workstation's Python 3.9 without a
-runtime compatibility shim. Local Linux checks pass; Apple compilation/model
-checks and native package validation are pending. No live host or headset
-deployment has occurred for this integration.
+runtime compatibility shim. Implementation `d59bb547686432d0ebaf2719a0a18da50a1550e4`
+passes all 32 Linux CTest suites (including 31 TCP/L2CAP cases and eight lease
+cases). All 21 Apple suites and macOS/visionOS simulator/device builds pass on
+mac12. Workflow run
+[36923376807](https://github.com/instinctual/plank-avp-relay/actions/runs/36923376807)
+passes both native package builds and both clean-install jobs, with one regular
+installer per architecture and no dbgsym. The unchanged report-order tests still
+deliver the complete paced 200-report/s source over TCP and simulated L2CAP;
+these are software checks, not physical radio or pen-to-display measurements.
+
+Validation evidence and the exact source snapshot are under ignored
+`artifacts/validation/capture-ownership/d59bb54/`. The one-time Apple validation
+job is unloaded. This selective integration is ready for `main`; the original
+PR's route changes remain separate. No live host/headset deployment or new
+TestFlight/GitHub release occurred. Physical handoff with the matching drawing
+service still needs qualification. The installed release remains 0.6.6/build 38;
+the next distributable change must advance the shared software version.
 
 ### Released 0.6.6 / TestFlight build 38 — September 30, 2026
 
