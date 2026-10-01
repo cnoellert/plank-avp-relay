@@ -2,6 +2,10 @@
 
 ## Active work — Bluetooth streaming and direct headset installs
 
+Release policy: publish a GitHub release only alongside a matching TestFlight
+release. Normal Linux builds must not generate or publish dbgsym packages.
+The operator explicitly requested both rules after the 0.6.6 release.
+
 ### Released 0.6.6 / TestFlight build 38 — September 30, 2026
 
 The operator accepted build 37's latest test and explicitly requested commit,
@@ -26,8 +30,10 @@ Both pre-merge run `36798346483` and the
 [main package run](https://github.com/instinctual/plank-avp-relay/actions/runs/36798836743)
 passed all four native build/install jobs: Ubuntu 26.04 amd64 and Debian 13
 arm64, 31 Linux suites each, package validation and clean install/upgrade/removal.
-The GitHub release contains both installers, optional debug symbols, SHA-256
-checksums and source provenance. All eight published assets match local hashes
+The GitHub release contains both installers, SHA-256 checksums and source
+provenance. Debug-symbol downloads were removed at the operator's request;
+normal package builds now disable their generation and require exactly one
+installer. All six published assets match local hashes
 and sizes. Canonical package files remain only under
 `artifacts/deb/0.6.6/{ubuntu-26.04/amd64,debian-13/arm64}/`.
 

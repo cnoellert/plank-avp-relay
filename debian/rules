@@ -10,6 +10,9 @@ override_dh_python3:
 	# The sibling .so is a ctypes library, not a CPython ABI extension.
 	dh_python3 --no-shebang-rewrite /usr/lib/plank-avp-relay/avp_relay
 
+override_dh_strip:
+	dh_strip --no-automatic-dbgsym
+
 override_dh_auto_configure:
 	echo 'adbdd8f16149e81ac6078a03aca6fc03b592b89ef7b5ed83841c086191be3349  debian/vendor/libsodium-1.0.22.tar.gz' | sha256sum -c -
 	mkdir -p debian/sodium-source debian/sodium-build

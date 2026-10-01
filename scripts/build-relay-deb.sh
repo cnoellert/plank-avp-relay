@@ -49,13 +49,18 @@ cp "$archive" "$stage/source/debian/vendor/"
     cd "$stage/source"
     dpkg-buildpackage --build=binary --no-sign --jobs-force="$jobs"
 )
+shopt -s nullglob
+packages=("$stage/"*.deb "$stage/"*.ddeb)
+if [[ ${#packages[@]} != 1 || ${packages[0]:-} != "$stage/plank-avp-relay_${package_version}_${architecture}.deb" ]]; then
+    echo 'Expected exactly one relay installer and no debug-symbol packages.' >&2
+    exit 1
+fi
 mkdir "$stage/install-test"
-dpkg-deb --extract "$stage/"plank-avp-relay_*.deb "$stage/install-test"
+dpkg-deb --extract "${packages[0]}" "$stage/install-test"
 python3 "$stage/source/tests/installed_relay_smoke.py" "$stage/install-test"
 destination="$relay_root/artifacts/deb/$package_version/$build_platform"
 mkdir -p "$destination"
-shopt -s nullglob
-cp "$stage/"*.{deb,ddeb,buildinfo,changes} "$destination/"
+cp "${packages[0]}" "$stage/"*.{buildinfo,changes} "$destination/"
 printf '%s\n' "$source_commit" > "$destination/source-commit.txt"
 python3 - "$destination" "$source_commit" "$architecture" "$package_version" <<'PY'
 import json
@@ -76,7 +81,7 @@ metadata = {
 }
 Path(destination, "provenance.json").write_text(json.dumps(metadata, indent=2) + "\n")
 PY
-(cd "$destination" && sha256sum *.{deb,ddeb,buildinfo,changes} source-commit.txt provenance.json > SHA256SUMS)
+(cd "$destination" && sha256sum *.{deb,buildinfo,changes} source-commit.txt provenance.json > SHA256SUMS)
 installer="plank-avp-relay_${package_version}_${architecture}.deb"
 printf 'Installer: %s\nPackage artifacts: %s\nBuild source: %s\n' \
     "$destination/$installer" "$destination" "$stage/source"

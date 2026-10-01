@@ -21,10 +21,13 @@ The Ubuntu 26.04 amd64 and Debian 13 arm64 `plank-avp-relay` packages install de
 configure startup, and migrate saved state from the previous package name.
 Installers are named `plank-avp-relay_<version>_<architecture>.deb` and live in
 `artifacts/deb/<version>/<distribution>-<version>/<architecture>/`, alongside
-`SHA256SUMS`, optional debug symbols and build provenance.
+`SHA256SUMS` and build provenance. Package builds produce one installer per
+architecture; separate debug-symbol packages are disabled.
 Package versions use the shared release number without a branch suffix.
-Download the installers and optional debugging symbols from
+Download the installers from
 [Releases](https://github.com/instinctual/plank-avp-relay/releases/latest).
+Publish a GitHub release only when delivering the matching TestFlight release.
+Routine package builds remain CI artifacts until that joint release.
 Native build and clean-install logs remain in the
 [Linux relay packages workflow](https://github.com/instinctual/plank-avp-relay/actions/workflows/relay-deb.yml).
 Generated installers, symbols and build logs are release/CI artifacts rather than Git files.

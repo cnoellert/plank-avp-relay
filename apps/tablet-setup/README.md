@@ -337,6 +337,10 @@ still need valid Apple signing/provisioning; they bypass TestFlight processing.
 
 ## TestFlight delivery
 
+Publish a GitHub release of the Linux installers only when also delivering the
+matching TestFlight release. Routine CI or development builds do not authorize
+a GitHub release. Linux packages exclude separate dbgsym downloads.
+
 TestFlight is used for operator-approved versions. Ordinary build commands
 above produce unsigned SDK bundles; the separate archive/export commands below
 produce signed distribution packages. Neither is automatically available in
