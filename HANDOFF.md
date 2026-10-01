@@ -35,13 +35,15 @@ device builds pass the updated bundle validation on mac12. No Linux changes
 were needed. Source version remains 0.6.6; build 1 is only unsigned validation.
 Advance the matching app/relay software version before the next distribution.
 
-Remaining external setup: create a new visionOS app record on the App Store
-Connect website for `la.instinctual.PLANK.AVPrelay`. Apple's public Apps API
-manages existing apps and cannot create that record. Suggested name is
-PLANK AVP Relay (the earlier record uses PLANK AVP Relay Setup), SKU
-`plank-avp-relay`, primary language English (U.S.). Matching signing profiles
-must be generated during the next signed archive/export. No new App Store
-Connect record, signed delivery, TestFlight upload or GitHub release is claimed.
+The operator created the new App Store Connect record, verified by API
+readback: PLANK AVP Relay, app ID `6818323499`, bundle ID
+`la.instinctual.PLANK.AVPrelay`, SKU `plank-avp-relay`, primary language en-US.
+The VISION_OS platform exists in PREPARE_FOR_SUBMISSION with Apple's initial
+draft version 1.0; that placeholder does not change this repository's shared
+software version. The private automation configuration matches the new record.
+Matching signing profiles must be generated during the next signed archive/
+export. No signed delivery, TestFlight upload or GitHub release has occurred
+for the new app identity.
 
 ### Route discovery integration — October 1, 2026
 
