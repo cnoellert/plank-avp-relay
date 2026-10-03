@@ -21,6 +21,7 @@ import pwd
 import socket
 import stat
 import struct
+import time
 
 from .network_routes import local_addresses, usable_addresses
 
@@ -659,9 +660,17 @@ class DrawingStatusClient:
             return None, reason
         option = getattr(socket, 'SO_PEERCRED', 17)
         layout = '3i'
+        deadline = time.monotonic() + CLIENT_BUDGET
+
+        def remaining():
+            budget = deadline - time.monotonic()
+            if budget <= 0:
+                raise socket.timeout('Drawing status deadline expired.')
+            return budget
+
         try:
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
-                client.settimeout(CLIENT_BUDGET)
+                client.settimeout(remaining())
                 client.connect('\0' + self.name)
                 # Before reading or trusting a single byte, and against the
                 # resolved account uid and nothing else.
@@ -669,10 +678,15 @@ class DrawingStatusClient:
                     socket.SOL_SOCKET, option, struct.calcsize(layout)))[1]
                 if peer != uid:
                     return None, 'service.peerUnverified'
+                client.settimeout(remaining())
                 client.sendall(REQUEST)
                 reply = bytearray()
                 while not reply.endswith(b'\n'):
+                    client.settimeout(remaining())
                     data = client.recv(RESPONSE_MAX + 1 - len(reply))
+                    # Do not accept a final fragment that arrived after the
+                    # exchange deadline, even if the socket returned it.
+                    remaining()
                     if not data or len(reply) + len(data) > RESPONSE_MAX:
                         return None, 'service.invalid'
                     reply.extend(data)
@@ -702,6 +716,16 @@ def read_handoff(reader=None, inventory=None, families=None):
         return unavailable('service.invalid')
     if reason:
         return unavailable(reason)
+    try:
+        return _validated_handoff(raw, inventory, families)
+    except Exception:
+        # Optional local metadata must not break the authenticated management
+        # connection. This includes JSON recursion and escaped lone surrogates
+        # that decode but cannot be encoded by a later validation step.
+        return unavailable('service.invalid')
+
+
+def _validated_handoff(raw, inventory, families):
     listener, declared, failure = validate_local_metadata(raw)
     if failure:
         return unavailable('service.invalid')

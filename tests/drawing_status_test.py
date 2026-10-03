@@ -485,6 +485,80 @@ class LocalClient(unittest.TestCase):
             raise RuntimeError('unexpected')
         self.assertEqual(drawing_status.read_handoff(worse)['reason'], 'service.invalid')
 
+    def test_malformed_unicode_and_deep_json_leave_normal_status_available(self):
+        replies = (
+            b'{"version":1,"ok":true,"supported":true,"state":"unavailable",'
+            b'"reason":"\\ud800"}',
+            b'{"nested":' + b'[' * 1100 + b'0' + b']' * 1100 + b'}',
+            b'\xff\n',
+        )
+        for raw in replies:
+            self.assertLessEqual(len(raw), drawing_status.RESPONSE_MAX)
+            core = AuthenticatedStatusPlumbing().core(None)
+            core.read_drawing_handoff = lambda r=raw: drawing_status.read_handoff(
+                lambda: (r, None), ['192.0.2.10'])
+            for _ in range(2):
+                status = AuthenticatedStatusPlumbing().request(core)
+                self.assertTrue(status['ok'])
+                self.assertEqual(status['drawingHandoff'],
+                                 drawing_status.unavailable('service.invalid'))
+                self.assertEqual(status['tcpPort'], 28991)
+
+    def test_one_deadline_covers_connect_send_and_fragmented_reads(self):
+        self.check_deadline([0.40, 0.40], 'service.busy', 0.75)
+
+    def test_fragmented_reply_within_the_total_budget_succeeds(self):
+        self.check_deadline([0.10, 0.10], None, 0.55)
+
+    def test_a_reply_delivered_after_the_deadline_is_not_accepted(self):
+        self.check_deadline([0.10, 0.40], 'service.busy', 0.85,
+                            honor_timeout=False)
+
+    def check_deadline(self, reads, reason, elapsed, honor_timeout=True):
+        # No wall-clock sleeps: each operation advances a monotonic clock,
+        # obeying the timeout exactly as a socket would. The first read may
+        # finish before 750 ms while the next exceeds the remaining budget.
+        now = [0.0]
+        timeouts = []
+        closed = []
+
+        class Probe:
+            def __enter__(inner): return inner
+            def __exit__(inner, *_): closed.append(True); return False
+            def settimeout(inner, value):
+                inner.timeout = value
+                timeouts.append(value)
+
+            def wait(inner, duration):
+                if honor_timeout and duration > inner.timeout:
+                    now[0] += inner.timeout
+                    raise socket.timeout()
+                now[0] += duration
+
+            def connect(inner, address): inner.wait(0.25)
+            def getsockopt(inner, level, option, size):
+                import struct
+                return struct.pack('3i', 1, 998, 998)
+            def sendall(inner, data): inner.wait(0.10)
+            def recv(inner, size):
+                inner.wait(reads.pop(0))
+                return b'{}\n' if not reads else b' '
+
+        client = drawing_status.DrawingStatusClient()
+        with patch.object(client, 'resolve', return_value=(998, None)), \
+                patch.object(drawing_status.socket, 'socket', return_value=Probe()), \
+                patch('avp_relay.drawing_status.time.monotonic',
+                      side_effect=lambda: now[0]):
+            raw, result = client.read()
+        self.assertEqual(result, reason)
+        self.assertEqual(raw, b' {}\n' if reason is None else None)
+        self.assertAlmostEqual(now[0], elapsed)
+        self.assertTrue(closed)
+        self.assertTrue(all(0 < timeout <= 0.75 for timeout in timeouts))
+        self.assertAlmostEqual(timeouts[0], 0.75)
+        self.assertAlmostEqual(timeouts[1], 0.50)
+        self.assertAlmostEqual(timeouts[2], 0.40)
+
     def test_the_peer_check_runs_before_a_single_byte_is_read(self):
         order = []
 
@@ -509,7 +583,8 @@ class LocalClient(unittest.TestCase):
             with patch('avp_relay.drawing_status.socket.socket', return_value=Probe()):
                 self.assertEqual(client.read(), (None, 'service.peerUnverified'))
         self.assertEqual([step[0] for step in order], ['timeout', 'connect', 'peercred'])
-        self.assertEqual(order[0][1], 0.75)
+        self.assertGreater(order[0][1], 0)
+        self.assertLessEqual(order[0][1], 0.75)
         self.assertEqual(order[1][1], '\0plank-tablet-drawing-status-v1')
 
     def test_a_matching_peer_is_read_once_with_the_bounded_request(self):
@@ -596,7 +671,7 @@ class CaptureLeaseUnchanged(unittest.TestCase):
             elif isinstance(node, ast.ImportFrom):
                 imported.add(node.module)
         self.assertEqual(imported, {'json', 'os', 'pwd', 'socket', 'stat',
-                                    'struct', 'network_routes'})
+                                'struct', 'time', 'network_routes'})
 
     def test_reading_the_handoff_leaves_a_held_lease_alone(self):
         from avp_relay.capture_lease import CaptureLease
