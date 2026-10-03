@@ -10,6 +10,8 @@ import selectors
 import struct
 import time
 
+from .capture_lease import CaptureBusy, CaptureLease
+
 EVENT = struct.Struct('@llHHi')
 SAMPLE = struct.Struct('<BBHIQ12iIIIHH')
 assert SAMPLE.size == 80
@@ -85,7 +87,7 @@ def usb_details(identity, nodes, root=Path('/sys/class/input')):
 
 
 class Capture:
-    def __init__(self, selected=None, on_button=lambda code, value: None, fixed=False):
+    def __init__(self, selected=None, on_button=lambda code, value: None, fixed=False, lease=None):
         self.selected = selected.lower() if selected else None
         self.fixed = fixed
         self.usb_selection = None
@@ -106,10 +108,33 @@ class Capture:
         self.frames = {}
         self.pending = deque()
         self.observing = False
+        self.lease = lease if lease is not None else CaptureLease()
+        self.detected_identity = None
+        self._last_active = False
 
     @property
     def attached(self):
         return bool(self.nodes)
+
+    @property
+    def available(self):
+        return self.detected_identity is not None
+
+    @property
+    def capture_busy(self):
+        return self.lease.busy()
+
+    def require_lease(self):
+        if not self.lease.acquire():
+            raise CaptureBusy('Tablet input is in use by PLANK. Stop that session and retry.')
+
+    def deactivate(self):
+        try:
+            if self.nodes:
+                self.close_nodes()
+        finally:
+            self._last_active = False
+            self.lease.release()
 
     def close_nodes(self):
         for fd in self.nodes:
@@ -140,13 +165,23 @@ class Capture:
                     if key[0].lower() in (self.selected, 'bluetooth:' + self.selected)}
         return {key: nodes for key, nodes in found.items() if key[2] != 3 or not self.fixed}
 
-    def discover(self):
+    def discover(self, active=False):
+        if not active and self.nodes:
+            self.close_nodes()
+        if active and not self._last_active:
+            # A recent passive scan must not delay the first requested capture.
+            self.last_scan = 0
+        self._last_active = active
         if time.monotonic() - self.last_scan < 0.5:
             return
         self.last_scan = time.monotonic()
         found = candidates()
         self.usb_tablets = [usb_details(key, nodes) for key, nodes in found.items() if key[2] == 3][:8]
         found = self.choose(found)
+        self.detected_identity = next(iter(found)) if len(found) == 1 else None
+        if not active:
+            self.ambiguous = len(found) > 1
+            return
         if self.nodes and self.identity in found and len(found) == 1:
             return
         if self.nodes:
@@ -162,6 +197,13 @@ class Capture:
         if not found:
             return
         identity, nodes = next(iter(found.items()))
+        try:
+            self.require_lease()
+        except CaptureBusy:
+            # A later explicit operation may run as soon as PLANK releases.
+            self._last_active = False
+            self.last_scan = 0
+            raise
         try:
             for name, kind, pad in nodes:
                 fd = os.open('/dev/input/' + name, os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC)
@@ -200,7 +242,10 @@ class Capture:
         print(('USB' if identity[2] == 3 else 'Bluetooth') + ' tablet input attached; pen input available.', flush=True)
 
     def usb_status(self):
-        active = usb_identifier(self.identity) if self.attached and self.identity[2] == 3 else None
+        # "active" is the physical USB selection used by Setup; live sample
+        # attachment remains based on open evdev nodes in sample().
+        identity = self.identity if self.attached else self.detected_identity
+        active = usb_identifier(identity) if identity is not None and identity[2] == 3 else None
         return [dict(tablet, active=tablet['id'] == active) for tablet in self.usb_tablets]
 
     def use_usb(self, target):
@@ -208,14 +253,19 @@ class Capture:
         self.discover()
         if self.fixed or not any(tablet['id'] == target for tablet in self.usb_tablets):
             raise ValueError('Select a connected USB tablet from this relay’s list.')
+        previous = self.usb_selection
         self.usb_selection = target
-        self.last_scan = 0
-        self.discover()
-        if not any(tablet['id'] == target and tablet['active'] for tablet in self.usb_status()):
-            raise ValueError('The USB tablet is no longer ready. Check its cable and retry.')
+        try:
+            self.last_scan = 0
+            self.discover(active=True)
+            if not self.attached or self.identity is None or usb_identifier(self.identity) != target:
+                raise ValueError('The USB tablet is no longer ready. Check its cable and retry.')
+        except (OSError, ValueError):
+            self.usb_selection = previous
+            raise
 
-    def poll(self):
-        self.discover()
+    def poll(self, active=False):
+        self.discover(active=active)
         for key, _ in self.selector.select(0):
             try:
                 data = os.read(key.fd, EVENT.size * 256)
@@ -309,5 +359,5 @@ class Capture:
             self.generation, self.reports, self.dropped, sum(self.contacts.values()), 0)
 
     def close(self):
-        self.close_nodes()
+        self.deactivate()
         self.selector.close()

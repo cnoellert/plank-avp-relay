@@ -18,6 +18,8 @@ public struct USBTablet: Decodable, Identifiable, Equatable, Sendable {
 }
 
 public struct TabletSetupStatus: Decodable, Equatable, Sendable {
+    public static let captureBusyGuidance = "Tablet input is in use by PLANK. Stop that session and retry."
+
     public let version: Int
     public let id: Int
     public let ok: Bool
@@ -27,6 +29,10 @@ public struct TabletSetupStatus: Decodable, Equatable, Sendable {
     public let canManage: Bool
     public let initialSetup: Bool
     public let attached: Bool
+    // Newer relays report capture separately from physical tablet presence.
+    // Keep these optional so an older relay's status remains decodable.
+    public let captureActive: Bool?
+    public let captureBusy: Bool?
     public let selected: String?
     public let secondsRemaining: Int
     public let tablets: [ManagedTablet]
@@ -36,6 +42,21 @@ public struct TabletSetupStatus: Decodable, Equatable, Sendable {
     public let enrollmentVersion: Int?
     public let headsetAuthorized: Bool?
     public let relayKey: String?
+    public let tcpPort: UInt16?
+    public let networkAddresses: [String]?
+    // The optional drawing handoff subtree is validated strictly, from the
+    // original response bytes, so it is not one of this tolerant envelope's
+    // decoded members. See DrawingHandoff (contract §4, §7.3, §7.8).
+    public private(set) var drawingHandoff: DrawingHandoffOutcome = .handoffUnsupported("authorization.required")
+
+    // Explicit keys keep the tolerant envelope exactly as it was while leaving
+    // drawingHandoff out of it: a member absent from CodingKeys is not decoded.
+    private enum CodingKeys: String, CodingKey {
+        case version, id, ok, hostname, phase, message, canManage, initialSetup, attached
+        case captureActive, captureBusy, selected, secondsRemaining, tablets, candidates
+        case usbTablets, bluetoothAvailable, enrollmentVersion, headsetAuthorized, relayKey
+        case tcpPort, networkAddresses
+    }
 
     public static func decode(_ data: Data, request: Int) throws -> Self {
         struct Envelope: Decodable { let version: Int; let id: Int; let ok: Bool; let error: String? }
@@ -43,7 +64,11 @@ public struct TabletSetupStatus: Decodable, Equatable, Sendable {
         let envelope = try JSONDecoder().decode(Envelope.self, from: data)
         guard envelope.version == 1, envelope.id == request else { throw RelaySetupError.protocolError }
         guard envelope.ok else { throw RelaySetupError.network(envelope.error ?? "Tablet setup failed.") }
-        let result = try JSONDecoder().decode(Self.self, from: data)
+        var result = try JSONDecoder().decode(Self.self, from: data)
+        // Scan the original bytes: a tolerant decode has already collapsed any
+        // duplicate member name, so this check is impossible afterwards.
+        result.drawingHandoff = DrawingHandoff.outcome(statusResponse: data,
+            headsetAuthorized: result.headsetAuthorized)
         guard ["idle", "scanning", "pairing", "connecting", "verifying", "ready", "failed"].contains(result.phase),
               (0...60).contains(result.secondsRemaining), result.tablets.count <= 16,
               result.candidates.count <= 16, result.hostname.utf8.count <= 255,
@@ -51,14 +76,26 @@ public struct TabletSetupStatus: Decodable, Equatable, Sendable {
               (result.usbTablets ?? []).allSatisfy({ $0.id.hasPrefix("usb:") && $0.id.utf8.count <= 64 &&
                   $0.name.utf8.count <= 64 && ($0.serial?.utf8.count ?? 0) <= 64 && $0.port.utf8.count <= 40 }),
               result.message.utf8.count <= 1024 else { throw RelaySetupError.protocolError }
+        guard result.tcpPort == nil || result.tcpPort! > 0,
+              (result.networkAddresses?.count ?? 0) <= 8,
+              (result.networkAddresses ?? []).allSatisfy({ $0.utf8.count <= 64 }) else {
+            throw RelaySetupError.protocolError
+        }
         return result
     }
 
+    func routes(name: String, relayKey: Data) -> [RelayAddress] {
+        guard headsetAuthorized == true, enrollmentIdentity == relayKey, let tcpPort else { return [] }
+        return networkRelayRoutes(networkAddresses ?? [], port: tcpPort, name: name, relayKey: relayKey)
+    }
+
     public var operating: Bool { ["pairing", "connecting", "verifying"].contains(phase) }
+    public var canChangeTablet: Bool { canManage && !operating && captureBusy != true }
     // A sleeping paired tablet can reconnect during observation. USB input
     // needs no Bluetooth bond, so a currently attached tablet also qualifies.
     public var canStartReadings: Bool {
-        !operating && (attached || (bluetoothAvailable != false && tablets.contains { $0.paired && $0.id == selected }))
+        !operating && captureBusy != true &&
+            (attached || (bluetoothAvailable != false && tablets.contains { $0.paired && $0.id == selected }))
     }
     public var needsHeadsetRecovery: Bool { !canManage && !initialSetup && headsetAuthorized != true }
     public var activeUSBTablet: USBTablet? { usbTablets?.first { $0.active } }

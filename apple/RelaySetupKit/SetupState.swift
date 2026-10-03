@@ -41,7 +41,7 @@ public struct RelayAddress: Hashable, Sendable {
         networkHost = nil; networkPort = nil
     }
 
-    // Only constructed from IPs supplied by an authenticated Wi-Fi status.
+    // Only constructed from IPs supplied by authenticated relay status.
     // The IP is a route hint; every connection still proves the saved key.
     init(wifiHost: String, port: UInt16, name: String, key: Data) {
         bluetoothIdentifier = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))

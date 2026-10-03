@@ -1,12 +1,16 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Fresh bounded TCP adapter for the current relay core; no raw-HID service."""
+import fcntl
 import itertools
 import json
 import selectors
 import socket
+import struct
+import termios
 import time
 
 from .native import ProtocolError
+from .network_routes import local_addresses, usable_addresses
 
 PREFACE = b'PLTRTCP1'
 SERVICE_TYPE = '_plank-avp-relay._tcp'
@@ -39,6 +43,13 @@ class Connection:
 
     def read_chunk(self):
         return self.sock.recv(4096)
+
+    def socket_queue(self):
+        # Diagnostic only: bytes accepted by the kernel but not yet sent.
+        try:
+            return struct.unpack('i', fcntl.ioctl(self.sock.fileno(), termios.TIOCOUTQ, b'\0' * 4))[0]
+        except Exception:  # Never let a measurement end the session.
+            return None
 
     def append(self, data):
         if not data:
@@ -82,7 +93,8 @@ class Connection:
             if not self.claimed:
                 if self.server.busy():
                     raise ProtocolError('Relay setup is already in use.')
-                self.server.core.claim(self.owner, self.link_type, self.append, lambda: bool(self.output), self.close)
+                self.server.core.claim(self.owner, self.link_type, self.append, lambda: bool(self.output), self.close,
+                                       queued=self.socket_queue)
                 self.claimed = True
             self.server.core.receive(self.owner, data)
         elif self.channel == 1:
@@ -147,6 +159,7 @@ class TCPServer:
 
     def __init__(self, core, port, busy=lambda: False, host=None):
         self.core, self.busy = core, busy
+        self.host = host
         self.selector = selectors.DefaultSelector()
         self.connections = set()
         self.identifiers = itertools.count()
@@ -172,9 +185,16 @@ class TCPServer:
                         raise
             self.port = port
             self.core.tcp_port = port
+            self.core.network_endpoints = self.endpoint_addresses
         except Exception:
             self.close()
             raise
+
+    def endpoint_addresses(self):
+        families = {listener.family for listener in self.listeners}
+        if self.host and self.host != '0.0.0.0':
+            return usable_addresses([self.host], families)
+        return local_addresses(families)
 
     def poll(self):
         for key, events in self.selector.select(0):
@@ -200,6 +220,7 @@ class TCPServer:
 
     def close(self):
         self.core.tcp_port = None
+        self.core.network_endpoints = lambda: []
         for connection in list(self.connections):
             connection.close()
         for sock in self.listeners:
