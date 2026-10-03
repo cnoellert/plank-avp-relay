@@ -42,6 +42,20 @@ VLAN boundaries can prevent discovery. An existing restrictive firewall must
 allow the configured TCP port and mDNS UDP 5353 on the intended LAN. The
 installer does not disable an administrator's firewall or create router rules.
 
+Release 0.6.3 supplies up to eight usable local TCP listener addresses through
+authenticated tablet status. An approved headset can discover the relay over
+Bluetooth, learn its current Ethernet/Wi-Fi addresses, then verify that same
+relay identity over TCP for live readings. Public discovery status does not
+include these addresses. This bypasses multicast discovery across subnets, not
+network routing or firewall requirements. The addresses refresh after DHCP or
+interface changes; no fixed IP is required.
+
+Release 0.6.4 reads the kernel's read-only interface list without opening a
+netlink socket, preserving the main service's existing address-family policy.
+Unavailable address hints return an empty list rather than closing an
+authenticated status connection. Delivery verification includes the real Linux
+interface reader under the installed service's address-family restrictions.
+
 Names and discovery TXT records are hints. Noise proves the pinned relay key
 and approved headset identity before input or management. Existing Bluetooth
 trust can be used over TCP; an IP change does not create a new relay identity.
@@ -276,6 +290,29 @@ To pair a tablet, use **Find tablets to pair** in the headset app. See
 Headset approval happens inside the app; it does not need OS-level Bluetooth
 pairing to the relay. The tablet can sleep without forgetting its bond or the
 headset's saved approval. Wake it to resume input.
+
+### Sharing a Linux host with the raw PLANK relay
+
+When both relay services use the shared capture protocol, the managed service
+on TCP 28991 can remain available alongside the raw PLANK service on TCP 28990.
+Idle USB/Bluetooth inventory reads sysfs and BlueZ metadata without opening
+`/dev/input/event*`. The managed service binds the Linux abstract AF_UNIX
+datagram address `\0plank-tablet-capture-v1` before any evdev read. The raw
+service uses the same address; only one service can hold it. Its socket stays
+open through an active Test Tablet session, physical button confirmation, or
+tablet scan/pair/selection operation, and closes when that work stops or the
+process exits. The address creates no filesystem lock to clean up.
+
+Setup status still reports physically detected tablets. `attached` and a USB
+row's `active` mean the hardware is present or selected; `captureActive` means
+the managed service currently has input nodes open, and `captureBusy` means
+another service owns the shared capture address. The busy indication is
+advisory because ownership can change after a status response. Tablet scan,
+pair, connect, select, remove, and USB setup acquire the lease atomically before
+changing tablet state and return a busy error when PLANK owns it. Network and
+status requests remain available. Stop the current tablet session, then retry
+the requested operation. Both installed service revisions must support this
+protocol before they are run together on a host.
 
 The service retries missing adapters and re-registers after BlueZ restarts.
 `active (running)` means the TCP listener is open, or Bluetooth advertising is

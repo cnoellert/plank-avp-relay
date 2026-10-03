@@ -117,6 +117,15 @@ removing USB allows the saved Bluetooth tablet to resume when available.
 Use Manage Tablets or Check tablet status to refresh after plugging a tablet
 into an idle main Tablet page. During testing, input hotplug is automatic.
 
+On a host also running the raw PLANK tablet relay, discovery and tablet status
+remain available while PLANK owns input. Setup reports capture as busy and
+defers tablet scan, pairing, selection and live testing until that session
+stops. Authorized network controls remain available from the Network tab.
+The relay's `attached` status describes physically detected input while
+idle; `captureActive` reports open managed input nodes, and `captureBusy`
+reports a different service holding input. See the
+[shared Linux capture behavior](../../docs/linux-ble-package.md#sharing-a-linux-host-with-the-raw-plank-relay).
+
 ## Network and Bluetooth pairing and readings
 
 Allow Local Network access to discover `_plank-avp-relay._tcp` services. A relay
@@ -127,12 +136,23 @@ name can group unverified discovery candidates, but grants no trust. Ambiguous
 names or known distinct identities stay separate. Any fallback must prove the
 selected relay key before an operation is authorized.
 
-The relay reports its active TCP port with authenticated Wi-Fi status. The app
-keeps those literal Wi-Fi addresses as separate routes to the same saved relay
-identity. If Bonjour still resolves the withdrawn Ethernet address after a cable
-change, Wi-Fi is tried before Bluetooth. Changing addresses never creates new
-authorization. USB still follows the physical Ethernet cable; relay Wi-Fi is not
-forwarded to USB. Physical cable handover needs device acceptance testing.
+Release 0.6.3 also returns the active TCP port and up to eight local listener
+addresses in tablet status, only to the currently authenticated, authorized
+headset. Before live readings, the app learns fresh routes through that saved
+relay, including over Bluetooth. It then tries network readings before Bluetooth
+and verifies the same relay key on the new connection. This permits Bluetooth
+rendezvous when Bonjour cannot cross subnets; the LAN must still permit routed
+TCP traffic. Loopback, link-local, multicast and nonliteral addresses are rejected.
+New status replaces old literal routes after DHCP or interface changes. Older
+relays retain the existing Bonjour and authenticated Wi-Fi status behavior.
+
+Release 0.6.4 fixes address enumeration under the installed Linux service's
+restrictions. A failure to read optional route hints no longer closes an
+authenticated status connection or prevents Tablet testing.
+
+Changing addresses never creates new authorization. USB Ethernet still follows
+the physical Ethernet cable; relay Wi-Fi is not forwarded to USB. Physical cable
+handover needs device acceptance testing.
 
 Ownership is shared across transports. Existing BLE Keychain records and the
 headset private key are retained; authenticated enrollment also records the
@@ -230,6 +250,20 @@ Settings showed the tablet connected, but no useful pen, pressure or button
 input reached the app, and the tablet was not found in its BLE scan. Build 6
 removes that unsuccessful experiment and focuses on the verified Linux relay
 path. Its source remains in Git history at `606d5bd`.
+
+## PLANK boundary and connection labels
+
+Setup owns discovery, tablet setup, authorization, network configuration and
+testing; PLANK only selects a registered Relay. **Use in PLANK** registers this
+Relay in PLANK; a failed launch never suggests adding it by address in PLANK.
+PLANK opens Setup with the launch-only `plank-relay-setup://` URL, which carries
+and reads no parameters. Four connections are labelled separately and from
+evidence: **Setup connection** (last verified management exchange; Connected
+only while an operation runs on it), **Tablet → Relay** (USB or Bluetooth),
+**Preview transport** (the link that delivered the samples; the requested
+transport is shown separately) and **PLANK drawing connection** (PLANK's own
+network link). Completed diagnostics read **Last connection test** or **Last
+authorization check** with their transport and time.
 
 ## Saved pairing
 

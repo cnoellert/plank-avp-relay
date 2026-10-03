@@ -50,12 +50,15 @@ def save(path, value):
 
 class Tablets:
     def __init__(self, backend, directory, has_clients, select, attached, configured='', clock=time.monotonic,
-                 enroll_headset=None, usb_status=lambda: [], select_usb=None):
+                 enroll_headset=None, usb_status=lambda: [], select_usb=None, require_capture=lambda: None,
+                 capture_active=lambda: False, capture_busy=lambda: False):
         self.backend, self.has_clients = backend, has_clients
         self.select, self.attached, self.clock = select, attached, clock
         self.configured = configured
         self.enroll_headset = enroll_headset
         self.usb_status, self.select_usb = usb_status, select_usb
+        self.require_capture = require_capture
+        self.capture_active, self.capture_busy = capture_active, capture_busy
         self.enroll_owner = None
         self.path = Path(directory) / 'tablets.json'
         self.state = {'version': 1, 'selected': None, 'tablets': [], 'pending': None}
@@ -92,13 +95,14 @@ class Tablets:
             self.recovery_retry = self.clock() + 5
             target = address(pending['id'])
             try:
+                self.require_capture()
                 if pending['created']:
                     self.backend.cancel_pair(target)
                     self.backend.remove(target)
                 self.backend.set_pairable(bool(pending['pairableBefore']))
                 self.backend.close()
-            except RuntimeError:
-                self.message = 'Waiting for Bluetooth to clean up interrupted tablet setup.'
+            except (ValueError, RuntimeError):
+                self.message = 'Waiting for tablet input and Bluetooth to clean up interrupted setup.'
                 return False
             self.state['pending'] = None
             save(self.path, self.state)
@@ -127,6 +131,7 @@ class Tablets:
                 'canManage': bool(authenticated or (enrolling and self.initial(devices))),
                 'headsetAuthorized': bool(authenticated),
                 'initialSetup': self.initial(devices), 'attached': bool(self.attached()),
+                'captureActive': bool(self.capture_active()), 'captureBusy': bool(self.capture_busy()),
                 'usbTablets': self.usb_status(),
                 'bluetoothAvailable': getattr(self.backend, 'available', True),
                 'selected': self.configured or self.state['selected'],
@@ -163,6 +168,11 @@ class Tablets:
                     raise ValueError('Tablet selection is fixed in relay.conf. Clear that setting through SSH before managing it in the app.')
                 if self.phase in ('pairing', 'connecting', 'verifying'):
                     raise ValueError('Wait for the current tablet operation or cancel it.')
+                if operation in ('scan', 'pair', 'connect', 'select', 'remove', 'use-usb'):
+                    # Hold ownership across BlueZ changes and physical input
+                    # verification. A competing raw-HID session keeps the
+                    # current bonds and selection untouched.
+                    self.require_capture()
                 self.owner = owner
                 if not self.session_deadline:
                     self.session_deadline = self.clock() + 300
@@ -234,6 +244,9 @@ class Tablets:
         if self.scanning:
             self.backend.stop_scan()
             self.scanning = False
+            if self.phase == 'scanning':
+                self.phase, self.message = 'idle', 'Tablet scan stopped. Choose a tablet operation.'
+                self.deadline = 0
 
     def begin_pair(self, target, properties, reconnect=False):
         if len(self.known(self.backend.devices())) >= 16 and target not in self.known(self.backend.devices()):

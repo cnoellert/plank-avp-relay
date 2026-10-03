@@ -52,6 +52,14 @@ enum RelayNetworkSettingsTests {
         routes.succeeded(address)
         precondition(routes.ordered([tcp, address], preferBluetooth: false, now: now).first == address)
         precondition(routes.ordered([address, tcp], preferBluetooth: false, now: now + .seconds(16)).first == tcp)
+        let key = Data(repeating: 1, count: 32)
+        let learned = networkRelayRoutes(["192.0.2.2", "192.0.2.2", "2001:db8::2", "127.0.0.1",
+                                         "169.254.1.2", "fe80::1", "host.example", "255.255.255.255"],
+                                        port: 28991, name: "relay", relayKey: key)
+        precondition(learned.map(\.networkHost) == ["192.0.2.2", "2001:db8::2"])
+        precondition(learned.allSatisfy { $0.linkType == 2 && $0.advertisedKey == key })
+        precondition(networkRelayRoutes(["192.0.2.2"], port: 0, name: "relay", relayKey: key).isEmpty)
+        precondition(networkRelayRoutes(["192.0.2.2"], port: 28991, name: "relay", relayKey: Data()).isEmpty)
         print("PASS: network mode authorization, stale reply binding, actual USB status and recovery confirmation")
     }
 }
