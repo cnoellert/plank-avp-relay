@@ -17,6 +17,7 @@ sys.path.insert(0, str(private))
 from avp_relay.config import read_settings
 from avp_relay.native import Native
 from avp_relay.bluez import Server  # Check installed imports and dependencies.
+from avp_relay.drawing_status import read_handoff  # New module must ship in the package.
 from avp_relay.network import TCPServer
 from avp_relay.discovery import Publisher
 from avp_relay.hardware import prepare_firmware

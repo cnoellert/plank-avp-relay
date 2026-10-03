@@ -49,9 +49,11 @@ add_library(RelaySetupKit STATIC
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayDiscovery.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/TabletReadings.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/TabletManagement.swift"
+    "${RELAY_ROOT}/apple/RelaySetupKit/DrawingHandoff.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayNetworkSettings.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayWifi.swift"
-    "${RELAY_ROOT}/apple/RelaySetupKit/RelayPairingClient.swift")
+    "${RELAY_ROOT}/apple/RelaySetupKit/RelayPairingClient.swift"
+    "${RELAY_ROOT}/apple/RelaySetupKit/RelayConnectionLabels.swift")
 target_link_libraries(RelaySetupKit PUBLIC CRelayProtocol
     "-framework Foundation" "-framework Security" "-framework Combine"
     "-framework CoreBluetooth" "-framework Network")
@@ -171,6 +173,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     target_compile_options(relay-tablet-test-tests PRIVATE -parse-as-library)
     target_link_libraries(relay-tablet-test-tests PRIVATE RelaySetupKit)
     add_test(NAME relay-tablet-test-tests COMMAND relay-tablet-test-tests)
+    add_executable(relay-transport-scope-tests "${RELAY_ROOT}/apple/Tests/RelayTransportScopeTests.swift")
+    target_include_directories(relay-transport-scope-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+    target_link_libraries(relay-transport-scope-tests PRIVATE RelaySetupKit)
+    add_test(NAME relay-transport-scope-tests COMMAND relay-transport-scope-tests)
     add_executable(relay-key-store-tests "${RELAY_ROOT}/apple/Tests/RelayKeyStoreTests.swift")
     target_include_directories(relay-key-store-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
     target_link_libraries(relay-key-store-tests PRIVATE RelaySetupKit)
@@ -183,6 +189,18 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     target_include_directories(tablet-management-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
     target_link_libraries(tablet-management-tests PRIVATE RelaySetupKit)
     add_test(NAME tablet-management-tests COMMAND tablet-management-tests)
+    # plank-drawing-handoff-v1+r3. Vectors are loaded from the shared fixture
+    # files, never embedded, so a contract revision breaks this test.
+    add_executable(drawing-handoff-tests "${RELAY_ROOT}/apple/Tests/DrawingHandoffTests.swift")
+    target_include_directories(drawing-handoff-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+    target_link_libraries(drawing-handoff-tests PRIVATE RelaySetupKit "-framework CryptoKit")
+    add_test(NAME drawing-handoff-tests COMMAND drawing-handoff-tests)
+    set_tests_properties(drawing-handoff-tests PROPERTIES ENVIRONMENT
+        "PLANK_HANDOFF_FIXTURES=${RELAY_ROOT}/tests/fixtures/plank-drawing-handoff-v1")
+    add_executable(relay-connection-labels-tests "${RELAY_ROOT}/apple/Tests/RelayConnectionLabelsTests.swift")
+    target_include_directories(relay-connection-labels-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+    target_link_libraries(relay-connection-labels-tests PRIVATE RelaySetupKit)
+    add_test(NAME relay-connection-labels-tests COMMAND relay-connection-labels-tests)
     add_executable(relay-network-settings-tests "${RELAY_ROOT}/apple/Tests/RelayNetworkSettingsTests.swift")
     target_include_directories(relay-network-settings-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
     target_link_libraries(relay-network-settings-tests PRIVATE RelaySetupKit)

@@ -16,5 +16,10 @@
     <key>NSLocalNetworkUsageDescription</key>
     <string>Find your tablet relay on the local network, set up your tablet, and receive encrypted pen readings.</string>
     <key>NSBonjourServices</key><array><string>_plank-avp-relay._tcp</string></array>
+    <key>CFBundleURLTypes</key>
+    <array><dict>
+        <key>CFBundleURLName</key><string>la.instinctual.PLANK.AVPrelay.launch</string>
+        <key>CFBundleURLSchemes</key><array><string>plank-relay-setup</string></array>
+    </dict></array>
     <key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>
 </dict></plist>

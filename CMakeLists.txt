@@ -160,6 +160,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
             "$<TARGET_FILE:plank_ble_lab>" "$<TARGET_FILE:relay_network_test_client>")
         add_test(NAME network_routes_test COMMAND "${Python3_EXECUTABLE}"
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/network_routes_test.py")
+        add_test(NAME drawing_status_test COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/drawing_status_test.py")
         add_test(NAME ble_transport_test COMMAND "${Python3_EXECUTABLE}"
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/ble_transport_test.py")
         add_test(NAME ble_controller_test COMMAND "${Python3_EXECUTABLE}"

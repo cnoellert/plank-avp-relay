@@ -1,10 +1,12 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """LE credit-based socket adapter; the shared session and Noise stay unchanged."""
 import ctypes
+import fcntl
 import itertools
 import selectors
 import socket
 import struct
+import termios
 
 from .network import Connection, TCPServer
 
@@ -59,6 +61,15 @@ class L2CAPConnection(Connection):
         if count != len(chunk):
             raise OSError('Incomplete L2CAP packet write.')
         return count
+
+    def socket_queue(self):
+        # Bluetooth sockets report free send space from TIOCOUTQ, not queued
+        # bytes. Diagnostic only: allocated send memory, including overhead.
+        try:
+            free = struct.unpack('i', fcntl.ioctl(self.sock.fileno(), termios.TIOCOUTQ, b'\0' * 4))[0]
+            return max(0, self.sock.getsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF) - free)
+        except Exception:  # Never let a measurement end the session.
+            return None
 
     def read_chunk(self):
         data, _, flags, _ = self.sock.recvmsg(self.receive_mtu)

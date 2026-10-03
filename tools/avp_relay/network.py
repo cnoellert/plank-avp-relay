@@ -1,9 +1,12 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Fresh bounded TCP adapter for the current relay core; no raw-HID service."""
+import fcntl
 import itertools
 import json
 import selectors
 import socket
+import struct
+import termios
 import time
 
 from .native import ProtocolError
@@ -40,6 +43,13 @@ class Connection:
 
     def read_chunk(self):
         return self.sock.recv(4096)
+
+    def socket_queue(self):
+        # Diagnostic only: bytes accepted by the kernel but not yet sent.
+        try:
+            return struct.unpack('i', fcntl.ioctl(self.sock.fileno(), termios.TIOCOUTQ, b'\0' * 4))[0]
+        except Exception:  # Never let a measurement end the session.
+            return None
 
     def append(self, data):
         if not data:
@@ -83,7 +93,8 @@ class Connection:
             if not self.claimed:
                 if self.server.busy():
                     raise ProtocolError('Relay setup is already in use.')
-                self.server.core.claim(self.owner, self.link_type, self.append, lambda: bool(self.output), self.close)
+                self.server.core.claim(self.owner, self.link_type, self.append, lambda: bool(self.output), self.close,
+                                       queued=self.socket_queue)
                 self.claimed = True
             self.server.core.receive(self.owner, data)
         elif self.channel == 1:

@@ -13,9 +13,23 @@ public final class SetupCoordinator: ObservableObject {
     public let tabletTest = TabletTestReadings()
     @Published public private(set) var testTransport = RelayTestTransport.load()
     @Published public private(set) var tabletTestConnection: String?
-    @Published public private(set) var connectionDiagnostic: RelayDiagnostic = .idle
-    @Published public private(set) var authorizationDiagnostic: RelayDiagnostic = .idle
+    @Published public private(set) var connectionDiagnostic: RelayDiagnostic = .idle {
+        didSet { connectionDiagnosticContext = Self.completed(connectionDiagnostic, transport: state.address?.transportName) }
+    }
+    @Published public private(set) var authorizationDiagnostic: RelayDiagnostic = .idle {
+        didSet { authorizationDiagnosticContext = Self.completed(authorizationDiagnostic, transport: state.address?.transportName) }
+    }
+    /// When and over which transport a completed diagnostic ran. Results are
+    /// shown as previous results and cleared when the relay or test
+    /// transport changes.
+    @Published public private(set) var connectionDiagnosticContext: RelayVerifiedConnection?
+    @Published public private(set) var authorizationDiagnosticContext: RelayVerifiedConnection?
+    /// The last Setup → Relay management exchange that actually completed.
+    @Published public private(set) var setupConnectionVerified: RelayVerifiedConnection?
     @Published public private(set) var tabletStatus: TabletSetupStatus?
+    /// Shown only after a PLANK launch could not be completed. Public
+    /// endpoint metadata the user can act on; never a credential.
+    @Published public private(set) var handoffFallback: String?
     @Published public private(set) var tabletCommandPending = false
     @Published public private(set) var relayIdentityChanged = false
     @Published public private(set) var networkStatus: RelayNetworkStatus?
@@ -39,8 +53,96 @@ public final class SetupCoordinator: ObservableObject {
     private var networkRoutes = RelayControlRoutes()
     private var wifiListsNeedRefresh = true
     private var tabletCommand: (String, String?)?
+    private var handoffManagementIdentity: Data?
 
     public init() {}
+
+    private static func completed(_ result: RelayDiagnostic, transport: String?) -> RelayVerifiedConnection? {
+        switch result {
+        case .passed, .failed: RelayVerifiedConnection(transport: transport ?? "Unknown", at: Date())
+        case .idle, .running, .canceled: nil
+        }
+    }
+
+    private func recordSetupConnection(_ address: RelayAddress) {
+        setupConnectionVerified = RelayVerifiedConnection(transport: address.transportName, at: Date())
+    }
+
+    /// Setup → Relay, worded from evidence: connected only while an operation
+    /// is running on a verified link, otherwise the last verified exchange.
+    public var setupConnectionLabel: String {
+        RelayConnectionLabels.setupConnection(selectedTransport: state.address?.transportName,
+            lastVerified: setupConnectionVerified,
+            operationConnected: state.busy && state.connectionVerified)
+    }
+
+    /// Every decoded status becomes published state here, so the handoff offer
+    /// can never come from a status the rest of the UI is not showing.
+    ///
+    /// Only a status that proves the relay's saved identity may supply the
+    /// `managementIdentity` the app link carries. Identities never substitute
+    /// for one another, so this is kept separate from the drawing identity the
+    /// descriptor names (contract §10.3).
+    func acceptTabletStatus(_ status: TabletSetupStatus, relayKey: Data? = nil) {
+        tabletStatus = status
+        handoffManagementIdentity = status.headsetAuthorized == true && status.enrollmentIdentity != nil
+            && status.enrollmentIdentity == relayKey ? relayKey : nil
+        handoffFallback = nil
+    }
+
+    func clearTabletStatus() {
+        tabletStatus = nil
+        handoffManagementIdentity = nil
+        handoffFallback = nil
+    }
+
+    /// Setup offers the handoff only on `handoffReady`. Every other outcome
+    /// shows its own specific reason, and a missing drawing service is never
+    /// reported as an authorization problem (contract §11).
+    public var handoffAction: DrawingHandoffAction {
+        DrawingHandoffAction(outcome: handoffManagementIdentity == nil ? nil : tabletStatus?.drawingHandoff,
+            activity: state.activity, busy: state.busy)
+    }
+
+    /// Hands the relay to PLANK as an app link carrying public metadata only.
+    ///
+    /// A running tablet test owns capture, so it is stopped and allowed to
+    /// finish releasing before the link is opened. A launch that does not
+    /// succeed changes nothing: no capture is retained, no pairing is reset and
+    /// the ready outcome stands, so the user can simply try again.
+    public func useInPLANK(open: @MainActor (URL) async -> Bool) async {
+        guard handoffAction.available, let status = tabletStatus,
+              case let .handoffReady(descriptor) = status.drawingHandoff else { return }
+        handoffFallback = nil
+        if state.activity == .observing || state.activity == .stoppingObservation {
+            message = "Stopping the tablet test before handing off to PLANK…"
+            stopTesting()
+            await task?.value
+            guard !state.busy else {
+                handoffFallback = "The tablet test is still stopping. Run Use in PLANK again in a moment."
+                return
+            }
+        }
+        guard let identity = handoffManagementIdentity else {
+            handoffFallback = "This relay’s saved authorization could not be confirmed, so nothing was handed off. Check headset authorization and try again."
+            return
+        }
+        let link: DrawingHandoffLink
+        do {
+            link = try DrawingHandoff.link(descriptor: descriptor,
+                displayName: DrawingHandoff.displayName(status.hostname), managementIdentity: identity)
+        } catch {
+            handoffFallback = "This relay’s drawing endpoint could not be put into a PLANK link, so nothing was handed off."
+            return
+        }
+        message = "Opening PLANK with this relay’s drawing endpoint…"
+        guard await open(link.url) else {
+            handoffFallback = "PLANK did not open. Install or open PLANK on this headset, then run Use in PLANK again. Relays are added to PLANK only from here."
+            message = "PLANK did not open. This relay is still set up and nothing changed."
+            return
+        }
+        message = "PLANK was opened with this relay. Approve its drawing connection in PLANK the first time."
+    }
 
     public func setTestTransport(_ value: RelayTestTransport) {
         guard !state.busy, RelayTestTransport.isAvailable else { return }
@@ -60,6 +162,7 @@ public final class SetupCoordinator: ObservableObject {
         connectionDiagnostic = .idle
         authorizationDiagnostic = .idle
         relayIdentityChanged = false
+        setupConnectionVerified = nil
         networkStatus = nil
         networkConnectionMessage = "Connection not checked."
         wifiStatus = nil
@@ -73,14 +176,16 @@ public final class SetupCoordinator: ObservableObject {
             guard state.selectRelay(address, trusted: trusted) else { return }
             message = trusted ? "Checking the relay’s saved authorization and tablets…" :
                 "Connect a USB tablet or pair a Bluetooth tablet to finish setup."
-            tabletStatus = nil
+            clearTabletStatus()
             if trusted { refreshTabletStatus() } else { manageTablets() }
         } catch { message = error.localizedDescription }
     }
 
     // Probe only read-only status during transport selection. Never replay a
     // tablet mutation when a setup session is interrupted.
-    private func availableAddress(_ selected: RelayAddress, testTransport: RelayTestTransport = .automatic,
+    // No default: Bluetooth-only testing must not silently fall back to
+    // automatic when a caller forgets to pass its captured preference.
+    private func availableAddress(_ selected: RelayAddress, testTransport: RelayTestTransport,
                                   onProgress: ((String) -> Void)? = nil) async throws -> RelayAddress {
         let expected = try keys.setupRelayKey(selected) ?? selected.advertisedKey
         var failure: any Error = RelaySetupError.timedOut
@@ -112,7 +217,8 @@ public final class SetupCoordinator: ObservableObject {
     }
 
     private func networkConnected(_ address: RelayAddress) {
-        networkConnectionMessage = "Connected over \(address.transportName.lowercased())."
+        recordSetupConnection(address)
+        networkConnectionMessage = RelayConnectionLabels.setupConnectionTitle + ": " + setupConnectionLabel + "."
     }
 
     private func rememberNetworkRoutes(_ status: TabletSetupStatus, address: RelayAddress, relayKey: Data) {
@@ -128,7 +234,7 @@ public final class SetupCoordinator: ObservableObject {
 
     public func manageTablets() {
         guard let address = state.address, let id = state.beginTabletSetup() else { return }
-        tabletStatus = nil
+        clearTabletStatus()
         tabletCommand = nil
         tabletCommandPending = false
         message = "Checking the relay’s saved tablets…"
@@ -137,7 +243,9 @@ public final class SetupCoordinator: ObservableObject {
             await self.networkRefresh.cancelAndWait()
             do {
                 try Task.checkCancellation()
-                let address = try await self.availableAddress(address)
+                // Commissioning may use any reachable route; this is not the
+                // transport-restricted test path.
+                let address = try await self.availableAddress(address, testTransport: .automatic)
                 self.state.useAddress(address, operation: id)
                 let relayKey = try self.keys.relayKey(address)
                 let privateKey = try self.keys.clientKey()
@@ -155,9 +263,11 @@ public final class SetupCoordinator: ObservableObject {
                         return command
                     }, onStatus: { [weak self] status in
                         guard let self, self.state.operation == id else { return }
-                        self.tabletStatus = status
-                        if let key = try? self.keys.relayKey(address) {
-                            self.rememberNetworkRoutes(status, address: address, relayKey: key)
+                        let saved = try? self.keys.relayKey(address)
+                        self.acceptTabletStatus(status, relayKey: saved)
+                        self.recordSetupConnection(address)
+                        if let saved {
+                            self.rememberNetworkRoutes(status, address: address, relayKey: saved)
                         }
                         self.state.updateTabletAvailability(status.canStartReadings, operation: id)
                         // An earlier status poll must not acknowledge a command
@@ -220,7 +330,7 @@ public final class SetupCoordinator: ObservableObject {
         let transport = reportAuthorization ? testTransport : .automatic
         if !reportAuthorization {
             state.updateTabletAvailability(false, operation: id)
-            tabletStatus = nil
+            clearTabletStatus()
         }
         message = reportAuthorization ? "Checking this headset’s saved approval on the relay…" :
             "Checking whether the relay has a tablet…"
@@ -237,7 +347,8 @@ public final class SetupCoordinator: ObservableObject {
                 try Task.checkCancellation()
                 guard self.state.operation == id else { return }
                 self.state.useAddress(address, operation: id)
-                self.tabletStatus = status
+                self.acceptTabletStatus(status, relayKey: relayKey)
+                self.recordSetupConnection(address)
                 self.rememberNetworkRoutes(status, address: address, relayKey: relayKey)
                 if status.headsetAuthorized != true {
                     self.state.cancel()
@@ -276,7 +387,7 @@ public final class SetupCoordinator: ObservableObject {
             connectionDiagnostic = .idle
             authorizationDiagnostic = .idle
             relayIdentityChanged = false
-            tabletStatus = nil
+            clearTabletStatus()
             tabletTest.reset()
             networkStatus = nil
             wifiStatus = nil
@@ -729,7 +840,8 @@ public final class SetupCoordinator: ObservableObject {
                     privateKey: self.keys.clientKey(), relayKey: relayKey,
                     onStatus: { [weak self] candidate, status in
                         guard let self, self.state.operation == id else { throw CancellationError() }
-                        self.tabletStatus = status
+                        self.acceptTabletStatus(status, relayKey: relayKey)
+                        self.recordSetupConnection(candidate)
                         self.rememberNetworkRoutes(status, address: candidate, relayKey: relayKey)
                         self.state.updateTabletAvailability(status.canStartReadings, operation: id)
                         if status.headsetAuthorized != true {
