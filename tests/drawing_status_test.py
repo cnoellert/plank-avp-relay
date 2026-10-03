@@ -505,7 +505,7 @@ class LocalClient(unittest.TestCase):
                 self.assertEqual(status['tcpPort'], 28991)
 
     def test_one_deadline_covers_connect_send_and_fragmented_reads(self):
-        self.check_deadline([0.40, 0.40], 'service.busy', 0.75)
+        self.check_deadline([0.20, 0.40], 'service.busy', 0.75)
 
     def test_fragmented_reply_within_the_total_budget_succeeds(self):
         self.check_deadline([0.10, 0.10], None, 0.55)
