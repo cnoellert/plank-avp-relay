@@ -21,5 +21,7 @@ Linux CTest runs `raw_drawing_test` for bidirectional bytes beyond the MTU,
 fragmented channel selection, peer refusal before writes, pause/resume, bounds,
 stall teardown and buffered EOF. Real AVP Bluetooth-only drawing is still pending.
 
-This branch does not add enrollment, change immutable handoff fixtures, or claim
-that the managed package installs the raw daemon. Those are subsequent slices.
+The initial bridge slice did not add enrollment or package the raw daemon.
+This branch now includes a pinned raw daemon in the complete-package candidate;
+see [installation status](complete-relay-installation.md). Enrollment and a
+versioned Bluetooth handoff remain separate work. Immutable fixtures are unchanged.

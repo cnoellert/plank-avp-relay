@@ -10,6 +10,9 @@ override_dh_python3:
 	# The sibling .so is a ctypes library, not a CPython ABI extension.
 	dh_python3 --no-shebang-rewrite /usr/lib/plank-avp-relay/avp_relay
 
+# No debug package is shipped; omit unused cross-binary debug fragments.
+override_dh_dwz:
+
 override_dh_strip:
 	dh_strip --no-automatic-dbgsym
 
