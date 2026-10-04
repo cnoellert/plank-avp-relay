@@ -141,7 +141,95 @@ public final class SetupCoordinator: ObservableObject {
             message = "PLANK did not open. This relay is still set up and nothing changed."
             return
         }
-        message = "PLANK was opened with this relay. Approve its drawing connection in PLANK the first time."
+        message = "PLANK was opened with this relay. First-time drawing registration returns here for your approval."
+    }
+
+    public func registerPLANK(_ inbox: DrawingEnrollmentInbox,
+                              open: @escaping @MainActor (URL) async -> Bool) {
+        guard !state.busy, !inbox.busy, inbox.live, let request = inbox.request,
+              let target = inbox.target, let address = state.address,
+              let operation = state.beginNetworkSettings() else {
+            inbox.message = "Stop the current operation, then select and authorize the requested Relay."
+            return
+        }
+        inbox.busy = true
+        inbox.message = "Verifying the selected Relay…"
+        task = Task { [weak self] in
+            guard let self else { return }
+            var preparedAddress: RelayAddress?
+            var mutationAttempted = false
+            var managementKey: Data?
+            var privateKey: Data?
+            do {
+                await self.networkRefresh.cancelAndWait()
+                guard let key = try self.keys.setupRelayKey(address),
+                      key.map({ String(format: "%02x", $0) }).joined() == target.managementIdentity else {
+                    throw DrawingRegistrationError.wrongRelay
+                }
+                try DrawingRegistrationReceipt.requirePending(request)
+                managementKey = key
+                let localKey = try self.keys.clientKey()
+                privateKey = localKey
+                try await self.client.withManagementSession {
+                    var selected: RelayAddress?
+                    var lastError: any Error = RelaySetupError.timedOut
+                    for candidate in self.networkRoutes.ordered(self.addresses.isEmpty ? [address] : self.addresses) {
+                        do {
+                            let status = try await self.client.tabletStatus(address: candidate, privateKey: localKey, relayKey: key)
+                            try Task.checkCancellation()
+                            guard inbox.live, inbox.request == request, status.headsetAuthorized == true,
+                                  status.enrollmentIdentity == key,
+                                  case let .handoffReady(current) = status.drawingHandoff,
+                                  current.drawingIdentity == target.descriptor.drawingIdentity else {
+                                throw DrawingRegistrationError.wrongRelay
+                            }
+                            self.acceptTabletStatus(status, relayKey: key)
+                            selected = candidate
+                            break
+                        } catch {
+                            try Task.checkCancellation()
+                            guard Self.transportFailure(error) else { throw error }
+                            lastError = error
+                        }
+                    }
+                    guard let selected else { throw lastError }
+                    preparedAddress = selected
+                    mutationAttempted = true
+                    inbox.message = "Approving PLANK’s drawing key…"
+                    // Exactly once. An ambiguous mutation is revoked, never
+                    // retried on another route with the same request id.
+                    try await self.client.prepareDrawingRegistration(address: selected, privateKey: localKey,
+                        relayKey: key, request: request, drawingIdentity: target.descriptor.drawingIdentity)
+                }
+                try Task.checkCancellation()
+                guard inbox.live, inbox.request == request else { throw DrawingRegistrationError.expired }
+                try DrawingRegistrationReceipt.approve(request)
+                _ = self.state.succeed(operation)
+                inbox.message = "Opening PLANK to verify its drawing connection…"
+                guard await open(request.url(reply: true)) else {
+                    throw RelaySetupError.rejected("PLANK did not open. Registration was canceled; try again from Use in PLANK.")
+                }
+                inbox.busy = false
+                inbox.dismiss(removeReceipt: false)
+                self.message = "PLANK is verifying this Relay. No tablet button sequence is needed."
+            } catch {
+                // Revocation runs even if this operation was canceled. It is
+                // authenticated and bounded; expiry remains the safety net if
+                // the Relay can no longer be reached.
+                if mutationAttempted, let selected = preparedAddress,
+                   let key = managementKey, let localKey = privateKey {
+                    await Task { @MainActor in
+                        try? await self.client.prepareDrawingRegistration(address: selected, privateKey: localKey,
+                            relayKey: key, request: request, drawingIdentity: target.descriptor.drawingIdentity, cancel: true)
+                    }.value
+                }
+                if self.state.operation == operation { self.state.fail(operation, message: error.localizedDescription) }
+                DrawingRegistrationReceipt.remove(request)
+                inbox.busy = false
+                inbox.message = error.localizedDescription + " Nothing was registered in PLANK."
+            }
+            if self.state.operation == nil { self.task = nil }
+        }
     }
 
     public func setTestTransport(_ value: RelayTestTransport) {

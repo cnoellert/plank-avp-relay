@@ -298,6 +298,28 @@ public enum DrawingHandoff {
             descriptor: try descriptor(descriptorValue!), reason: nil)
     }
 
+    // Validate the unchanged handoff when it is returned by PLANK for an
+    // explicit registration. Keep duplicates visible and reuse the frozen
+    // descriptor/identity/route validators instead of a permissive decoder.
+    static func registrationTarget(_ request: DrawingRegistrationRequest) throws -> DrawingRegistrationTarget {
+        var base64 = request.handoff.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+        base64 += String(repeating: "=", count: (4 - base64.count % 4) % 4)
+        guard let data = Data(base64Encoded: base64), data.count <= maxDecodedBytes,
+              base64url(data) == request.handoff else { throw DrawingRegistrationError.invalidRequest }
+        var scanner = HandoffScanner(data)
+        guard case let .object(members) = try scanner.document(), !scanner.duplicate,
+              Set(members.map { $0.0 }) == Set(["version", "requestID", "displayName", "managementIdentity", "drawingIdentity", "drawingProtocol", "routes"]),
+              case let .string(id)? = member("requestID", members), isRequestID(id),
+              case let .string(name)? = member("displayName", members), isDisplayName(name),
+              let management = member("managementIdentity", members) else { throw DrawingRegistrationError.invalidRequest }
+        let drawing = try descriptor(.object(members.filter { !["requestID", "displayName", "managementIdentity"].contains($0.0) }))
+        let managementKey = try identity(management, member: "managementIdentity")
+        guard drawing.drawingIdentity != managementKey, drawing.drawingIdentity != request.clientIdentity else {
+            throw DrawingRegistrationError.invalidRequest
+        }
+        return DrawingRegistrationTarget(displayName: name, managementIdentity: managementKey, descriptor: drawing)
+    }
+
     private static func descriptor(_ value: HandoffJSON) throws -> DrawingDescriptor {
         // 8. descriptor is an object, checked before any member-level reason.
         guard case let .object(members) = value else { throw reject("status.descriptor.type") }
@@ -620,6 +642,13 @@ struct HandoffScanner {
     private static let maxDepth = 24
 
     init(_ data: Data) { bytes = [UInt8](data) }
+
+    mutating func document() throws -> HandoffJSON {
+        let value = try parseValue()
+        skipWhitespace()
+        guard index == bytes.count else { throw HandoffScanError() }
+        return value
+    }
 
     mutating func locateDrawingHandoff() throws -> HandoffJSON? {
         skipWhitespace()

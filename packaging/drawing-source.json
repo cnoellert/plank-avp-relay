@@ -1,6 +1,6 @@
 {
   "repository": "https://github.com/cnoellert/plank-tablet-relay.git",
-  "commit": "27d60eb36a90c8725857191fdbe0e6eb37afa0a7",
-  "archive_sha256": "7b154a1bb96dc4e634cc5231439d7bdf69074482caecbe87e777346372836367",
+  "commit": "b1cf4f1864363ec429eb1c15343a6e99157dabf6",
+  "archive_sha256": "8eda126b93eda5691582875f762c6baca49890ad1f4fab7618dd87ec248adee1",
   "license": "GPL-3.0-or-later"
 }

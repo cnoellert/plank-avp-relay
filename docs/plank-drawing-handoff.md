@@ -70,34 +70,33 @@ The Setup app registers `plank-relay-setup`; Client handoff uses `plank-vision`.
 The 0.6.7 Setup bundle identity is retained. Authorization belonging to an older,
 different app bundle is not automatically migrated into this app.
 
-## First-time registration follow-up
+## Setup-mediated registration candidate
 
-The current Client still uses its existing physical ExpressKey approval for an
-unknown drawing identity. This is a compatibility path, not the intended final
-Setup/Client boundary. Already approved drawing identities continue to use
-handoff without repeating that approval.
+The matching enrollment candidate replaces the ExpressKey ceremony for unknown
+Client drawing identities with **Continue in Relay Setup → Allow PLANK**.
+Setup verifies its selected management pin and fresh drawing status before it
+prepares a short-lived, Client-bound grant. PLANK proves the drawing identity
+and its own key before the raw daemon commits enrollment, then saves its pin
+and registers/selects the Relay. Existing approvals are retained.
 
-The intended user journey is: authorize the Relay in Setup, explicitly approve
-registering it with PLANK there, then choose that registered Relay in PLANK.
-First-time registration must work without tablet-specific ExpressKey gestures.
-Separate Setup and Client identities remain separate: the URL's public identity
-and route hints alone cannot authorize a new drawing client.
+App links alone cannot authorize enrollment. The two signed apps exchange a
+public approval receipt through a dedicated shared Keychain access group; private
+keys retain their original app-local groups. A reply requires the exact approved
+receipt, matching request and identity, and an unexpired grant. Cancel before
+commit creates no approval; a cancellation after durable server commit cannot
+undo it. Ambiguous proof attempts are never retried automatically.
 
-Agree the enrollment mechanism with the raw Relay maintainer before changing the
-trust gate. The follow-up needs an authenticated Setup-mediated approval of the
-Client's public key, acceptance by the drawing service, and a drawing exchange
-that proves the advertised drawing identity before the Client stores a pin.
-Any enrollment grant must bind the intended Client key and drawing identity,
-expire, and reject replay. Cancel or a mismatching identity must leave existing
-approvals and selection intact. Private keys are never transferred between apps.
-The existing public-status IPC remains read-only.
+The distinct root-only mutation socket is
+`plank-tablet-drawing-enrollment-v1`. Managed requests require the authenticated
+current owner and reject bootstrap enrollment connections. The original status
+socket, immutable r3 handoff fixtures, capture ownership and drawing protocol
+are unchanged. No Host change is required.
 
-This follow-up changes enrollment across the services and Client. It is not
-implemented by the reliability fixes in this PR, and does not require bundling
-the raw drawing service into the managed package. Its acceptance is one first-time
-registration on a tablet without ExpressKeys, followed by reconnect and an
-address change without another approval prompt, plus refusal of a canceled,
-expired, replayed or wrongly targeted grant.
+The enrollment wire and security boundaries are specified in the pinned raw
+source's `docs/setup-drawing-enrollment.md`. This package pin contains the matching
+raw daemon. The proof uses an existing TCP route in this slice; versioned
+registered-Relay Bluetooth selection remains a separate follow-up. Live signed
+cross-app registration, cancel, drawing and reconnect acceptance remain pending.
 
 ## Verification and release boundary
 

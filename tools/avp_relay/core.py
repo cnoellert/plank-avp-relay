@@ -5,7 +5,7 @@ import time
 
 from .capture import Capture
 from .capture_lease import CaptureBusy
-from . import drawing_status
+from . import drawing_status, drawing_enrollment
 from .native import Native, ProtocolError
 from .tablets import Tablets
 from .gadget_client import GadgetClient, GadgetBusy
@@ -87,6 +87,8 @@ class RelayCore:
 
     def request(self, data, peer, authenticated=False, enrolling=False):
         command = json.loads(data)
+        if isinstance(command, dict) and command.get('op') == 'drawing-enrollment':
+            return drawing_enrollment.handle(data, peer, self.owner, authenticated, enrolling)
         if isinstance(command, dict) and isinstance(command.get('op'), str) and command['op'] in ('network-status', 'network-mode', *WIFI_FIELDS):
             response = {'version': 1, 'id': command.get('id', 0), 'ok': False}
             try:

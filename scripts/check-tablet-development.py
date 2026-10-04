@@ -28,9 +28,18 @@ if (not profile.get('ProvisionedDevices') or entitlements.get('get-task-allow') 
 identity = entitlements.get('application-identifier', '')
 if (identity not in [prefix + '.' + bundle for prefix in profile.get('ApplicationIdentifierPrefix', [])]
         or profile.get('Entitlements', {}).get('application-identifier') not in
-        (identity, identity.rsplit('.', 1)[0] + '.*')
+        (identity, identity.rsplit('.', 1)[0] + '.*',
+         *[prefix + '.*' for prefix in profile.get('ApplicationIdentifierPrefix', [])])
         or entitlements.get('com.apple.developer.team-identifier') not in profile.get('TeamIdentifier', [])):
     parser.error('App and provisioning identity do not match.')
+registration_group = info.get('PLANKRegistrationAccessGroup')
+if registration_group:
+    groups = entitlements.get('keychain-access-groups', [])
+    allowed = profile.get('Entitlements', {}).get('keychain-access-groups', [])
+    if (not groups or groups[0] != identity or registration_group not in groups or
+            any(not any(value == group or (value.endswith('.*') and group.startswith(value[:-1]))
+                        for value in allowed) for group in groups)):
+        parser.error('Registration Keychain groups do not match app/profile permissions.')
 if args.udid and args.udid not in profile['ProvisionedDevices']:
     parser.error('The selected headset is not included in this provisioning profile.')
 print(f"PASS: development signature/profile for {info['CFBundleShortVersionString']} "

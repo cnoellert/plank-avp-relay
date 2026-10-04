@@ -50,6 +50,9 @@ add_library(RelaySetupKit STATIC
     "${RELAY_ROOT}/apple/RelaySetupKit/TabletReadings.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/TabletManagement.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/DrawingHandoff.swift"
+    "${RELAY_ROOT}/apple/RelaySetupKit/DrawingRegistrationRequest.swift"
+    "${RELAY_ROOT}/apple/RelaySetupKit/DrawingEnrollment.swift"
+    "${RELAY_ROOT}/apple/RelaySetupKit/DrawingRegistrationReceipt.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayNetworkSettings.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayWifi.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayPairingClient.swift"
@@ -95,6 +98,7 @@ set_target_properties(PlankTabletSetup PROPERTIES
     XCODE_ATTRIBUTE_MARKETING_VERSION "${PROJECT_VERSION}"
     XCODE_ATTRIBUTE_CURRENT_PROJECT_VERSION "${PLANK_SETUP_BUILD_NUMBER}"
     XCODE_ATTRIBUTE_CODE_SIGN_STYLE "Automatic"
+    XCODE_ATTRIBUTE_CODE_SIGN_ENTITLEMENTS "${CMAKE_CURRENT_SOURCE_DIR}/DrawingRegistration.entitlements"
     XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO"
     XCODE_ATTRIBUTE_SKIP_INSTALL "NO"
     XCODE_ATTRIBUTE_INSTALL_PATH "/Applications"
@@ -191,6 +195,12 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     add_test(NAME tablet-management-tests COMMAND tablet-management-tests)
     # plank-drawing-handoff-v1+r3. Vectors are loaded from the shared fixture
     # files, never embedded, so a contract revision breaks this test.
+    add_executable(drawing-registration-tests "${RELAY_ROOT}/apple/Tests/DrawingRegistrationTests.swift")
+    target_include_directories(drawing-registration-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+    target_link_libraries(drawing-registration-tests PRIVATE RelaySetupKit)
+    add_test(NAME drawing-registration-tests COMMAND drawing-registration-tests)
+    set_tests_properties(drawing-registration-tests PROPERTIES ENVIRONMENT
+        "PLANK_HANDOFF_FIXTURES=${RELAY_ROOT}/tests/fixtures/plank-drawing-handoff-v1")
     add_executable(drawing-handoff-tests "${RELAY_ROOT}/apple/Tests/DrawingHandoffTests.swift")
     target_include_directories(drawing-handoff-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
     target_link_libraries(drawing-handoff-tests PRIVATE RelaySetupKit "-framework CryptoKit")
