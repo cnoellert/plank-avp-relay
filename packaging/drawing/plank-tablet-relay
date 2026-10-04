@@ -1,0 +1,4 @@
+# Authenticated drawing on all local IPv4 interfaces; no router/firewall change.
+# Set a specific local IPv4 address or 127.0.0.1 to restrict TCP drawing.
+# Bluetooth drawing uses the local abstract socket independently of this bind.
+PLANK_RELAY_BIND=0.0.0.0

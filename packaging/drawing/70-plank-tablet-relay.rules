@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# The unprivileged raw service needs feature/output access to Wacom hidraw and
+# read access to Wacom input nodes. No permission changes for other vendors.
+SUBSYSTEM=="hidraw", KERNEL=="hidraw*", ATTRS{idVendor}=="056a", GROUP="plank-relay", MODE="0660"
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{idVendor}=="056a", GROUP="plank-relay", MODE="0660"
+SUBSYSTEM=="hidraw", KERNEL=="hidraw*", KERNELS=="0005:056A:*", GROUP="plank-relay", MODE="0660"
+SUBSYSTEM=="input", KERNEL=="event*", KERNELS=="0005:056A:*", GROUP="plank-relay", MODE="0660"

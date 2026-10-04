@@ -1,0 +1,28 @@
+[Unit]
+Description=PLANK raw Wacom drawing Relay
+After=network-online.target systemd-udevd.service avahi-daemon.service
+Wants=network-online.target avahi-daemon.service
+
+[Service]
+Type=simple
+User=plank-relay
+Group=plank-relay
+Environment=PLANK_RELAY_BIND=0.0.0.0
+EnvironmentFile=-/etc/default/plank-tablet-relay
+ExecStart=/usr/libexec/plank-tablet-relay serve --state-dir /var/lib/plank-tablet-relay --bind ${PLANK_RELAY_BIND} --port 28990
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=10
+StateDirectory=plank-tablet-relay
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

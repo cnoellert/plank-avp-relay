@@ -49,12 +49,16 @@ inventing a drawing address or silently trusting an identity.
 
 ### Installation requires both services
 
-`plank-avp-relay.deb` packages the managed Setup service. It does **not** bundle
-or install `plank-tablet-relay`, the separate raw drawing service. Merging this
-PR does not by itself provide a drawing listener. Install the matching raw
-Relay package as well, with its drawing-status server and shared capture lease,
-and allow the Client to reach its TCP drawing listener. Setup Bluetooth remains
-a management/preview transport; PLANK drawing uses TCP.
+This packaging candidate includes both the managed Setup service and the raw
+`plank-tablet-relay` drawing service in one `.deb`, with pinned source, its own
+service account and device permissions. See [complete installation](complete-relay-installation.md)
+for the source pin, operator bind configuration and explicit unmanaged-install
+migration boundary. The published handoff PR predates this packaging slice.
+
+The existing handoff still advertises TCP drawing routes. The local development
+Client can additionally draw over the managed L2CAP raw bridge using an existing
+approval. That development option is not yet the complete registered-Relay UI or
+first-time model-independent approval journey.
 
 When the raw service is absent, normal Setup management stays available and
 the drawing handoff reports `service.absent`. When the raw service exists but
