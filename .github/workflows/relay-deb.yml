@@ -67,6 +67,12 @@ jobs:
           # Package installation in this disposable builder must not start daemons.
           printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d
           chmod 755 /usr/sbin/policy-rc.d
+          # Minimal Ubuntu images strip docs on installation. Keep package
+          # licenses/provenance for the installed-file smoke check.
+          for config in /etc/dpkg/dpkg.cfg.d/*; do
+            test -f "$config" || continue
+            sed -i '\|^path-exclude=/usr/share/doc/|d' "$config"
+          done
           apt-get update
           apt-get install -y --no-install-recommends \
             build-essential cmake ninja-build pkg-config libudev-dev libavahi-client-dev \
@@ -154,6 +160,12 @@ jobs:
         run: |
           printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d
           chmod 755 /usr/sbin/policy-rc.d
+          # Minimal Ubuntu images strip docs on installation. Keep package
+          # licenses/provenance for the installed-file smoke check.
+          for config in /etc/dpkg/dpkg.cfg.d/*; do
+            test -f "$config" || continue
+            sed -i '\|^path-exclude=/usr/share/doc/|d' "$config"
+          done
           apt-get update
           apt-get install -y --no-install-recommends ca-certificates git python3
           test "$(dpkg --print-architecture)" = '${{ matrix.arch }}'
