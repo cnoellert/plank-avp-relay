@@ -1,6 +1,7 @@
 # Complete Relay package candidate
 
-Status: source candidate; package build and clean-install qualification pending.
+Status: package candidate; clean native builds and installation checks pass on
+Ubuntu 26.04 amd64 and Debian 13 arm64. Hardware deployment remains pending.
 This is the packaging slice of the Bluetooth drawing implementation plan.
 It does not complete first-time enrollment or Client transport selection.
 
@@ -72,8 +73,14 @@ requires the raw executable, unit, permissions, bind conffile and provenance.
 The Linux package workflow builds both suites, checks systemd units and installs
 and removes the full package in disposable amd64/arm64 environments.
 
-Those workflow results are outstanding until the raw pin and this source are
-published and the jobs run. A hardware deployment remains a separate step with
-rollback. Bluetooth-only drawing, fresh Setup-mediated enrollment without
+[Workflow 37177939662](https://github.com/cnoellert/plank-avp-relay/actions/runs/37177939662)
+passed both native builds, all 35 managed and 25 raw tests on each architecture,
+package lint and extracted/installed smoke checks, and independent clean-install,
+reinstall and removal checks with raw state retention. The tested functional
+source is managed commit `89df07fcbf4b3330e73a2d38a08a582122703aae`; this status
+update changes documentation only. These disposable install environments prevent
+service startup and do not prove hardware capture, live service behavior or
+migration of a hand-installed Relay. A hardware deployment remains a separate
+step with rollback. Bluetooth-only drawing, fresh Setup-mediated enrollment without
 ExpressKeys, and the final registered-Relay transport UI are separate remaining
 slices; this package does not claim their acceptance.
