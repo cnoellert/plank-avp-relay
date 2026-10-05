@@ -35,8 +35,8 @@ enum RelayConnectionLabelsTests {
         precondition(L.previewTransportTitle != L.requestedPreviewTitle)
 
         // PLANK's drawing connection is named and explained as distinct.
-        precondition(L.drawingConnectionExplanation.contains("network"))
-        precondition(L.drawingConnectionExplanation.contains("Setup connection"))
+        precondition(L.drawingConnectionExplanation.contains("selected for this Relay"))
+        precondition(!L.drawingConnectionExplanation.contains("own network link"))
 
         // Completed diagnostics are labelled as previous results with context.
         let title = L.lastResultTitle("Last connection test", transport: "Bluetooth", finished: verified.at)

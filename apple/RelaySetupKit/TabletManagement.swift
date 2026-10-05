@@ -119,9 +119,10 @@ struct TabletSetupCommand: Encodable, Sendable {
     let op: String
     let tablet: String?
     var drawingHandoffVersion: Int? { op == "status" ? 2 : nil }
-    enum CodingKeys: String, CodingKey { case id, op, tablet, drawingHandoffVersion }
+    enum CodingKeys: String, CodingKey { case version, id, op, tablet, drawingHandoffVersion }
     func encode(to encoder: Encoder) throws {
         var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(version, forKey: .version)
         try values.encode(id, forKey: .id)
         try values.encode(op, forKey: .op)
         try values.encodeIfPresent(tablet, forKey: .tablet)

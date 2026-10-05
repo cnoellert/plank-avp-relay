@@ -1,11 +1,16 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 import json
+import os
 from pathlib import Path
 import socket
 import sys
+import tempfile
+from types import SimpleNamespace
 import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
 from avp_relay import drawing_status as status
+from avp_relay.core import RelayCore
+from avp_relay.tablets import Tablets
 
 class DrawingTransportTests(unittest.TestCase):
     def setUp(self):
@@ -41,5 +46,36 @@ class DrawingTransportTests(unittest.TestCase):
     def test_native_request_is_versioned(self):
         self.assertEqual(status.DrawingStatusClient(version=2).request, b'{"op":"drawing-status","version":2}\n')
         self.assertEqual(status.DrawingStatusClient().request, status.REQUEST)
+
+    def test_v2_request_passes_real_tablet_validator(self):
+        with tempfile.TemporaryDirectory() as directory:
+            core = RelayCore.__new__(RelayCore)
+            core.owner = 'approved-headset'
+            core.native = SimpleNamespace(public_key='12' * 32)
+            core.tcp_port = 28991
+            core.network_endpoints = lambda: []
+            core.tablets = Tablets(SimpleNamespace(devices=lambda: {}), directory,
+                                  lambda: True, lambda _: None, lambda: False)
+            core.read_drawing_handoff = lambda: {'revision': 1}
+            core.read_drawing_handoff_v2 = lambda: {'revision': 2}
+            def send(command, authenticated=True, owner='approved-headset'):
+                return json.loads(core.request(json.dumps(command).encode(), owner, authenticated))
+            command = {'version': 1, 'id': 3, 'op': 'status', 'drawingHandoffVersion': 2}
+            if os.environ.get('PLANK_STATUS_COMMAND_OUTPUT'):
+                command = json.loads(Path(os.environ['PLANK_STATUS_COMMAND_OUTPUT']).read_bytes())
+            result = send(command)
+            self.assertTrue(result['ok'], result)
+            self.assertEqual(result['drawingHandoff'], {'revision': 2})
+            legacy = {k: v for k, v in command.items() if k != 'drawingHandoffVersion'}
+            self.assertEqual(send(legacy)['drawingHandoff'], {'revision': 1})
+            for altered in (dict(command, drawingHandoffVersion=True), dict(command, drawingHandoffVersion=3),
+                            dict(command, drawingHandoffVersion='2'), dict(command, op='scan'),
+                            dict(command, extra=1), {k: v for k, v in command.items() if k != 'version'}):
+                with self.subTest(command=altered):
+                    self.assertFalse(send(altered)['ok'])
+            self.assertNotIn('drawingHandoff', send(command, authenticated=False))
+            self.assertNotIn('drawingHandoff', send(command, owner='another-headset'))
+            oversized = json.dumps(command).encode() + b' ' * 512
+            self.assertFalse(json.loads(core.request(oversized, core.owner, True))['ok'])
 
 if __name__ == '__main__': unittest.main()

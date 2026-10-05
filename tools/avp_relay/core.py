@@ -118,7 +118,16 @@ class RelayCore:
             encoded = json.dumps(response, separators=(',', ':'), ensure_ascii=False).encode()
             if len(encoded) > 4096: raise ProtocolError('Management response exceeded its bound.')
             return encoded
-        response = json.loads(self.tablets.handle(data, peer, authenticated, enrolling))
+        # The handoff version belongs to the optional drawing metadata, not
+        # the tablet command. Consume only the bounded, recognized status
+        # opt-in; malformed values and all other unknown fields still reach
+        # the tablet validator and are refused.
+        tablet_data = data
+        if (isinstance(command, dict) and 2 <= len(data) <= 512 and command.get('op') == 'status' and
+                type(command.get('drawingHandoffVersion')) is int and command['drawingHandoffVersion'] == 2):
+            tablet_data = json.dumps({key: value for key, value in command.items()
+                                      if key != 'drawingHandoffVersion'}, separators=(',', ':')).encode()
+        response = json.loads(self.tablets.handle(tablet_data, peer, authenticated, enrolling))
         if response.get('ok'):
             response['enrollmentVersion'] = 1
             response['relayKey'] = self.native.public_key
