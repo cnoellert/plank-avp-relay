@@ -34,7 +34,15 @@ public struct DrawingRegistrationRequest: Equatable, Sendable {
               let handoff = values["handoff"] else { throw DrawingRegistrationError.invalidRequest }
         return try Self(requestID: id, clientIdentity: identity, handoff: handoff)
     }
-    public var handoffURL: URL { URL(string: "plank-vision://handoff/v1?d=\(handoff)")! }
+    public var handoffURL: URL {
+        var text = handoff.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+        text += String(repeating: "=", count: (4 - text.count % 4) % 4)
+        let object = Data(base64Encoded: text).flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any]
+        let version = (object?["version"] as? Int) == 2 ? 2 : 1
+        // This only selects a URL path; the original bytes still undergo strict
+        // version, duplicate-member, identity and route validation afterwards.
+        return URL(string: "plank-vision://handoff/v\(version)?d=\(handoff)")!
+    }
     public func url(reply: Bool = false) -> URL {
         let prefix = reply ? "plank-vision://enrollment/v1" : "plank-relay-setup://enroll/v1"
         return URL(string: "\(prefix)?requestID=\(requestID)&clientIdentity=\(clientIdentity)&handoff=\(handoff)")!

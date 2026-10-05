@@ -121,3 +121,16 @@ packages. Do not reset authorization merely to make a test pass.
 This is source integration, not a release. Alan owns the next version and matching
 Linux/TestFlight publication. Workstation resolution/timing teardown and pen
 reattachment issues belong to the Client/Host and are not fixed by this handoff.
+
+## Registered transport candidate (V2)
+
+The frozen V1 contract remains TCP-only. The registered-transport candidate opts
+into local status version 2 and adds an independently verified Bluetooth route
+hint to the app handoff. PLANK stores Automatic/Bluetooth/Network per registered
+Relay, targets the Setup-selected peripheral and authenticates its drawing pin.
+Explicit transport choices have no cross-transport fallback. First-time proof
+can use Bluetooth with the same single-use Setup grant and no ExpressKey gesture.
+
+The extension is specified in the raw repository's
+`docs/registered-relay-transports.md`. App and Relay source checks pass; the live
+handoff/selection pass and a rebuilt complete package remain outstanding.

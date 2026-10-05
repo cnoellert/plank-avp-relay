@@ -3,7 +3,10 @@
 Status: package candidate; clean native builds and installation checks pass on
 Ubuntu 26.04 amd64 and Debian 13 arm64. Hardware deployment remains pending.
 This is the packaging slice of the Bluetooth drawing implementation plan.
-It does not complete first-time enrollment or Client transport selection.
+The older package CI results below predate Setup-mediated enrollment and
+registered transport selection. Enrollment passed the development-device check;
+the registered transport candidate is implemented and awaiting its live pass.
+The complete package must be rebuilt from the current pin before release.
 
 ## One package, two services
 
@@ -32,7 +35,7 @@ administrator-owned; this package changes no router or firewall rules.
 ## Reproducible source
 
 `packaging/drawing-source.json` pins raw commit
-`27d60eb36a90c8725857191fdbe0e6eb37afa0a7` and the SHA-256 of its Git archive.
+`029721f9b60833d36aa31f4da558cf8325e111ca` and the SHA-256 of its Git archive.
 `build-relay-deb.sh` prepares only that commit, checking the archive before
 extraction. `PLANK_DRAWING_SOURCE_REPOSITORY` can name a local Git repository
 for an offline build; working files and other commits are never substituted.

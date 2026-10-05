@@ -315,6 +315,10 @@ struct DrawingHandoffView: View {
                     .font(.callout).foregroundStyle(.secondary)
                 Text(action.message).font(.callout).foregroundStyle(.secondary)
                     .accessibilityIdentifier("handoff-message")
+                if action.bluetoothAvailable {
+                    LabeledContent("Bluetooth", value: "Available for drawing in PLANK")
+                        .font(.callout)
+                }
                 ForEach(action.routes, id: \.endpoint) { route in
                     LabeledContent(route.label, value: route.endpoint)
                         .font(.callout).textSelection(.enabled)

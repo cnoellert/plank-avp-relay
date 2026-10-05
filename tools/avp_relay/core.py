@@ -24,6 +24,7 @@ class RelayCore:
         # public-status socket, at most once per authenticated status request
         # and never on a timer of its own. Injectable for tests.
         self.read_drawing_handoff = drawing_status.read_handoff
+        self.read_drawing_handoff_v2 = drawing_status.read_handoff_v2
         self.owner = None
         self.emit = self.busy = self.close_connection = None
         self.capture = Capture(args.tablet, self.button, fixed=bool(args.tablet))
@@ -131,7 +132,9 @@ class RelayCore:
                 # drawing identity, its protocol and reachable routes, or an
                 # explicit unavailable reason. Owner-only, exactly like the
                 # endpoint hints above, whose semantics are unchanged.
-                response['drawingHandoff'] = self.read_drawing_handoff()
+                response['drawingHandoff'] = (self.read_drawing_handoff_v2()
+                    if type(command.get('drawingHandoffVersion')) is int and command['drawingHandoffVersion'] == 2
+                    else self.read_drawing_handoff())
         encoded = json.dumps(response, separators=(',', ':'), ensure_ascii=False).encode()
         if len(encoded) > 4096 and isinstance(response.get('drawingHandoff'), dict) and \
                 response['drawingHandoff'].get('state') == 'ready':

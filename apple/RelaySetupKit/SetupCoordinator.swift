@@ -96,12 +96,33 @@ public final class SetupCoordinator: ObservableObject {
         handoffFallback = nil
     }
 
+    private var drawingDescriptor: DrawingDescriptor? {
+        guard let management = handoffManagementIdentity,
+              case let .handoffReady(raw)? = tabletStatus?.drawingHandoff else { return nil }
+        var descriptor = raw
+        if raw.bluetoothAvailable {
+            // Match the private Setup pin, never the display name. A Bluetooth
+            // UUID is a rendezvous hint, not authority in PLANK.
+            for address in ([state.address].compactMap { $0 } + addresses) where address.linkType == 1 {
+                if (try? keys.setupRelayKey(address)) == management {
+                    descriptor.bluetoothIdentifier = address.bluetoothIdentifier
+                    break
+                }
+            }
+        }
+        guard !descriptor.routes.isEmpty || descriptor.bluetoothIdentifier != nil else { return nil }
+        return descriptor
+    }
+
     /// Setup offers the handoff only on `handoffReady`. Every other outcome
     /// shows its own specific reason, and a missing drawing service is never
     /// reported as an authorization problem (contract §11).
     public var handoffAction: DrawingHandoffAction {
-        DrawingHandoffAction(outcome: handoffManagementIdentity == nil ? nil : tabletStatus?.drawingHandoff,
-            activity: state.activity, busy: state.busy)
+        var outcome = handoffManagementIdentity == nil ? nil : tabletStatus?.drawingHandoff
+        if case .handoffReady? = outcome {
+            outcome = drawingDescriptor.map(DrawingHandoffOutcome.handoffReady) ?? .drawingUnavailable("listener.noUsableAddress")
+        }
+        return DrawingHandoffAction(outcome: outcome, activity: state.activity, busy: state.busy)
     }
 
     /// Hands the relay to PLANK as an app link carrying public metadata only.
@@ -112,7 +133,7 @@ public final class SetupCoordinator: ObservableObject {
     /// the ready outcome stands, so the user can simply try again.
     public func useInPLANK(open: @MainActor (URL) async -> Bool) async {
         guard handoffAction.available, let status = tabletStatus,
-              case let .handoffReady(descriptor) = status.drawingHandoff else { return }
+              let descriptor = drawingDescriptor else { return }
         handoffFallback = nil
         if state.activity == .observing || state.activity == .stoppingObservation {
             message = "Stopping the tablet test before handing off to PLANK…"

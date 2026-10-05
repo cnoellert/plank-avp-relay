@@ -166,6 +166,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/raw_drawing_test.py")
         add_test(NAME drawing_status_test COMMAND "${Python3_EXECUTABLE}"
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/drawing_status_test.py")
+        add_test(NAME drawing_transport_test COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/drawing_transport_test.py")
         add_test(NAME ble_transport_test COMMAND "${Python3_EXECUTABLE}"
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/ble_transport_test.py")
         add_test(NAME ble_controller_test COMMAND "${Python3_EXECUTABLE}"
