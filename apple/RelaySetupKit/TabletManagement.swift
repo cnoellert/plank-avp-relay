@@ -68,7 +68,7 @@ public struct TabletSetupStatus: Decodable, Equatable, Sendable {
         // Scan the original bytes: a tolerant decode has already collapsed any
         // duplicate member name, so this check is impossible afterwards.
         result.drawingHandoff = DrawingHandoff.outcome(statusResponse: data,
-            headsetAuthorized: result.headsetAuthorized)
+            headsetAuthorized: result.headsetAuthorized, allowV2: true)
         guard ["idle", "scanning", "pairing", "connecting", "verifying", "ready", "failed"].contains(result.phase),
               (0...60).contains(result.secondsRemaining), result.tablets.count <= 16,
               result.candidates.count <= 16, result.hostname.utf8.count <= 255,
@@ -118,6 +118,16 @@ struct TabletSetupCommand: Encodable, Sendable {
     let id: Int
     let op: String
     let tablet: String?
+    var drawingHandoffVersion: Int? { op == "status" ? 2 : nil }
+    enum CodingKeys: String, CodingKey { case version, id, op, tablet, drawingHandoffVersion }
+    func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(version, forKey: .version)
+        try values.encode(id, forKey: .id)
+        try values.encode(op, forKey: .op)
+        try values.encodeIfPresent(tablet, forKey: .tablet)
+        try values.encodeIfPresent(drawingHandoffVersion, forKey: .drawingHandoffVersion)
+    }
 }
 
 extension RelayPairingClient {

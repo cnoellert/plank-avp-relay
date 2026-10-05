@@ -7,9 +7,10 @@ are board-specific, while the ARM relay package is shared.
 
 `plank-avp-relay` installs the relay used by PLANK AVP Relay Setup: discover
 the relay, pair a tablet to authorize the initiating headset automatically, and
-view authenticated position, pressure and button readings. It is separate from the
-legacy `plank-tablet-relay` TCP/raw-HID workstation daemon. The two services
-should not capture the same tablet at the same time.
+view authenticated position, pressure and button readings. This source candidate
+also packages the separate `plank-tablet-relay` raw-HID drawing daemon; see
+[complete installation](complete-relay-installation.md) for build and migration
+status. Both daemons use the same exclusive tablet capture lease.
 
 Version 0.3.0 adds a newly written TCP adapter to the current managed service.
 It does not import or launch the older TCP/raw-HID implementation. The same

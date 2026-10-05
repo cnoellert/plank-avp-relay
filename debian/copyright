@@ -12,6 +12,13 @@ License: GPL-3+
  .
  On Debian systems the full license is in /usr/share/common-licenses/GPL-3.
 
+Files: debian/vendor/drawing-source/*
+Copyright: PLANK contributors
+License: GPL-3+
+Comment: The raw Relay source and its Client worker are pinned by
+ packaging/drawing-source.json. The worker's source commit and file attribution
+ ship in drawing-worker-provenance.md; the raw license ships in drawing-LICENSE.
+
 Files: debian/vendor/libsodium-1.0.22.tar.gz
 Copyright: 2013-2026 Frank Denis and libsodium contributors
 License: ISC

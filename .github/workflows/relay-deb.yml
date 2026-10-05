@@ -13,9 +13,10 @@ on:
       - 'tools/**'
       - 'vendor/**'
       - 'tests/**'
-      - 'packaging/ble/**'
+      - 'packaging/**'
       - 'debian/**'
       - 'scripts/build-relay-deb.sh'
+      - 'scripts/prepare-drawing-source.py'
   pull_request:
     paths:
       - '.github/workflows/relay-deb.yml'
@@ -26,9 +27,10 @@ on:
       - 'tools/**'
       - 'vendor/**'
       - 'tests/**'
-      - 'packaging/ble/**'
+      - 'packaging/**'
       - 'debian/**'
       - 'scripts/build-relay-deb.sh'
+      - 'scripts/prepare-drawing-source.py'
 
 permissions:
   contents: read
@@ -65,9 +67,15 @@ jobs:
           # Package installation in this disposable builder must not start daemons.
           printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d
           chmod 755 /usr/sbin/policy-rc.d
+          # Minimal Ubuntu images strip docs on installation. Keep package
+          # licenses/provenance for the installed-file smoke check.
+          for config in /etc/dpkg/dpkg.cfg.d/*; do
+            test -f "$config" || continue
+            sed -i '\|^path-exclude=/usr/share/doc/|d' "$config"
+          done
           apt-get update
           apt-get install -y --no-install-recommends \
-            build-essential cmake ninja-build pkg-config libudev-dev \
+            build-essential cmake ninja-build pkg-config libudev-dev libavahi-client-dev \
             python3 python3-dbus python3-gi debhelper dh-python \
             curl ca-certificates git lintian bluez systemd wpasupplicant dbus iproute2
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -102,6 +110,7 @@ jobs:
           dpkg --verify plank-avp-relay
           readelf -h /usr/lib/plank-avp-relay/libplank_avp_relay.so | tee artifacts/logs/elf-header.log
           systemd-analyze verify /lib/systemd/system/plank-avp-relay.service /lib/systemd/system/plank-avp-relay-hardware.service
+          systemd-analyze verify /lib/systemd/system/plank-tablet-relay.service
           systemd-analyze verify /lib/systemd/system/plank-avp-relay-usb.service
           /usr/lib/plank-avp-relay/plank-avp-relay-usb --check-config
           systemd-analyze verify /lib/systemd/system/plank-avp-relay-wifi.service
@@ -151,6 +160,12 @@ jobs:
         run: |
           printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d
           chmod 755 /usr/sbin/policy-rc.d
+          # Minimal Ubuntu images strip docs on installation. Keep package
+          # licenses/provenance for the installed-file smoke check.
+          for config in /etc/dpkg/dpkg.cfg.d/*; do
+            test -f "$config" || continue
+            sed -i '\|^path-exclude=/usr/share/doc/|d' "$config"
+          done
           apt-get update
           apt-get install -y --no-install-recommends ca-certificates git python3
           test "$(dpkg --print-architecture)" = '${{ matrix.arch }}'
@@ -173,6 +188,7 @@ jobs:
           python3 tests/installed_relay_smoke.py /
           dpkg --verify plank-avp-relay
           systemd-analyze verify /lib/systemd/system/plank-avp-relay.service /lib/systemd/system/plank-avp-relay-hardware.service
+          systemd-analyze verify /lib/systemd/system/plank-tablet-relay.service
           systemd-analyze verify /lib/systemd/system/plank-avp-relay-usb.service
           /usr/lib/plank-avp-relay/plank-avp-relay-usb --check-config
           systemd-analyze verify /lib/systemd/system/plank-avp-relay-wifi.service
@@ -201,20 +217,30 @@ jobs:
           printf 'private fixture\n' > /var/lib/plank-avp-relay/wifi/wpa.conf
           chmod 600 /var/lib/plank-avp-relay/wifi/wpa.conf
           cp /var/lib/plank-avp-relay/wifi/wpa.conf /tmp/wifi-before
+          install -d -m 0700 -o plank-relay -g plank-relay /var/lib/plank-tablet-relay
+          printf 'private retention fixture\n' > /var/lib/plank-tablet-relay/package-retention-fixture
+          chown plank-relay:plank-relay /var/lib/plank-tablet-relay/package-retention-fixture
+          chmod 600 /var/lib/plank-tablet-relay/package-retention-fixture
+          cp /var/lib/plank-tablet-relay/package-retention-fixture /tmp/raw-state-before
           apt-get install --reinstall -y "./${package[0]}"
           cmp /var/lib/plank-avp-relay/wifi/wpa.conf /tmp/wifi-before
+          cmp /var/lib/plank-tablet-relay/package-retention-fixture /tmp/raw-state-before
           grep -qx 'GOVERNOR="schedutil"' /etc/default/cpufrequtils
           grep -qx 'ENABLED="true"' /etc/default/cpufrequtils
           grep -qx 'MAX_SPEED=2016000' /etc/default/cpufrequtils
           cmp /var/backups/plank-avp-relay/cpufrequtils.before-schedutil /tmp/cpufrequtils-before
           apt-get remove -y plank-avp-relay
           cmp /var/lib/plank-avp-relay/wifi/wpa.conf /tmp/wifi-before
+          cmp /var/lib/plank-tablet-relay/package-retention-fixture /tmp/raw-state-before
           test ! -e /etc/systemd/network/03-plank-wifi.network
           test ! -e /usr/lib/plank-avp-relay/plank-avp-relay-wifi
           test ! -L /lib/firmware/updates/rtl_bt/rtl8851bu_fw.bin
           test ! -L /lib/firmware/updates/rtl_bt/rtl8851bu_config.bin
           test ! -e /usr/lib/plank-avp-relay/avp_relay
           test ! -e /usr/lib/plank-avp-relay/libplank_avp_relay.so
+          test ! -e /usr/libexec/plank-tablet-relay
+          test ! -e /usr/lib/systemd/system/plank-tablet-relay.service
+          test ! -e /usr/lib/udev/rules.d/70-plank-tablet-relay.rules
           test ! -e /usr/lib/systemd/system/bluetooth.service.d/10-plank-avp-relay.conf
           test -x /usr/sbin/avahi-daemon
           grep -qx 'GOVERNOR="schedutil"' /etc/default/cpufrequtils

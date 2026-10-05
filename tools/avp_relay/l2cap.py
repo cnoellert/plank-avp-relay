@@ -9,6 +9,7 @@ import struct
 import termios
 
 from .network import Connection, TCPServer
+from .raw_drawing import RawDrawingBridge
 
 PREFACE = b'PLTRLEC1'
 SOL_BLUETOOTH, BT_SECURITY, BT_SNDMTU, BT_RCVMTU = 274, 4, 12, 13
@@ -47,6 +48,30 @@ class L2CAPConnection(Connection):
     preface = PREFACE
     link_type = 1  # Existing Bluetooth CPace/Noise transcript and saved keys.
     owner_prefix = 'l2cap'
+    channels = (0, 1, 2, 3)
+    raw_bridge = None
+
+    def receive_raw(self, data):
+        if self.raw_bridge is None:
+            self.raw_bridge = RawDrawingBridge(self)
+        self.raw_bridge.append(data)
+
+    def readable(self):
+        return self.raw_bridge is None or self.raw_bridge.readable()
+
+    def tick(self, now):
+        if self.raw_bridge is not None:
+            self.raw_bridge.tick(now)
+            if self.output and now - self.last_progress > 10:
+                self.close()
+        else:
+            super().tick(now)
+
+    def close(self):
+        if self.raw_bridge is not None:
+            self.raw_bridge.close()
+        super().close()
+
 
     def configure_socket(self):
         self.send_mtu = struct.unpack('H', self.sock.getsockopt(SOL_BLUETOOTH, BT_SNDMTU, 2))[0]
@@ -85,6 +110,8 @@ class L2CAPConnection(Connection):
             if not before:
                 break
             super().flush()
+            if self.raw_bridge is not None:
+                self.raw_bridge.update_events()
             if len(self.output) == before:
                 break
 

@@ -1,0 +1,16 @@
+#!/bin/sh
+set -e
+case "$1" in
+    install|upgrade)
+        # A local unit shadows the package unit. Refuse before unpacking; never
+        # stop or delete a service that this package does not own.
+        for path in /etc/systemd/system/plank-tablet-relay.service /run/systemd/system/plank-tablet-relay.service /usr/local/libexec/plank-tablet-relay; do
+            if [ -e "$path" ] || [ -L "$path" ]; then
+                echo "Existing hand-installed drawing service at $path; package installation stopped before changing files." >&2
+                echo "Back up its unit, binary, configuration and state, and migrate it during a disconnected maintenance session. See complete-relay-installation.md." >&2
+                exit 1
+            fi
+        done
+        ;;
+esac
+#DEBHELPER#

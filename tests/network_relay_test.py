@@ -193,6 +193,26 @@ class NetworkTests(unittest.TestCase):
         sock.close(); self.pump()
         self.assertIsNone(self.core.owner)
 
+    def test_handoff_version_status_survives_real_noise_and_tablet_validation(self):
+        self.approve()
+        sock, client, connected = self.connect()
+        self.assertTrue(connected)
+        self.core.read_drawing_handoff_v2 = MagicMock(return_value={'supported': True, 'state': 'unavailable',
+                                                                  'reason': 'service.absent'})
+        self.core.read_drawing_handoff = MagicMock(return_value={'supported': False, 'state': 'unsupported',
+                                                               'reason': 'service.absent'})
+        reply = self.request(sock, client, drawingHandoffVersion=2)
+        self.assertTrue(reply['ok'], reply)
+        self.assertTrue(reply['headsetAuthorized'])
+        self.assertTrue(reply['drawingHandoff']['supported'])
+        self.core.read_drawing_handoff_v2.assert_called_once_with()
+        self.core.read_drawing_handoff.assert_not_called()
+        self.assertFalse(self.request(sock, client, drawingHandoffVersion=True)['ok'])
+        legacy = self.request(sock, client)
+        self.assertTrue(legacy['ok'], legacy)
+        self.assertFalse(legacy['drawingHandoff']['supported'])
+        self.core.read_drawing_handoff.assert_called_once_with()
+
     def test_route_rendezvous_requires_authenticated_current_owner_without_capture(self):
         self.approve()
         self.core.network_endpoints = lambda: ['192.0.2.2']

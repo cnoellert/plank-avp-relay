@@ -49,12 +49,16 @@ inventing a drawing address or silently trusting an identity.
 
 ### Installation requires both services
 
-`plank-avp-relay.deb` packages the managed Setup service. It does **not** bundle
-or install `plank-tablet-relay`, the separate raw drawing service. Merging this
-PR does not by itself provide a drawing listener. Install the matching raw
-Relay package as well, with its drawing-status server and shared capture lease,
-and allow the Client to reach its TCP drawing listener. Setup Bluetooth remains
-a management/preview transport; PLANK drawing uses TCP.
+This packaging candidate includes both the managed Setup service and the raw
+`plank-tablet-relay` drawing service in one `.deb`, with pinned source, its own
+service account and device permissions. See [complete installation](complete-relay-installation.md)
+for the source pin, operator bind configuration and explicit unmanaged-install
+migration boundary. The published handoff PR predates this packaging slice.
+
+The existing handoff still advertises TCP drawing routes. The local development
+Client can additionally draw over the managed L2CAP raw bridge using an existing
+approval. That development option is not yet the complete registered-Relay UI or
+first-time model-independent approval journey.
 
 When the raw service is absent, normal Setup management stays available and
 the drawing handoff reports `service.absent`. When the raw service exists but
@@ -66,34 +70,33 @@ The Setup app registers `plank-relay-setup`; Client handoff uses `plank-vision`.
 The 0.6.7 Setup bundle identity is retained. Authorization belonging to an older,
 different app bundle is not automatically migrated into this app.
 
-## First-time registration follow-up
+## Setup-mediated registration candidate
 
-The current Client still uses its existing physical ExpressKey approval for an
-unknown drawing identity. This is a compatibility path, not the intended final
-Setup/Client boundary. Already approved drawing identities continue to use
-handoff without repeating that approval.
+The matching enrollment candidate replaces the ExpressKey ceremony for unknown
+Client drawing identities with **Continue in Relay Setup → Allow PLANK**.
+Setup verifies its selected management pin and fresh drawing status before it
+prepares a short-lived, Client-bound grant. PLANK proves the drawing identity
+and its own key before the raw daemon commits enrollment, then saves its pin
+and registers/selects the Relay. Existing approvals are retained.
 
-The intended user journey is: authorize the Relay in Setup, explicitly approve
-registering it with PLANK there, then choose that registered Relay in PLANK.
-First-time registration must work without tablet-specific ExpressKey gestures.
-Separate Setup and Client identities remain separate: the URL's public identity
-and route hints alone cannot authorize a new drawing client.
+App links alone cannot authorize enrollment. The two signed apps exchange a
+public approval receipt through a dedicated shared Keychain access group; private
+keys retain their original app-local groups. A reply requires the exact approved
+receipt, matching request and identity, and an unexpired grant. Cancel before
+commit creates no approval; a cancellation after durable server commit cannot
+undo it. Ambiguous proof attempts are never retried automatically.
 
-Agree the enrollment mechanism with the raw Relay maintainer before changing the
-trust gate. The follow-up needs an authenticated Setup-mediated approval of the
-Client's public key, acceptance by the drawing service, and a drawing exchange
-that proves the advertised drawing identity before the Client stores a pin.
-Any enrollment grant must bind the intended Client key and drawing identity,
-expire, and reject replay. Cancel or a mismatching identity must leave existing
-approvals and selection intact. Private keys are never transferred between apps.
-The existing public-status IPC remains read-only.
+The distinct root-only mutation socket is
+`plank-tablet-drawing-enrollment-v1`. Managed requests require the authenticated
+current owner and reject bootstrap enrollment connections. The original status
+socket, immutable r3 handoff fixtures, capture ownership and drawing protocol
+are unchanged. No Host change is required.
 
-This follow-up changes enrollment across the services and Client. It is not
-implemented by the reliability fixes in this PR, and does not require bundling
-the raw drawing service into the managed package. Its acceptance is one first-time
-registration on a tablet without ExpressKeys, followed by reconnect and an
-address change without another approval prompt, plus refusal of a canceled,
-expired, replayed or wrongly targeted grant.
+The enrollment wire and security boundaries are specified in the pinned raw
+source's `docs/setup-drawing-enrollment.md`. This package pin contains the matching
+raw daemon. The proof uses an existing TCP route in this slice; versioned
+registered-Relay Bluetooth selection remains a separate follow-up. Live signed
+cross-app registration, cancel, drawing and reconnect acceptance remain pending.
 
 ## Verification and release boundary
 
@@ -118,3 +121,16 @@ packages. Do not reset authorization merely to make a test pass.
 This is source integration, not a release. Alan owns the next version and matching
 Linux/TestFlight publication. Workstation resolution/timing teardown and pen
 reattachment issues belong to the Client/Host and are not fixed by this handoff.
+
+## Registered transport candidate (V2)
+
+The frozen V1 contract remains TCP-only. The registered-transport candidate opts
+into local status version 2 and adds an independently verified Bluetooth route
+hint to the app handoff. PLANK stores Automatic/Bluetooth/Network per registered
+Relay, targets the Setup-selected peripheral and authenticates its drawing pin.
+Explicit transport choices have no cross-transport fallback. First-time proof
+can use Bluetooth with the same single-use Setup grant and no ExpressKey gesture.
+
+The extension is specified in the raw repository's
+`docs/registered-relay-transports.md`. App and Relay source checks pass; the live
+handoff/selection pass and a rebuilt complete package remain outstanding.

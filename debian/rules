@@ -10,6 +10,9 @@ override_dh_python3:
 	# The sibling .so is a ctypes library, not a CPython ABI extension.
 	dh_python3 --no-shebang-rewrite /usr/lib/plank-avp-relay/avp_relay
 
+# No debug package is shipped; omit unused cross-binary debug fragments.
+override_dh_dwz:
+
 override_dh_strip:
 	dh_strip --no-automatic-dbgsym
 
@@ -22,11 +25,29 @@ override_dh_auto_configure:
 	$(MAKE) -C debian/sodium-build check
 	$(MAKE) -C debian/sodium-build install
 	dh_auto_configure -- -DCMAKE_BUILD_TYPE=Debug
+	cmake -S debian/vendor/drawing-source -B debian/drawing-build -DCMAKE_BUILD_TYPE=Debug
+	test -f debian/drawing-build/CMakeCache.txt
+	grep -q 'SODIUM_FOUND:INTERNAL=1' debian/drawing-build/CMakeCache.txt
+	grep -q 'AVAHI_FOUND:INTERNAL=1' debian/drawing-build/CMakeCache.txt
+
+override_dh_auto_build:
+	dh_auto_build
+	cmake --build debian/drawing-build --parallel $(if $(filter parallel=%,$(DEB_BUILD_OPTIONS)),$(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS))),4)
 
 override_dh_auto_test:
+	python3 tests/drawing_package_test.py
 	ctest --test-dir debian/build --output-on-failure
+	ctest --test-dir debian/drawing-build --output-on-failure
 
 override_dh_auto_install:
+	install -D -m 0755 packaging/drawing/plank-drawing-permissions debian/plank-avp-relay/usr/lib/plank-avp-relay/plank-drawing-permissions
+	install -D -m 0755 debian/drawing-build/plank-tablet-relay debian/plank-avp-relay/usr/libexec/plank-tablet-relay
+	install -D -m 0644 debian/plank-tablet-relay.service debian/plank-avp-relay/usr/lib/systemd/system/plank-tablet-relay.service
+	install -D -m 0644 packaging/drawing/70-plank-tablet-relay.rules debian/plank-avp-relay/usr/lib/udev/rules.d/70-plank-tablet-relay.rules
+	install -D -m 0644 packaging/drawing/plank-tablet-relay debian/plank-avp-relay/etc/default/plank-tablet-relay
+	install -D -m 0644 packaging/drawing-source.json debian/plank-avp-relay/usr/share/plank-avp-relay/drawing-source.json
+	install -D -m 0644 debian/vendor/drawing-source/LICENSE debian/plank-avp-relay/usr/share/doc/plank-avp-relay/drawing-LICENSE
+	install -D -m 0644 debian/vendor/drawing-source/vendor/plank-client/VENDOR.md debian/plank-avp-relay/usr/share/doc/plank-avp-relay/drawing-worker-provenance.md
 	install -D -m 0755 debian/build/libplank_avp_relay.so debian/plank-avp-relay/usr/lib/plank-avp-relay/libplank_avp_relay.so
 	install -D -m 0755 packaging/ble/plank-avp-relay debian/plank-avp-relay/usr/bin/plank-avp-relay
 	install -D -m 0755 packaging/ble/plank-avp-relay-admin debian/plank-avp-relay/usr/sbin/plank-avp-relay-admin
@@ -51,4 +72,4 @@ override_dh_auto_install:
 	install -D -m 0644 debian/sodium-source/LICENSE debian/plank-avp-relay/usr/share/doc/plank-avp-relay/libsodium-LICENSE
 
 override_dh_auto_clean:
-	rm -rf debian/build debian/sodium-source debian/sodium-build debian/sodium-install
+	rm -rf debian/build debian/drawing-build debian/sodium-source debian/sodium-build debian/sodium-install

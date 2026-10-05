@@ -18,7 +18,7 @@ public struct RelayVerifiedConnection: Equatable, Sendable {
 /// - Setup connection: this app's management link to the Relay.
 /// - Tablet → Relay: how the Wacom is attached to the Relay.
 /// - Preview transport: the link that delivered the tablet test's samples.
-/// - PLANK drawing connection: PLANK's own network link for the selected Relay.
+/// - PLANK drawing connection: PLANK's own authenticated link for the selected Relay.
 public enum RelayConnectionLabels {
     public static let setupConnectionTitle = "Setup connection"
     public static let tabletToRelayTitle = "Tablet → Relay"
@@ -26,7 +26,7 @@ public enum RelayConnectionLabels {
     public static let requestedPreviewTitle = "Requested preview transport"
     public static let drawingConnectionTitle = "PLANK drawing connection"
     public static let drawingConnectionExplanation =
-        "PLANK draws over its own network link to the selected Relay. It does not use this Setup connection or the tablet preview transport."
+        "PLANK uses the drawing connection selected for this Relay. Setup hands over the Relay’s identity and connection details."
 
     static func time(_ date: Date) -> String {
         date.formatted(date: .omitted, time: .shortened)

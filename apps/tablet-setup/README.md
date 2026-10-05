@@ -408,6 +408,17 @@ the earlier app's saved headset key. When switching the live headset to the new
 app, use the documented [SSH ownership reset](../../docs/bluetooth-tablet-pairing.md)
 and authorize it again; tablet Bluetooth bonds can remain in place.
 
+For development acceptance on a headset that already uses `TabletSetup`,
+configure CMake with
+`-DPLANK_SETUP_BUNDLE_ID=la.instinctual.PLANK.TabletSetup`. This builds an update
+to that existing app, retaining its container and default private Keychain
+group and `la.instinctual.PLANK.TabletSetup.pairing.v1` service. The receipt
+group remains separate. Pass the same identity through
+`--bundle-id` to both bundle and development-signature checkers. The default
+release identity remains `AVPrelay`; this option does not migrate approval
+between identities. Avoid installing both identities together: they register
+the same `plank-relay-setup` URL scheme.
+
 Complete these gates before promising an invitation:
 
 1. Configure usable Xcode developer-account access, or provision an App Store

@@ -5,6 +5,12 @@ import Foundation
 @main
 enum RelayKeyStoreTests {
     @MainActor static func main() {
+        precondition(RelayKeyStore(bundleIdentifier: "la.instinctual.PLANK.TabletSetup").service ==
+            "la.instinctual.PLANK.TabletSetup.pairing.v1", "Original app must read its existing saved approval")
+        precondition(RelayKeyStore(bundleIdentifier: "la.instinctual.PLANK.AVPrelay").service ==
+            "la.instinctual.PLANK.AVPrelay.pairing.v1", "Renamed app retains its own pairing namespace")
+        precondition(RelayKeyStore().service == RelayKeyStore(bundleIdentifier: Bundle.main.bundleIdentifier).service,
+            "Production initializer must select the installed app's namespace")
         let bluetooth = RelayAddress(bluetoothIdentifier: UUID(), name: "Reinstalled relay")
         let otherBluetooth = RelayAddress(bluetoothIdentifier: UUID(), name: "Another relay")
         let oldKey = Data(repeating: 1, count: 32), otherKey = Data(repeating: 2, count: 32)

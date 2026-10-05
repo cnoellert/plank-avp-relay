@@ -647,8 +647,10 @@ class DrawingStatusClient:
     """
 
     def __init__(self, name=ABSTRACT_NAME, account=SERVICE_ACCOUNT,
-                 state_directory=STATE_DIRECTORY):
+                 state_directory=STATE_DIRECTORY, version=1):
         self.name, self.account, self.state_directory = name, account, state_directory
+        if version not in (1, 2): raise ValueError("Unsupported drawing status version")
+        self.request = json.dumps({"op": "drawing-status", "version": version}, separators=(",", ":")).encode() + b"\n"
 
     def resolve(self):
         return resolve_service_uid(self.account, self.state_directory)
@@ -679,7 +681,7 @@ class DrawingStatusClient:
                 if peer != uid:
                     return None, 'service.peerUnverified'
                 client.settimeout(remaining())
-                client.sendall(REQUEST)
+                client.sendall(self.request)
                 reply = bytearray()
                 while not reply.endswith(b'\n'):
                     client.settimeout(remaining())
@@ -745,3 +747,45 @@ def _validated_handoff(raw, inventory, families):
     if failure or descriptor is None:
         return unavailable('service.invalid')
     return wrapper
+
+
+def read_handoff_v2(reader=None, inventory=None, families=None):
+    """Opt-in V2: one bounded exchange, independent Bluetooth capability.
+
+    V1 parsers and fixtures remain frozen. A raw service without V2 is not
+    advertised as Bluetooth capable. No capture or enrollment is attempted.
+    """
+    try:
+        raw, reason = (reader or DrawingStatusClient(version=2).read)()
+        if reason: return unavailable(reason)
+        if not isinstance(raw, (bytes, bytearray)) or not 2 <= len(raw) <= RESPONSE_MAX:
+            return unavailable('service.invalid')
+        text = bytes(raw).decode()
+        if duplicate_member(text): return unavailable('service.invalid')
+        body = json.loads(text)
+        if not isinstance(body, dict): return unavailable('service.invalid')
+        # An unavailable reply uses the unchanged V1 envelope and reason set.
+        if body.get('version') == 1:
+            listener, declared, failure = validate_local_metadata(raw)
+            return unavailable(declared) if declared and not failure else unavailable('service.invalid')
+        if type(body.get('version')) is not int or body['version'] != 2 or \
+                type(body.get('bluetooth')) is not bool or set(body) - (ENVELOPE_MEMBERS | {'bluetooth'}):
+            return unavailable('service.invalid')
+        bluetooth = body.pop('bluetooth')
+        body['version'] = 1
+        normalized = json.dumps(body, separators=(',', ':'), ensure_ascii=False).encode()
+        listener, declared, failure = validate_local_metadata(normalized)
+        if failure: return unavailable('service.invalid')
+        if declared: return unavailable(declared)
+        routes, reason = convert(listener, inventory, families)
+        if reason and not (bluetooth and reason in ('listener.noUsableAddress', 'listener.loopbackOnly')):
+            return unavailable(reason)
+        descriptor = build_descriptor(listener, routes or [])
+        descriptor['version'] = 2
+        if bluetooth: descriptor['bluetooth'] = {'linkType': 1}
+        wrapper = {'supported': True, 'state': 'ready', 'descriptor': descriptor}
+        if len(json.dumps(wrapper, separators=(',', ':'), ensure_ascii=False).encode()) > RESPONSE_MAX:
+            return unavailable('response.tooLarge')
+        return wrapper
+    except Exception:
+        return unavailable('service.invalid')

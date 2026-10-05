@@ -1,0 +1,25 @@
+#!/usr/bin/python3 -I
+# SPDX-License-Identifier: GPL-3.0-or-later
+"""Refresh permissions only for existing Wacom USB/Bluetooth nodes."""
+from pathlib import Path
+import re
+import subprocess
+
+
+def wacom(path):
+    for parent in (path, *path.parents):
+        if re.fullmatch(r'000[35]:056A:[0-9A-F]{4}\.[0-9A-F]+', parent.name):
+            return True
+        vendor = parent / 'idVendor'
+        if vendor.is_file() and vendor.read_text().strip().lower() == '056a':
+            return True
+    return False
+
+
+if __name__ == '__main__':
+    for subsystem, pattern in (('hidraw', 'hidraw*'), ('input', 'event*')):
+        for node in Path('/sys/class', subsystem).glob(pattern):
+            node = node.resolve(strict=True)
+            if wacom(node):
+                subprocess.run(['udevadm', 'trigger', '--action=change', str(node)],
+                               check=True, timeout=10)

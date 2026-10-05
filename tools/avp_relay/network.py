@@ -21,6 +21,7 @@ class Connection:
     preface = PREFACE
     link_type = 2
     owner_prefix = 'tcp'
+    channels = (0, 1, 2)
 
     def __init__(self, server, sock):
         self.server, self.sock = server, sock
@@ -51,6 +52,22 @@ class Connection:
         except Exception:  # Never let a measurement end the session.
             return None
 
+    def readable(self):
+        return True
+
+    def update_events(self):
+        if self.closed:
+            return
+        events = (selectors.EVENT_READ if self.readable() else 0) | (selectors.EVENT_WRITE if self.output else 0)
+        registered = self.sock.fileno() in self.server.selector.get_map()
+        if events:
+            if registered:
+                self.server.selector.modify(self.sock, events, self)
+            else:
+                self.server.selector.register(self.sock, events, self)
+        elif registered:
+            self.server.selector.unregister(self.sock)
+
     def append(self, data):
         if not data:
             return
@@ -59,7 +76,7 @@ class Connection:
         if not self.output:
             self.last_progress = time.monotonic()
         self.output.extend(data)
-        self.server.selector.modify(self.sock, selectors.EVENT_READ | selectors.EVENT_WRITE, self)
+        self.update_events()
         self.flush()
 
     def flush(self):
@@ -75,14 +92,14 @@ class Connection:
             del self.output[:count]
             self.last_progress = time.monotonic()
         if not self.output:
-            self.server.selector.modify(self.sock, selectors.EVENT_READ, self)
+            self.update_events()
 
     def receive(self, data):
         if self.channel is None:
             self.input.extend(data)
             if len(self.input) < 9:
                 return
-            if self.input[:8] != self.preface or self.input[8] not in (0, 1, 2):
+            if self.input[:8] != self.preface or self.input[8] not in self.channels:
                 raise ProtocolError('Unsupported network relay protocol.')
             self.channel = self.input[8]
             data = bytes(self.input[9:])
@@ -117,6 +134,8 @@ class Connection:
             self.requests += 1
             self.input.clear()
             self.append(len(reply).to_bytes(2, 'little') + reply)
+        elif self.channel == 3:
+            self.receive_raw(data)
         else:
             self.received += len(data)
             if self.received > 4096:
@@ -149,7 +168,8 @@ class Connection:
         self.closed = True
         if self.claimed:
             self.server.core.release(self.owner)
-        self.server.selector.unregister(self.sock)
+        if self.sock.fileno() in self.server.selector.get_map():
+            self.server.selector.unregister(self.sock)
         self.sock.close()
         self.server.connections.discard(self)
 
