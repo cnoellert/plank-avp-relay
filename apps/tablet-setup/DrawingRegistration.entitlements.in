@@ -4,7 +4,7 @@
 <dict>
 	<key>keychain-access-groups</key>
 	<array>
-		<string>$(AppIdentifierPrefix)la.instinctual.PLANK.AVPrelay</string>
+		<string>$(AppIdentifierPrefix)@PLANK_SETUP_BUNDLE_ID@</string>
 		<string>$(AppIdentifierPrefix)la.instinctual.PLANK.DrawingRegistration</string>
 	</array>
 </dict>

@@ -9,12 +9,14 @@ from pathlib import Path
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("bundle", type=Path)
 parser.add_argument("--platform", choices=("device", "simulator", "macos"), required=True)
+parser.add_argument("--bundle-id", default="la.instinctual.PLANK.AVPrelay",
+                    choices=("la.instinctual.PLANK.AVPrelay", "la.instinctual.PLANK.TabletSetup"))
 args = parser.parse_args()
 contents = args.bundle / "Contents" if args.platform == "macos" else args.bundle
 resources = contents / "Resources" if args.platform == "macos" else contents
 with (contents / "Info.plist").open("rb") as source:
     info = plistlib.load(source)
-assert info["CFBundleIdentifier"] == "la.instinctual.PLANK.AVPrelay"
+assert info["CFBundleIdentifier"] == args.bundle_id
 assert info.get("NSBluetoothAlwaysUsageDescription")
 assert info.get("NSLocalNetworkUsageDescription")
 assert info["NSBonjourServices"] == ["_plank-avp-relay._tcp"]
