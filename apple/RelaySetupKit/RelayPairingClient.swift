@@ -42,8 +42,19 @@ public enum RelaySetupError: LocalizedError, Sendable {
 /// Separate namespace: test-app pairing never replaces the full Client's trust.
 @MainActor
 public final class RelayKeyStore {
-    private let service = "la.instinctual.PLANK.AVPrelay.pairing.v1"
-    public init() {}
+    let service: String
+    public convenience init() {
+        self.init(bundleIdentifier: Bundle.main.bundleIdentifier)
+    }
+
+    // Updating the original app must keep both its access group and service.
+    // The renamed release app remains a separate identity; do not search or
+    // copy another app's keys when its own namespace has no saved approval.
+    init(bundleIdentifier: String?) {
+        service = bundleIdentifier == "la.instinctual.PLANK.TabletSetup"
+            ? "la.instinctual.PLANK.TabletSetup.pairing.v1"
+            : "la.instinctual.PLANK.AVPrelay.pairing.v1"
+    }
 
     private func query(_ account: String) -> [String: Any] {
         [kSecClass as String: kSecClassGenericPassword,
