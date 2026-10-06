@@ -5,6 +5,7 @@ import time
 
 from .capture import Capture
 from .capture_lease import CaptureBusy
+from . import drawing_status
 from .native import Native, ProtocolError
 from .tablets import Tablets
 from .gadget_client import GadgetClient, GadgetBusy
@@ -12,10 +13,17 @@ from .wifi_protocol import FIELDS as WIFI_FIELDS, unavailable as wifi_unavailabl
 
 
 class RelayCore:
+    transport = stats = None
+    queued = staticmethod(lambda: None)
+
     def __init__(self, args, backend):
         self.native = Native(args.library, args.state_dir)
         self.tcp_port = None
         self.network_endpoints = lambda: []
+        # The drawing handoff is read from the raw drawing service's local
+        # public-status socket, at most once per authenticated status request
+        # and never on a timer of its own. Injectable for tests.
+        self.read_drawing_handoff = drawing_status.read_handoff
         self.owner = None
         self.emit = self.busy = self.close_connection = None
         self.capture = Capture(args.tablet, self.button, fixed=bool(args.tablet))
@@ -29,6 +37,36 @@ class RelayCore:
         self.native.on_management = lambda data: self.request(data, self.owner,
             self.native.management_authorized, self.native.enrolling)
         self.last_sample = 0
+        self.transport = None
+        self.queued = lambda: None
+        self.reset_stats()
+
+    def reset_stats(self, now=None):
+        # Preview delivery measurements, logged once per second while observing.
+        self.stats = dict(started=now, reports=self.capture.reports, records=0, writes=0,
+                          bytes=0, oldest=0.0, pending=0, queued=0)
+
+    def record_stats(self, now, force=False):
+        stats = self.stats
+        if stats is None or stats['started'] is None:
+            self.reset_stats(now)
+            return
+        pending = self.capture.pending
+        if pending:
+            stats['oldest'] = max(stats['oldest'], now - pending[0][0])
+        stats['pending'] = max(stats['pending'], len(pending))
+        queued = self.queued()
+        if queued is not None:
+            stats['queued'] = max(stats['queued'], queued)
+        if force or now - stats['started'] >= 1:
+            elapsed = max(now - stats['started'], 0.001)
+            print('Preview stats: link=%s reports/s=%.0f records/s=%.0f writes/s=%.0f bytes/s=%.0f '
+                  'max-oldest-ms=%.0f max-pending=%d max-socket-queue=%d' % (
+                      'bluetooth' if self.transport == 1 else 'network',
+                      (self.capture.reports - stats['reports']) / elapsed, stats['records'] / elapsed,
+                      stats['writes'] / elapsed, stats['bytes'] / elapsed, stats['oldest'] * 1000,
+                      stats['pending'], stats['queued']), flush=True)
+            self.reset_stats(now)
 
     def select(self, value):
         self.capture.close_nodes()
@@ -87,7 +125,18 @@ class RelayCore:
             if command.get('op') == 'status' and authenticated and peer == self.owner:
                 response['tcpPort'] = self.tcp_port
                 response['networkAddresses'] = self.network_endpoints()
+                # Public drawing metadata for the handoff Setup offers: the
+                # drawing identity, its protocol and reachable routes, or an
+                # explicit unavailable reason. Owner-only, exactly like the
+                # endpoint hints above, whose semantics are unchanged.
+                response['drawingHandoff'] = self.read_drawing_handoff()
         encoded = json.dumps(response, separators=(',', ':'), ensure_ascii=False).encode()
+        if len(encoded) > 4096 and isinstance(response.get('drawingHandoff'), dict) and \
+                response['drawingHandoff'].get('state') == 'ready':
+            # Report the bound rather than truncating a descriptor, and shed the
+            # convenience before shedding a tablet candidate.
+            response['drawingHandoff'] = drawing_status.unavailable('response.tooLarge')
+            encoded = json.dumps(response, separators=(',', ':'), ensure_ascii=False).encode()
         while len(encoded) > 4096 and response.get('candidates'):
             response['candidates'].pop()
             encoded = json.dumps(response, separators=(',', ':'), ensure_ascii=False).encode()
@@ -95,10 +144,12 @@ class RelayCore:
             raise ProtocolError('Tablet setup response exceeded its bound.')
         return encoded
 
-    def claim(self, owner, transport, emit, busy, close):
+    def claim(self, owner, transport, emit, busy, close, queued=None):
         if self.owner is not None:
             raise ProtocolError('The relay already has an active headset connection.')
         self.native.transport(transport)
+        self.transport, self.queued = transport, queued or (lambda: None)
+        self.reset_stats()
         self.native.allow_enrollment(self.tablets.initial({}))
         self.owner, self.emit, self.busy, self.close_connection = owner, emit, busy, close
         print(('Network' if transport == 2 else 'Bluetooth') + ' headset connected; authenticating.', flush=True)
@@ -141,6 +192,7 @@ class RelayCore:
         if self.tablets.phase not in ('scanning', 'pairing', 'connecting', 'verifying'):
             self.capture.deactivate()
         self.owner = self.emit = self.busy = self.close_connection = None
+        self.transport, self.queued = None, lambda: None
         print('Headset link closed; existing trust retained.', flush=True)
 
     def button(self, code, value):
@@ -163,17 +215,25 @@ class RelayCore:
             observing = self.native.observing
             now = time.monotonic()
             if observing:
+                self.record_stats(now)
                 self.capture.check_pending()
                 if self.capture.dirty or (not self.capture.pending and now - self.last_sample >= 1):
                     self.capture.enqueue(self.capture.sample())
                 if not self.busy():
                     samples = self.capture.take_samples()
                     if samples:
-                        self.emit(b''.join(self.native.sample(sample) for sample in samples))
+                        data = b''.join(self.native.sample(sample) for sample in samples)
+                        self.emit(data)
                         self.last_sample = now
+                        if self.stats:
+                            self.stats['records'] += len(samples)
+                            self.stats['writes'] += 1
+                            self.stats['bytes'] += len(data)
         except (ProtocolError, BufferError, TimeoutError, OSError, CaptureBusy) as error:
             if not self.owner:
                 raise
+            if self.stats and self.stats['started'] is not None:
+                self.record_stats(time.monotonic(), force=True)
             print('Headset session ended: ' + str(error), flush=True)
             self.close_connection()
 

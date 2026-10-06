@@ -10,7 +10,7 @@ struct RelayTestTransportPicker: View {
     var body: some View {
         if RelayTestTransport.isAvailable {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Relay → Headset connection").font(.headline)
+                Text("Preview and test transport (Relay → headset)").font(.headline)
                 Picker("Relay to headset connection", selection: $selection) {
                     ForEach(RelayTestTransport.allCases, id: \.self) { mode in
                         Text(mode.title).tag(mode)

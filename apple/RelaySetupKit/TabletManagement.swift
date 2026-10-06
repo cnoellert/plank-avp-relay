@@ -44,6 +44,19 @@ public struct TabletSetupStatus: Decodable, Equatable, Sendable {
     public let relayKey: String?
     public let tcpPort: UInt16?
     public let networkAddresses: [String]?
+    // The optional drawing handoff subtree is validated strictly, from the
+    // original response bytes, so it is not one of this tolerant envelope's
+    // decoded members. See DrawingHandoff (contract §4, §7.3, §7.8).
+    public private(set) var drawingHandoff: DrawingHandoffOutcome = .handoffUnsupported("authorization.required")
+
+    // Explicit keys keep the tolerant envelope exactly as it was while leaving
+    // drawingHandoff out of it: a member absent from CodingKeys is not decoded.
+    private enum CodingKeys: String, CodingKey {
+        case version, id, ok, hostname, phase, message, canManage, initialSetup, attached
+        case captureActive, captureBusy, selected, secondsRemaining, tablets, candidates
+        case usbTablets, bluetoothAvailable, enrollmentVersion, headsetAuthorized, relayKey
+        case tcpPort, networkAddresses
+    }
 
     public static func decode(_ data: Data, request: Int) throws -> Self {
         struct Envelope: Decodable { let version: Int; let id: Int; let ok: Bool; let error: String? }
@@ -51,7 +64,11 @@ public struct TabletSetupStatus: Decodable, Equatable, Sendable {
         let envelope = try JSONDecoder().decode(Envelope.self, from: data)
         guard envelope.version == 1, envelope.id == request else { throw RelaySetupError.protocolError }
         guard envelope.ok else { throw RelaySetupError.network(envelope.error ?? "Tablet setup failed.") }
-        let result = try JSONDecoder().decode(Self.self, from: data)
+        var result = try JSONDecoder().decode(Self.self, from: data)
+        // Scan the original bytes: a tolerant decode has already collapsed any
+        // duplicate member name, so this check is impossible afterwards.
+        result.drawingHandoff = DrawingHandoff.outcome(statusResponse: data,
+            headsetAuthorized: result.headsetAuthorized)
         guard ["idle", "scanning", "pairing", "connecting", "verifying", "ready", "failed"].contains(result.phase),
               (0...60).contains(result.secondsRemaining), result.tablets.count <= 16,
               result.candidates.count <= 16, result.hostname.utf8.count <= 255,

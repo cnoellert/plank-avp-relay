@@ -38,6 +38,11 @@ board/kernel image from the shared arm64 relay package.
 Release 0.5.1 requires confirmed tablet availability before starting readings
 and adds explicit saved-identity recovery for a relay after an OS reinstall.
 
+The [Setup-to-PLANK drawing handoff](docs/plank-drawing-handoff.md) registers an
+authorized relay with the Client without typing its address. Setup control and
+PLANK drawing use separate authenticated connections. The handoff requires the
+matching raw tablet service described in that guide.
+
 The older raw-HID workstation service is a separate implementation described
 below for reference. The new managed TCP path does not reuse its transport,
 pairing commands or worker. The Client owns the authenticated Host session;

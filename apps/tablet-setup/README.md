@@ -256,6 +256,20 @@ input reached the app, and the tablet was not found in its BLE scan. Build 6
 removes that unsuccessful experiment and focuses on the verified Linux relay
 path. Its source remains in Git history at `606d5bd`.
 
+## PLANK boundary and connection labels
+
+Setup owns discovery, tablet setup, authorization, network configuration and
+testing; PLANK only selects a registered Relay. **Use in PLANK** registers this
+Relay in PLANK; a failed launch never suggests adding it by address in PLANK.
+PLANK opens Setup with the launch-only `plank-relay-setup://` URL, which carries
+and reads no parameters. Four connections are labelled separately and from
+evidence: **Setup connection** (last verified management exchange; Connected
+only while an operation runs on it), **Tablet → Relay** (USB or Bluetooth),
+**Preview transport** (the link that delivered the samples; the requested
+transport is shown separately) and **PLANK drawing connection** (PLANK's own
+network link). Completed diagnostics read **Last connection test** or **Last
+authorization check** with their transport and time.
+
 ## Saved pairing
 
 Setup and readings use the existing C Noise implementation and the app's
@@ -541,3 +555,10 @@ Use package revision 14 or later for combined setup. Older relays remain usable
 for saved-key readings but cannot perform the new automatic enrollment.
 No hardware button or web UI is required; explicit SSH recovery commands are
 in [the tablet enrollment guide](../../docs/bluetooth-tablet-pairing.md).
+
+## Register a drawing relay with PLANK
+
+After authorization and a tablet test, stop the test and select **Use in PLANK**.
+Setup shows its own verified control connection separately from the tablet link
+and the network drawing route. See [the handoff guide](../../docs/plank-drawing-handoff.md)
+for the required raw service and Client versions, trust boundary and acceptance pass.

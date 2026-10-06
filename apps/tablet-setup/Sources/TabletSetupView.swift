@@ -5,6 +5,7 @@ import RelaySetupKit
 struct TabletSetupView: View {
     @StateObject private var setup = SetupCoordinator()
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.openURL) private var openURL
     @State private var tabletToRemove: ManagedTablet?
     @State private var selectedTab = "relay"
     @State private var editingWifi = false
@@ -70,7 +71,8 @@ struct TabletSetupView: View {
                                     .font(.callout).foregroundStyle(.secondary)
                                 Button("Test Relay Connection") { setup.testRelayConnection() }
                                     .disabled(setup.state.busy)
-                                DiagnosticResultView(result: setup.connectionDiagnostic)
+                                DiagnosticResultView(result: setup.connectionDiagnostic,
+                                    title: "Last connection test", context: setup.connectionDiagnosticContext)
                                 Divider()
                                 Text("Verify that the relay still has this headset’s saved approval.")
                                     .font(.callout).foregroundStyle(.secondary)
@@ -80,7 +82,8 @@ struct TabletSetupView: View {
                                     Text("Headset authorization is saved automatically during tablet setup.")
                                         .font(.callout).foregroundStyle(.secondary)
                                 }
-                                DiagnosticResultView(result: setup.authorizationDiagnostic)
+                                DiagnosticResultView(result: setup.authorizationDiagnostic,
+                                    title: "Last authorization check", context: setup.authorizationDiagnosticContext)
                                 OwnershipRecoveryView()
                             }.frame(maxWidth: .infinity, alignment: .leading).padding(10)
                         } label: { Label("Connection Diagnostics", systemImage: "stethoscope").font(.headline) }
@@ -195,7 +198,7 @@ struct TabletSetupView: View {
     private var tabletPage: some View {
         VStack(alignment: .leading, spacing: 18) {
             LabeledContent("Relay", value: setup.state.address?.description ?? "")
-            LabeledContent("Connection", value: setup.state.address?.transportName ?? "")
+            LabeledContent(RelayConnectionLabels.setupConnectionTitle, value: setup.setupConnectionLabel)
             Text("Connect a tablet by USB or pair it over Bluetooth. The relay saves this headset’s authorization once the tablet is verified.")
             TabletCaptureStatusView(status: setup.tabletStatus)
             Button("Set up a tablet") { setup.manageTablets() }
@@ -218,10 +221,13 @@ struct TabletSetupView: View {
                   systemImage: setup.tabletStatus?.headsetAuthorized == true ? "checkmark.shield.fill" : "key.fill")
                 .font(.title2).foregroundStyle(setup.tabletStatus?.headsetAuthorized == true ? Color.green : Color.secondary)
             LabeledContent("Relay", value: setup.state.address?.description ?? "")
-            LabeledContent("Connection", value: setup.state.address?.transportName ?? "")
+            LabeledContent(RelayConnectionLabels.setupConnectionTitle, value: setup.setupConnectionLabel)
+            if let status = setup.tabletStatus {
+                LabeledContent(RelayConnectionLabels.tabletToRelayTitle, value: RelayConnectionLabels.tabletToRelay(
+                    usb: status.activeUSBTablet != nil, bluetoothSelected: status.selected != nil))
+            }
             if let tablet = setup.tabletStatus?.activeUSBTablet {
                 LabeledContent("Tablet", value: tablet.name)
-                LabeledContent("Tablet connection", value: "USB")
                 if let serial = tablet.serial { LabeledContent("Serial number", value: serial).textSelection(.enabled) }
             }
             TabletCaptureStatusView(status: setup.tabletStatus)
@@ -249,23 +255,95 @@ struct TabletSetupView: View {
                     }
                 }
             }
+            DrawingHandoffView(action: setup.handoffAction, fallback: setup.handoffFallback,
+                handoff: openInPLANK)
             Button("Manage Tablets") { setup.manageTablets() }.disabled(setup.state.busy)
         }
+    }
+
+    /// Setup never types an address on PLANK's behalf: it opens the registered
+    /// app link and reports honestly when PLANK did not take it.
+    private func openInPLANK() async {
+        await setup.useInPLANK { url in
+            await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+                openURL(url) { accepted in continuation.resume(returning: accepted) }
+            }
+        }
+    }
+}
+
+/// Commissioning stays in Setup. This hands PLANK an already approved relay's
+/// public drawing endpoint; it is not the management transport and it is not a
+/// drawing connection, which PLANK proves for itself against its own saved pin.
+struct DrawingHandoffView: View {
+    let action: DrawingHandoffAction
+    let fallback: String?
+    let handoff: () async -> Void
+    @State private var opening = false
+
+    var body: some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(RelayConnectionLabels.drawingConnectionExplanation)
+                    .font(.callout).foregroundStyle(.secondary)
+                Text(action.message).font(.callout).foregroundStyle(.secondary)
+                    .accessibilityIdentifier("handoff-message")
+                ForEach(action.routes, id: \.endpoint) { route in
+                    LabeledContent(route.label, value: route.endpoint)
+                        .font(.callout).textSelection(.enabled)
+                }
+                if opening {
+                    ProgressView("Opening PLANK…")
+                } else {
+                    Button(DrawingHandoffAction.title) {
+                        Task { opening = true; await handoff(); opening = false }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!action.available)
+                    .accessibilityIdentifier("use-in-plank")
+                }
+                if action.mustStopTabletTest && action.available {
+                    Text("The running tablet test is stopped and released first.")
+                        .font(.callout).foregroundStyle(.secondary)
+                }
+                if let reason = action.reason {
+                    Text(reason).font(.caption).monospaced().foregroundStyle(.secondary)
+                        .textSelection(.enabled).accessibilityIdentifier("handoff-reason")
+                }
+                if let fallback {
+                    Label(fallback, systemImage: "exclamationmark.triangle")
+                        .font(.callout).foregroundStyle(.orange)
+                        .accessibilityIdentifier("handoff-fallback")
+                }
+            }.frame(maxWidth: .infinity, alignment: .leading).padding(10)
+        } label: { Label(RelayConnectionLabels.drawingConnectionTitle, systemImage: "arrow.up.forward.app").font(.headline) }
     }
 }
 
 struct DiagnosticResultView: View {
     let result: RelayDiagnostic
+    var title = "Last result"
+    var context: RelayVerifiedConnection?
 
     @ViewBuilder var body: some View {
         switch result {
         case .idle: EmptyView()
         case .running(let message): ProgressView(message)
         case .passed(let message):
-            Label(message, systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+            completed(message, systemImage: "checkmark.circle.fill", color: .green)
         case .failed(let message):
-            Label(message, systemImage: "exclamationmark.circle.fill").foregroundStyle(.red)
+            completed(message, systemImage: "exclamationmark.circle.fill", color: .red)
         case .canceled: Text("Check canceled.").foregroundStyle(.secondary)
+        }
+    }
+
+    /// A finished check is a previous result, labelled with when and over
+    /// which transport it ran; it does not describe the connection now.
+    private func completed(_ message: String, systemImage: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(context.map { RelayConnectionLabels.lastResultTitle(title, transport: $0.transport, finished: $0.at) } ?? title)
+                .font(.caption).foregroundStyle(.secondary)
+            Label(message, systemImage: systemImage).foregroundStyle(color)
         }
     }
 }
