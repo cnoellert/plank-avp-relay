@@ -5,6 +5,21 @@ import Foundation
 @main
 enum TabletManagementTests {
     static func main() throws {
+        // Check the actual request encoder, not a hand-written request fixture.
+        for op in ["status", "scan", "pair", "connect", "select", "remove", "cancel", "use-usb"] {
+            let bytes = try JSONEncoder().encode(TabletSetupCommand(id: 3, op: op, tablet: nil))
+            let command = try JSONSerialization.jsonObject(with: bytes) as! [String: Any]
+            precondition(command["version"] as? Int == 1, "Every tablet command retains the management version")
+            precondition(command["id"] as? Int == 3 && command["op"] as? String == op)
+            precondition(Set(command.keys) == (op == "status"
+                ? ["version", "id", "op", "drawingHandoffVersion"] : ["version", "id", "op"]))
+            if op == "status" {
+                precondition(command["drawingHandoffVersion"] as? Int == 2)
+                if let path = ProcessInfo.processInfo.environment["PLANK_STATUS_COMMAND_OUTPUT"] {
+                    try bytes.write(to: URL(fileURLWithPath: path))
+                }
+            }
+        }
         let fields: [String: Any] = ["version": 1, "id": 3, "ok": true,
             "hostname": "studio-relay", "phase": "idle", "message": "Wake the saved tablet.",
             "canManage": false, "initialSetup": false, "attached": false, "secondsRemaining": 0,

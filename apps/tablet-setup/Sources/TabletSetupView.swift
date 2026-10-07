@@ -4,6 +4,7 @@ import RelaySetupKit
 
 struct TabletSetupView: View {
     @StateObject private var setup = SetupCoordinator()
+    @ObservedObject private var enrollment = DrawingEnrollmentInbox.shared
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openURL) private var openURL
     @State private var tabletToRemove: ManagedTablet?
@@ -164,6 +165,32 @@ struct TabletSetupView: View {
             if phase != .active { setup.pauseForInactivity() }
         }
         .onDisappear { setup.pauseForInactivity() }
+        .onOpenURL { enrollment.receive($0) }
+        .sheet(isPresented: Binding(get: { enrollment.request != nil }, set: { if !$0 { enrollment.dismiss() } })) {
+            VStack(alignment: .leading, spacing: 18) {
+                Text("Register \(enrollment.target?.displayName ?? "Relay") with PLANK").font(.title2.bold())
+                Text("Allow PLANK on this headset to draw through this Relay? Setup keeps its own identity; no private keys are shared.")
+                if let address = setup.state.address { LabeledContent("Selected Relay", value: address.description) }
+                Text(enrollment.message).foregroundStyle(.secondary)
+                HStack {
+                    Button("Cancel", role: .cancel) {
+                        if enrollment.busy { setup.cancel() } else { enrollment.dismiss() }
+                    }
+                    Spacer()
+                    if enrollment.busy { ProgressView() }
+                    else {
+                        Button("Allow PLANK") {
+                            setup.registerPLANK(enrollment) { url in
+                                await withCheckedContinuation { continuation in
+                                    openURL(url) { continuation.resume(returning: $0) }
+                                }
+                            }
+                        }.buttonStyle(.borderedProminent)
+                        .disabled(setup.state.busy || !setup.state.hasTrust || !enrollment.live)
+                    }
+                }
+            }.padding(28).frame(width: 560).interactiveDismissDisabled(enrollment.busy)
+        }
         .sheet(isPresented: $testingTablet, onDismiss: { setup.stopTesting() }) {
             TabletTestingView(setup: setup, test: setup.tabletTest)
         }
@@ -288,6 +315,10 @@ struct DrawingHandoffView: View {
                     .font(.callout).foregroundStyle(.secondary)
                 Text(action.message).font(.callout).foregroundStyle(.secondary)
                     .accessibilityIdentifier("handoff-message")
+                if action.bluetoothAvailable {
+                    LabeledContent("Bluetooth", value: "Available for drawing in PLANK")
+                        .font(.callout)
+                }
                 ForEach(action.routes, id: \.endpoint) { route in
                     LabeledContent(route.label, value: route.endpoint)
                         .font(.callout).textSelection(.enabled)

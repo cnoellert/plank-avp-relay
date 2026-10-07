@@ -1,6 +1,16 @@
 #!/bin/sh
 set -e
 if [ "$1" = configure ]; then
+    # Create only the raw service account; retain existing account and state.
+    if ! getent passwd plank-relay >/dev/null; then
+        adduser --system --group --home /var/lib/plank-tablet-relay --no-create-home plank-relay
+    fi
+    getent group plank-relay >/dev/null
+    if [ -d /run/udev ]; then
+        udevadm control --reload-rules
+        /usr/lib/plank-avp-relay/plank-drawing-permissions
+        udevadm settle --timeout=10
+    fi
     if [ -d /run/systemd/system ]; then
         deb-systemd-invoke stop plank-tablet-relay-ble.service plank-tablet-relay-gadget.service >/dev/null 2>&1 || true
         deb-systemd-helper disable plank-tablet-relay-ble.service plank-tablet-relay-gadget.service >/dev/null 2>&1 || true

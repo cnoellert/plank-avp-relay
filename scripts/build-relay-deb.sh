@@ -45,6 +45,12 @@ mkdir "$stage/source"
 git archive "$source_commit" | tar -x -C "$stage/source"
 mkdir -p "$stage/source/debian/vendor"
 cp "$archive" "$stage/source/debian/vendor/"
+drawing_args=()
+if [[ -n ${PLANK_DRAWING_SOURCE_REPOSITORY:-} ]]; then
+    drawing_args+=(--repository "$PLANK_DRAWING_SOURCE_REPOSITORY")
+fi
+python3 "$stage/source/scripts/prepare-drawing-source.py" \
+    "$stage/source/packaging/drawing-source.json" "$stage/source/debian/vendor/drawing-source" "${drawing_args[@]}"
 (
     cd "$stage/source"
     dpkg-buildpackage --build=binary --no-sign --jobs-force="$jobs"
@@ -72,12 +78,13 @@ from pathlib import Path
 destination, commit, architecture, package_version = sys.argv[1:]
 metadata = {
     "source_commit": commit,
+    "drawing_source": json.loads(Path("packaging/drawing-source.json").read_text()),
     "architecture": architecture,
     "machine": platform.machine(),
     "os_release": Path("/etc/os-release").read_text(),
     "compiler": subprocess.check_output(["cc", "--version"], text=True).splitlines()[0],
     "package_version": package_version,
-    "validation": ["libsodium make check", "relay ctest", "extracted package smoke"],
+    "validation": ["libsodium make check", "managed ctest", "raw drawing ctest", "extracted package smoke"],
 }
 Path(destination, "provenance.json").write_text(json.dumps(metadata, indent=2) + "\n")
 PY

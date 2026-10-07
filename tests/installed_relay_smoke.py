@@ -42,6 +42,25 @@ assert (private / 'plank-avp-relay-wifi').is_file()
 assert (root / 'usr/lib/systemd/system/plank-avp-relay-wifi.service').is_file()
 assert re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+',
     (root / 'usr/share/plank-avp-relay/version').read_text().strip())
+raw = root / 'usr/libexec/plank-tablet-relay'
+assert raw.is_file() and raw.stat().st_mode & 0o111, 'Packaged raw executable missing'
+assert raw.read_bytes()[:4] == b'\x7fELF', 'Raw executable is not a Linux binary'
+raw_unit = (root / 'usr/lib/systemd/system/plank-tablet-relay.service').read_text()
+assert 'User=plank-relay' in raw_unit and 'Group=plank-relay' in raw_unit
+assert 'ExecStart=/usr/libexec/plank-tablet-relay serve' in raw_unit
+assert 'StateDirectoryMode=0700' in raw_unit and 'UMask=0077' in raw_unit
+assert 'PLANK_RELAY_BIND=0.0.0.0' in raw_unit
+assert 'PLANK_RELAY_BIND=0.0.0.0' in (root / 'etc/default/plank-tablet-relay').read_text()
+assert (private / 'plank-drawing-permissions').is_file()
+permissions = (root / 'usr/lib/udev/rules.d/70-plank-tablet-relay.rules').read_text()
+assert '056a' in permissions and '0005:056A:*' in permissions
+assert 'GROUP="plank-relay"' in permissions
+pin = json.loads((root / 'usr/share/plank-avp-relay/drawing-source.json').read_text())
+assert re.fullmatch(r'[0-9a-f]{40}', pin['commit'])
+assert re.fullmatch(r'[0-9a-f]{64}', pin['archive_sha256'])
+license_file = root / 'usr/share/doc/plank-avp-relay/drawing-LICENSE'
+assert license_file.is_file() or license_file.with_name(license_file.name + '.gz').is_file()
+assert (root / 'usr/share/doc/plank-avp-relay/drawing-worker-provenance.md').is_file()
 unit = (root / 'usr/lib/systemd/system/plank-avp-relay.service').read_text()
 assert 'avahi-daemon.service' in unit and 'AF_INET AF_INET6' in unit
 assert 'PartOf=bluetooth.service' not in unit

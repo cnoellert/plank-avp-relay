@@ -89,6 +89,8 @@ public struct DrawingDescriptor: Equatable, Sendable {
     public let drawingIdentity: String
     public let drawingProtocol: DrawingProtocolDescriptor
     public let routes: [DrawingRoute]
+    public var bluetoothAvailable: Bool = false
+    public var bluetoothIdentifier: UUID? = nil
 }
 
 public struct DrawingHandoffStatus: Equatable, Sendable {
@@ -178,6 +180,7 @@ public struct DrawingHandoffAction: Equatable, Sendable {
     /// the handoff; never hand off while readings are open.
     public let mustStopTabletTest: Bool
     public let routes: [DrawingRoute]
+    public let bluetoothAvailable: Bool
 
     public init(outcome: DrawingHandoffOutcome?, activity: SetupActivity, busy: Bool) {
         let testing = activity == .observing || activity == .stoppingObservation
@@ -187,6 +190,7 @@ public struct DrawingHandoffAction: Equatable, Sendable {
             available = !busy || testing
             reason = nil
             routes = descriptor.routes
+            bluetoothAvailable = descriptor.bluetoothIdentifier != nil
             message = available
                 ? "PLANK will open already knowing this relay. Its drawing connection is proved separately in PLANK."
                 : "Stop the current relay operation to hand this relay off to PLANK."
@@ -194,11 +198,13 @@ public struct DrawingHandoffAction: Equatable, Sendable {
             available = false
             reason = value
             routes = []
+            bluetoothAvailable = false
             message = DrawingHandoffReason.guidance(value)
         case nil:
             available = false
             reason = "authorization.required"
             routes = []
+            bluetoothAvailable = false
             message = DrawingHandoffReason.guidance("authorization.required")
         }
     }
@@ -229,12 +235,12 @@ public enum DrawingHandoff {
     /// `statusResponse` must be the ORIGINAL response bytes. The duplicate
     /// member scan is impossible after a tolerant envelope decode, which
     /// collapses duplicate names before anything can observe them.
-    public static func state(statusResponse data: Data) -> DrawingHandoffState {
+    public static func state(statusResponse data: Data, allowV2: Bool = false) -> DrawingHandoffState {
         var scanner = HandoffScanner(data)
         let subtree: HandoffJSON?
         do { subtree = try scanner.locateDrawingHandoff() } catch { return .rejected("payload.json") }
         guard let subtree else { return .absent }
-        do { return .present(try wrapper(subtree, duplicate: scanner.duplicate)) }
+        do { return .present(try wrapper(subtree, duplicate: scanner.duplicate, allowV2: allowV2)) }
         catch let failure as DrawingHandoffReject { return .rejected(failure.identifier) }
         catch { return .rejected("protocol.error") }
     }
@@ -244,9 +250,9 @@ public enum DrawingHandoff {
     /// Authorization is resolved before the member's presence: an unauthorized
     /// headset cannot be told the relay is too old, and a relay that simply
     /// does not report the member is never called an authorization failure.
-    public static func outcome(statusResponse data: Data, headsetAuthorized: Bool?) -> DrawingHandoffOutcome {
+    public static func outcome(statusResponse data: Data, headsetAuthorized: Bool?, allowV2: Bool = false) -> DrawingHandoffOutcome {
         guard headsetAuthorized == true else { return .handoffUnsupported("authorization.required") }
-        switch state(statusResponse: data) {
+        switch state(statusResponse: data, allowV2: allowV2) {
         case .absent: return .handoffUnsupported("relay.tooOld")
         case .rejected: return .handoffUnsupported("protocol.error")
         case let .present(status):
@@ -261,7 +267,7 @@ public enum DrawingHandoff {
         }
     }
 
-    private static func wrapper(_ value: HandoffJSON, duplicate: Bool) throws -> DrawingHandoffStatus {
+    private static func wrapper(_ value: HandoffJSON, duplicate: Bool, allowV2: Bool = false) throws -> DrawingHandoffStatus {
         // 1. The subtree is an object, before anything inside it is examined.
         guard case let .object(members) = value else { throw reject("payload.notObject") }
         // 2. Duplicate member names, found in the original bytes.
@@ -295,34 +301,73 @@ public enum DrawingHandoff {
             return DrawingHandoffStatus(supported: supported, descriptor: nil, reason: reason)
         }
         return DrawingHandoffStatus(supported: supported,
-            descriptor: try descriptor(descriptorValue!), reason: nil)
+            descriptor: try descriptor(descriptorValue!, allowV2: allowV2), reason: nil)
     }
 
-    private static func descriptor(_ value: HandoffJSON) throws -> DrawingDescriptor {
+    // Validate the unchanged handoff when it is returned by PLANK for an
+    // explicit registration. Keep duplicates visible and reuse the frozen
+    // descriptor/identity/route validators instead of a permissive decoder.
+    static func registrationTarget(_ request: DrawingRegistrationRequest) throws -> DrawingRegistrationTarget {
+        var base64 = request.handoff.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+        base64 += String(repeating: "=", count: (4 - base64.count % 4) % 4)
+        guard let data = Data(base64Encoded: base64), data.count <= maxDecodedBytes,
+              base64url(data) == request.handoff else { throw DrawingRegistrationError.invalidRequest }
+        var scanner = HandoffScanner(data)
+        guard case let .object(members) = try scanner.document(), !scanner.duplicate,
+              Set(members.map { $0.0 }).subtracting(["bluetooth"]) == Set(["version", "requestID", "displayName", "managementIdentity", "drawingIdentity", "drawingProtocol", "routes"]),
+              case let .string(id)? = member("requestID", members), isRequestID(id),
+              case let .string(name)? = member("displayName", members), isDisplayName(name),
+              let management = member("managementIdentity", members) else { throw DrawingRegistrationError.invalidRequest }
+        let drawing = try descriptor(.object(members.filter { !["requestID", "displayName", "managementIdentity"].contains($0.0) }), allowV2: true, appLink: true)
+        let managementKey = try identity(management, member: "managementIdentity")
+        guard drawing.drawingIdentity != managementKey, drawing.drawingIdentity != request.clientIdentity else {
+            throw DrawingRegistrationError.invalidRequest
+        }
+        return DrawingRegistrationTarget(displayName: name, managementIdentity: managementKey, descriptor: drawing)
+    }
+
+    private static func descriptor(_ value: HandoffJSON, allowV2: Bool = false, appLink: Bool = false) throws -> DrawingDescriptor {
         // 8. descriptor is an object, checked before any member-level reason.
         guard case let .object(members) = value else { throw reject("status.descriptor.type") }
         // 9. version is privileged: presence, then type, then value.
-        try version(members)
+        let number = try version(members, allowV2: allowV2)
         // 10. The descriptor member set is exactly four names. requestID,
         // displayName and managementIdentity are forbidden here, and are never
         // required of a status descriptor.
-        let allowed = ["version", "drawingIdentity", "drawingProtocol", "routes"]
+        var allowed = ["version", "drawingIdentity", "drawingProtocol", "routes"]
+        if number == 2 { allowed.append("bluetooth") }
         for (name, _) in members where !allowed.contains(name) { throw reject("status.unknownMember") }
         // 11. Required members, in table order.
         guard let identityValue = member("drawingIdentity", members) else { throw reject("drawingIdentity.missing") }
         guard let protocolValue = member("drawingProtocol", members) else { throw reject("drawingProtocol.missing") }
         guard let routesValue = member("routes", members) else { throw reject("routes.missing") }
         // 12. Field checks, in table order.
-        return DrawingDescriptor(version: DrawingProtocolDescriptor.version,
+        var bluetoothAvailable = false
+        var bluetoothIdentifier: UUID?
+        if let value = member("bluetooth", members) {
+            guard case let .object(fields) = value,
+                  Set(fields.map { $0.0 }) == Set(appLink ? ["linkType", "peripheralIdentifier"] : ["linkType"]),
+                  integer(member("linkType", fields)) == 1 else { throw reject("bluetooth.invalid") }
+            bluetoothAvailable = true
+            if appLink {
+                guard case let .string(text)? = member("peripheralIdentifier", fields), isRequestID(text),
+                      text != "00000000-0000-0000-0000-000000000000", let id = UUID(uuidString: text)
+                else { throw reject("bluetooth.invalid") }
+                bluetoothIdentifier = id
+            }
+        }
+        return DrawingDescriptor(version: number,
             drawingIdentity: try identity(identityValue, member: "drawingIdentity"),
             drawingProtocol: try protocolDescriptor(protocolValue),
-            routes: try routes(routesValue))
+            routes: try routes(routesValue, allowEmpty: bluetoothAvailable),
+            bluetoothAvailable: bluetoothAvailable, bluetoothIdentifier: bluetoothIdentifier)
     }
 
-    private static func version(_ members: [(String, HandoffJSON)]) throws {
+    private static func version(_ members: [(String, HandoffJSON)], allowV2: Bool = false) throws -> Int {
         guard let value = member("version", members) else { throw reject("version.missing") }
         guard let number = integer(value) else { throw reject("version.type") }
-        guard number == DrawingProtocolDescriptor.version else { throw reject("version.unsupported") }
+        guard number == 1 || (allowV2 && number == 2) else { throw reject("version.unsupported") }
+        return number
     }
 
     /// Contract §5.1: exactly 64 lowercase hexadecimal characters.
@@ -357,10 +402,10 @@ public enum DrawingHandoff {
 
     /// Contract §5.3 and §7.6. A route that fails validation rejects the whole
     /// descriptor; it is never silently dropped.
-    static func routes(_ value: HandoffJSON) throws -> [DrawingRoute] {
+    static func routes(_ value: HandoffJSON, allowEmpty: Bool = false) throws -> [DrawingRoute] {
         guard case let .array(elements) = value else { throw reject("routes.type") }
         // Element count is checked before contents.
-        guard (1...8).contains(elements.count) else { throw reject("routes.count") }
+        guard ((allowEmpty ? 0 : 1)...8).contains(elements.count) else { throw reject("routes.count") }
         var validated: [DrawingRoute] = []
         for element in elements { validated.append(try route(element)) }
         // Identical address and port deduplicate after every per-route check.
@@ -369,7 +414,7 @@ public enum DrawingHandoff {
         where !unique.contains(where: { $0.address == candidate.address && $0.port == candidate.port }) {
             unique.append(candidate)
         }
-        guard !unique.isEmpty else { throw reject("routes.count") }
+        guard allowEmpty || !unique.isEmpty else { throw reject("routes.count") }
         return unique
     }
 
@@ -518,7 +563,10 @@ public enum DrawingHandoff {
         guard management != descriptor.drawingIdentity else {
             throw reject("drawingIdentity.collidesWithManagement")
         }
-        var json = "{\"version\":\(DrawingProtocolDescriptor.version)"
+        let linkVersion = descriptor.bluetoothIdentifier != nil ? 2 : 1
+        guard !descriptor.routes.isEmpty || descriptor.bluetoothIdentifier != nil else { throw reject("routes.count") }
+        guard descriptor.bluetoothIdentifier == nil || descriptor.bluetoothAvailable else { throw reject("bluetooth.invalid") }
+        var json = "{\"version\":\(linkVersion)"
         json += ",\"requestID\":\"\(requestID)\""
         json += ",\"displayName\":\(quoted(name))"
         json += ",\"managementIdentity\":\"\(management)\""
@@ -535,13 +583,17 @@ public enum DrawingHandoff {
             if let kind = route.kind { json += ",\"kind\":\"\(kind)\"" }
             json += "}"
         }
-        json += "]}"
+        json += "]"
+        if let identifier = descriptor.bluetoothIdentifier {
+            json += ",\"bluetooth\":{\"linkType\":1,\"peripheralIdentifier\":\"\(identifier.uuidString.lowercased())\"}"
+        }
+        json += "}"
         let payload = Data(json.utf8)
         guard (2...maxDecodedBytes).contains(payload.count) else { throw reject("payload.length") }
         let encoded = base64url(payload)
         guard (1...maxEncodedCharacters).contains(encoded.count),
               encoded.count % 4 != 1 else { throw reject("encoding.length") }
-        let text = "\(scheme)://\(host)\(path)?\(parameter)=\(encoded)"
+        let text = "\(scheme)://\(host)/v\(linkVersion)?\(parameter)=\(encoded)"
         guard text.utf8.count <= maxURLBytes else { throw reject("url.length") }
         guard let url = URL(string: text) else { throw reject("protocol.error") }
         return DrawingHandoffLink(url: url, requestID: requestID, payload: payload)
@@ -620,6 +672,13 @@ struct HandoffScanner {
     private static let maxDepth = 24
 
     init(_ data: Data) { bytes = [UInt8](data) }
+
+    mutating func document() throws -> HandoffJSON {
+        let value = try parseValue()
+        skipWhitespace()
+        guard index == bytes.count else { throw HandoffScanError() }
+        return value
+    }
 
     mutating func locateDrawingHandoff() throws -> HandoffJSON? {
         skipWhitespace()

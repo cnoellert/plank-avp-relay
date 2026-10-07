@@ -50,6 +50,9 @@ add_library(RelaySetupKit STATIC
     "${RELAY_ROOT}/apple/RelaySetupKit/TabletReadings.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/TabletManagement.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/DrawingHandoff.swift"
+    "${RELAY_ROOT}/apple/RelaySetupKit/DrawingRegistrationRequest.swift"
+    "${RELAY_ROOT}/apple/RelaySetupKit/DrawingEnrollment.swift"
+    "${RELAY_ROOT}/apple/RelaySetupKit/DrawingRegistrationReceipt.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayNetworkSettings.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayWifi.swift"
     "${RELAY_ROOT}/apple/RelaySetupKit/RelayPairingClient.swift"
@@ -87,14 +90,23 @@ if(NOT PLANK_SETUP_BUILD_NUMBER MATCHES "^[1-9][0-9]*$")
     message(FATAL_ERROR "PLANK_SETUP_BUILD_NUMBER must be a positive integer")
 endif()
 set(PLANK_DEVELOPMENT_TEAM "" CACHE STRING "Optional Apple development team; never hardcoded")
+set(PLANK_SETUP_BUNDLE_ID "la.instinctual.PLANK.AVPrelay" CACHE STRING
+    "Setup app identity; use TabletSetup only to update an existing development installation")
+if(NOT PLANK_SETUP_BUNDLE_ID STREQUAL "la.instinctual.PLANK.AVPrelay" AND
+   NOT PLANK_SETUP_BUNDLE_ID STREQUAL "la.instinctual.PLANK.TabletSetup")
+    message(FATAL_ERROR "Unsupported PLANK_SETUP_BUNDLE_ID")
+endif()
+configure_file(DrawingRegistration.entitlements.in
+    "${CMAKE_CURRENT_BINARY_DIR}/DrawingRegistration.entitlements" @ONLY)
 set_target_properties(PlankTabletSetup PROPERTIES
     OUTPUT_NAME "PLANK AVP Relay Setup"
     MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/Info.plist.in"
-    XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "la.instinctual.PLANK.AVPrelay"
+    XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "${PLANK_SETUP_BUNDLE_ID}"
     XCODE_ATTRIBUTE_PRODUCT_NAME "PLANK AVP Relay Setup"
     XCODE_ATTRIBUTE_MARKETING_VERSION "${PROJECT_VERSION}"
     XCODE_ATTRIBUTE_CURRENT_PROJECT_VERSION "${PLANK_SETUP_BUILD_NUMBER}"
     XCODE_ATTRIBUTE_CODE_SIGN_STYLE "Automatic"
+    XCODE_ATTRIBUTE_CODE_SIGN_ENTITLEMENTS "${CMAKE_CURRENT_BINARY_DIR}/DrawingRegistration.entitlements"
     XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO"
     XCODE_ATTRIBUTE_SKIP_INSTALL "NO"
     XCODE_ATTRIBUTE_INSTALL_PATH "/Applications"
@@ -191,12 +203,22 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     add_test(NAME tablet-management-tests COMMAND tablet-management-tests)
     # plank-drawing-handoff-v1+r3. Vectors are loaded from the shared fixture
     # files, never embedded, so a contract revision breaks this test.
+    add_executable(drawing-registration-tests "${RELAY_ROOT}/apple/Tests/DrawingRegistrationTests.swift")
+    target_include_directories(drawing-registration-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+    target_link_libraries(drawing-registration-tests PRIVATE RelaySetupKit)
+    add_test(NAME drawing-registration-tests COMMAND drawing-registration-tests)
+    set_tests_properties(drawing-registration-tests PROPERTIES ENVIRONMENT
+        "PLANK_HANDOFF_FIXTURES=${RELAY_ROOT}/tests/fixtures/plank-drawing-handoff-v1")
     add_executable(drawing-handoff-tests "${RELAY_ROOT}/apple/Tests/DrawingHandoffTests.swift")
     target_include_directories(drawing-handoff-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
     target_link_libraries(drawing-handoff-tests PRIVATE RelaySetupKit "-framework CryptoKit")
     add_test(NAME drawing-handoff-tests COMMAND drawing-handoff-tests)
     set_tests_properties(drawing-handoff-tests PROPERTIES ENVIRONMENT
         "PLANK_HANDOFF_FIXTURES=${RELAY_ROOT}/tests/fixtures/plank-drawing-handoff-v1")
+    add_executable(drawing-transport-handoff-tests "${RELAY_ROOT}/apple/Tests/DrawingTransportHandoffTests.swift")
+    target_include_directories(drawing-transport-handoff-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+    target_link_libraries(drawing-transport-handoff-tests PRIVATE RelaySetupKit)
+    add_test(NAME drawing-transport-handoff-tests COMMAND drawing-transport-handoff-tests)
     add_executable(relay-connection-labels-tests "${RELAY_ROOT}/apple/Tests/RelayConnectionLabelsTests.swift")
     target_include_directories(relay-connection-labels-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
     target_link_libraries(relay-connection-labels-tests PRIVATE RelaySetupKit)

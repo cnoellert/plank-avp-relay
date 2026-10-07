@@ -5,7 +5,7 @@ import time
 
 from .capture import Capture
 from .capture_lease import CaptureBusy
-from . import drawing_status
+from . import drawing_status, drawing_enrollment
 from .native import Native, ProtocolError
 from .tablets import Tablets
 from .gadget_client import GadgetClient, GadgetBusy
@@ -24,6 +24,7 @@ class RelayCore:
         # public-status socket, at most once per authenticated status request
         # and never on a timer of its own. Injectable for tests.
         self.read_drawing_handoff = drawing_status.read_handoff
+        self.read_drawing_handoff_v2 = drawing_status.read_handoff_v2
         self.owner = None
         self.emit = self.busy = self.close_connection = None
         self.capture = Capture(args.tablet, self.button, fixed=bool(args.tablet))
@@ -87,6 +88,8 @@ class RelayCore:
 
     def request(self, data, peer, authenticated=False, enrolling=False):
         command = json.loads(data)
+        if isinstance(command, dict) and command.get('op') == 'drawing-enrollment':
+            return drawing_enrollment.handle(data, peer, self.owner, authenticated, enrolling)
         if isinstance(command, dict) and isinstance(command.get('op'), str) and command['op'] in ('network-status', 'network-mode', *WIFI_FIELDS):
             response = {'version': 1, 'id': command.get('id', 0), 'ok': False}
             try:
@@ -115,7 +118,16 @@ class RelayCore:
             encoded = json.dumps(response, separators=(',', ':'), ensure_ascii=False).encode()
             if len(encoded) > 4096: raise ProtocolError('Management response exceeded its bound.')
             return encoded
-        response = json.loads(self.tablets.handle(data, peer, authenticated, enrolling))
+        # The handoff version belongs to the optional drawing metadata, not
+        # the tablet command. Consume only the bounded, recognized status
+        # opt-in; malformed values and all other unknown fields still reach
+        # the tablet validator and are refused.
+        tablet_data = data
+        if (isinstance(command, dict) and 2 <= len(data) <= 512 and command.get('op') == 'status' and
+                type(command.get('drawingHandoffVersion')) is int and command['drawingHandoffVersion'] == 2):
+            tablet_data = json.dumps({key: value for key, value in command.items()
+                                      if key != 'drawingHandoffVersion'}, separators=(',', ':')).encode()
+        response = json.loads(self.tablets.handle(tablet_data, peer, authenticated, enrolling))
         if response.get('ok'):
             response['enrollmentVersion'] = 1
             response['relayKey'] = self.native.public_key
@@ -129,7 +141,9 @@ class RelayCore:
                 # drawing identity, its protocol and reachable routes, or an
                 # explicit unavailable reason. Owner-only, exactly like the
                 # endpoint hints above, whose semantics are unchanged.
-                response['drawingHandoff'] = self.read_drawing_handoff()
+                response['drawingHandoff'] = (self.read_drawing_handoff_v2()
+                    if type(command.get('drawingHandoffVersion')) is int and command['drawingHandoffVersion'] == 2
+                    else self.read_drawing_handoff())
         encoded = json.dumps(response, separators=(',', ':'), ensure_ascii=False).encode()
         if len(encoded) > 4096 and isinstance(response.get('drawingHandoff'), dict) and \
                 response['drawingHandoff'].get('state') == 'ready':
